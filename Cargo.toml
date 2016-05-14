@@ -1,6 +1,11 @@
 [package]
 name = "vfs"
-version = "0.1.0"
+version = "0.1.0-pre"
 authors = ["Manuel Woelker <github@manuel.woelker.org>"]
+description = "A virtual filesystem for Rust"
+homepage = "https://github.com/manuel-woelker/rust-vfs"
+readme = "README.md"
+keywords = ["vfs", "virtual",  "file system"]
+license = "Apache-2.0/MIT"
 
 [dependencies]
