@@ -1,6 +1,6 @@
 [package]
 name = "vfs"
-version = "0.1.0-pre"
+version = "0.1.0"
 authors = ["Manuel Woelker <github@manuel.woelker.org>"]
 description = "A virtual filesystem for Rust"
 homepage = "https://github.com/manuel-woelker/rust-vfs"
