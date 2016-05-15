@@ -64,6 +64,13 @@ impl VPath for PathBuf {
         }
     }
 
+    fn extension(&self) -> Option<String> {
+        match <Path>::extension(&self) {
+            Some(name) => Some(name.to_string_lossy().into_owned()),
+            None => None,
+        }
+    }
+
     fn push<'a, T: Into<&'a str>>(&mut self, path: T) {
         <PathBuf>::push(self, path.into());
     }
@@ -131,6 +138,13 @@ mod tests {
         let src = PathBuf::from("./src");
         let entries: Vec<Result<PathBuf>> = src.read_dir().unwrap().collect();
         println!("{:#?}", entries);
+    }
+
+    #[test]
+    fn file_name() {
+        let src = PathBuf::from("./src/lib.rs");
+        assert_eq!(src.file_name(), Some("lib.rs".to_owned()));
+        assert_eq!(src.extension(), Some("rs".to_owned()));
     }
 
 

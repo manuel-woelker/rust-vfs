@@ -53,6 +53,9 @@ pub trait VPath: Clone + Debug {
     /// The file name of this path
     fn file_name(&self) -> Option<String>;
 
+    /// The extension of this filename
+    fn extension(&self) -> Option<String>;
+
     /// append a segment to this path
     fn push<'a, T: Into<&'a str>>(&mut self, path: T);
 

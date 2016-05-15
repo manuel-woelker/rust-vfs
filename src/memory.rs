@@ -297,6 +297,20 @@ impl VPath for MemoryPath {
         Some(self.decompose_path().1)
     }
 
+    fn extension(&self) -> Option<String> {
+        match self.file_name() {
+            Some(name) => {
+                let v: Vec<&str> = name.rsplitn(2, '.').collect();
+                if v.len() == 2 {
+                    Some(v.get(0).unwrap().to_owned().to_owned())
+                } else {
+                    None
+                }
+            }
+            None => None,
+        }
+
+    }
     fn push<'a, T: Into<&'a str>>(&mut self, path: T) {
         // TODO: sanity checks
         if !self.path.ends_with('/') {
@@ -492,5 +506,13 @@ mod tests {
         assert_eq!(entries, vec!["/foo/bar".to_owned(), "/foo/baz".to_owned()]);
     }
 
+    #[test]
+    fn file_name() {
+        let fs = MemoryFS::new();
+        let path = fs.path("/foo/bar.txt");
+        assert_eq!(path.file_name(), Some("bar.txt".to_owned()));
+        assert_eq!(path.extension(), Some("txt".to_owned()));
+        assert_eq!(path.parent().unwrap().extension(), None);
+    }
 
 }
