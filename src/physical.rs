@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::fs::{File, DirBuilder, Metadata, OpenOptions, ReadDir, DirEntry};
 use std::io::Result;
-use vfs::{VFS, VPath, VMetadata};
+use ::{VFS, VPath, VMetadata};
 
 
 /// A "physical" file system implementation using the underlying OS file system

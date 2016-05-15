@@ -13,7 +13,7 @@ use std::collections::hash_map::Entry;
 
 use std::cmp;
 
-use vfs::{VFS, VPath, VMetadata};
+use ::{VFS, VPath, VMetadata};
 
 pub type Filename = String;
 
@@ -356,7 +356,7 @@ mod tests {
 
     use super::*;
     use VPath;
-    use vfs::{VFS, VMetadata};
+    use ::{VFS, VMetadata};
 
     #[test]
     fn mkdir() {
