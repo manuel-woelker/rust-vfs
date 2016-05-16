@@ -63,13 +63,20 @@ use std::io::{Read, Write, Seek, Result};
 pub trait VPath: Clone + Debug {
     /// The kind of filesystem
     type FS: VFS;
+    /// Open the file at this path with the given options
+    fn open(&self, openOptions: &OpenOptions) -> Result<<Self::FS as VFS>::FILE>;
     /// Open the file at this path for reading
-    fn open(&self) -> Result<<Self::FS as VFS>::FILE>;
+    fn read(&self) -> Result<<Self::FS as VFS>::FILE> {
+        self.open(OpenOptions::new().read(true))
+    }
     /// Open the file at this path for writing, truncating it if it exists already
-    fn create(&self) -> Result<<Self::FS as VFS>::FILE>;
+    fn create(&self) -> Result<<Self::FS as VFS>::FILE> {
+        self.open(OpenOptions::new().write(true).create(true).truncate(true))
+    }
     /// Open the file at this path for appending, creating it if necessary
-    fn append(&self) -> Result<<Self::FS as VFS>::FILE>;
-
+    fn append(&self) -> Result<<Self::FS as VFS>::FILE> {
+        self.open(OpenOptions::new().write(true).create(true).append(true))
+    }
     /// Create a directory at the location by this path
     fn mkdir(&self) -> Result<()>;
 
@@ -118,4 +125,48 @@ pub trait VFS {
 
     /// Create a new path within this filesystem
     fn path<T: Into<String>>(&self, path: T) -> Self::PATH;
+}
+
+#[derive(Debug, Default)]
+pub struct OpenOptions {
+    read: bool,
+    write: bool,
+    create: bool,
+    append: bool,
+    truncate: bool,
+}
+
+impl OpenOptions {
+    pub fn new() -> OpenOptions {
+        Default::default()
+    }
+
+    pub fn read(&mut self, read: bool) -> &mut OpenOptions {
+        self.read = read;
+        self
+    }
+
+    pub fn write(&mut self, write: bool) -> &mut OpenOptions {
+        self.write = write;
+        self
+    }
+
+    pub fn append(&mut self, append: bool) -> &mut OpenOptions {
+        self.append = append;
+        self
+    }
+
+    pub fn truncate(&mut self, truncate: bool) -> &mut OpenOptions {
+        self.truncate = truncate;
+        self
+    }
+
+    pub fn create(&mut self, create: bool) -> &mut OpenOptions {
+        self.create = create;
+        self
+    }
+
+    pub fn open<P: VPath>(&self, path: &P) -> Result<<P::FS as VFS>::FILE> {
+        path.open(self)
+    }
 }

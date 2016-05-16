@@ -14,7 +14,7 @@ use std::collections::hash_map::Entry;
 
 use std::cmp;
 
-use {VFS, VPath, VMetadata};
+use {VFS, VPath, VMetadata, OpenOptions};
 
 pub type Filename = String;
 
@@ -256,21 +256,7 @@ fn traverse_with<R, F: FnOnce(&mut FsNode) -> R>(node: &mut FsNode,
 impl VPath for MemoryPath {
     type FS = MemoryFS;
 
-    fn open(&self) -> Result<MemoryFile> {
-        let data = try!(try!(self.with_node(|node| {
-            if node.kind != NodeKind::File {
-                return Err(Error::new(ErrorKind::Other,
-                                      format!("File is not a file: {:?}", self.file_name())));
-            }
-            Ok(node.data.clone())
-        })));
-        Ok(MemoryFile {
-            data: data,
-            pos: 0,
-        })
-    }
-
-    fn create(&self) -> Result<MemoryFile> {
+    fn open(&self, open_options: &OpenOptions) -> Result<MemoryFile> {
         let parent_path = match self.parent() {
             None => {
                 return Err(Error::new(ErrorKind::Other,
@@ -279,48 +265,39 @@ impl VPath for MemoryPath {
             Some(parent) => parent,
         };
         let data_handle = try!(try!(parent_path.with_node(|node| {
-            let file_node = node.children
-                                .entry(self.file_name().unwrap())
-                                .or_insert_with(FsNode::new_file);
+            let file_name = self.file_name().unwrap();
+            let file_node_entry = node.children.entry(file_name);
+            let file_node = match file_node_entry {
+                Entry::Occupied(entry) => entry.into_mut(),
+                Entry::Vacant(entry) => {
+                    if !open_options.create {
+                        return Err(Error::new(ErrorKind::Other,
+                                              format!("File does not exist: {}", self.path)));
+                    }
+                    entry.insert(FsNode::new_file())
+                }
+            };
             if file_node.kind != NodeKind::File {
                 return Err(Error::new(ErrorKind::Other,
                                       format!("File is not a file: {:?}", self.file_name())));
             }
             return Ok(file_node.data.clone());
         })));
-        {
+        if open_options.truncate {
             let mut data = ctry!(data_handle.0.write());
             data.clear();
         }
+        let mut pos = 0u64;
+        if open_options.append {
+            pos = ctry!(data_handle.0.read()).len() as u64;
+        }
+
         Ok(MemoryFile {
             data: data_handle,
-            pos: 0,
+            pos: pos,
         })
-    }
 
-    fn append(&self) -> Result<MemoryFile> {
-        let parent_path = self.parent().unwrap();
-        let data = try!(try!(parent_path.with_node(|node| {
-            let file_node = node.children
-                                .entry(try!(self.file_name()
-                                                .ok_or(Error::new(ErrorKind::Other,
-                                                                  format!("File is not a \
-                                                                           file: {:?}",
-                                                                          self.file_name())))))
-                                .or_insert_with(FsNode::new_file);
-            if file_node.kind != NodeKind::File {
-                return Err(Error::new(ErrorKind::Other,
-                                      format!("File is not a file: {:?}", self.file_name())));
-            }
-            return Ok(file_node.data.clone());
-        })));
-        let len = ctry!(data.0.read()).len();
-        Ok(MemoryFile {
-            data: data,
-            pos: len as u64,
-        })
     }
-
 
     fn parent(&self) -> Option<MemoryPath> {
         self.decompose_path().0.map(|parent| MemoryPath::new(&self.fs.clone(), parent))
@@ -435,7 +412,7 @@ mod tests {
         let fs = MemoryFS::new();
         let path = fs.path("/foobar.txt");
         path.create().unwrap();
-        let mut file = path.open().unwrap();
+        let mut file = path.read().unwrap();
         let mut string: String = "".to_owned();
         file.read_to_string(&mut string).unwrap();
         assert_eq!(string, "");
@@ -448,7 +425,7 @@ mod tests {
         path.mkdir().unwrap();
         assert!(path.create().is_err(), "Directory should not be openable");
         assert!(path.append().is_err(), "Directory should not be openable");
-        assert!(path.open().is_err(), "Directory should not be openable");
+        assert!(path.read().is_err(), "Directory should not be openable");
     }
 
 
@@ -462,24 +439,24 @@ mod tests {
             write!(file, "!").unwrap();
         }
         {
-            let mut file = path.open().unwrap();
+            let mut file = path.read().unwrap();
             let mut string: String = "".to_owned();
             file.read_to_string(&mut string).unwrap();
             assert_eq!(string, "Hello world!");
         }
         {
-            let mut file = path.open().unwrap();
+            let mut file = path.read().unwrap();
             file.seek(SeekFrom::Start(1)).unwrap();
             write!(file, "a").unwrap();
         }
         {
-            let mut file = path.open().unwrap();
+            let mut file = path.read().unwrap();
             let mut string: String = "".to_owned();
             file.read_to_string(&mut string).unwrap();
             assert_eq!(string, "Hallo world!");
         }
         {
-            let mut file = path.open().unwrap();
+            let mut file = path.read().unwrap();
             let mut string: String = "".to_owned();
             file.seek(SeekFrom::End(-1)).unwrap();
             file.read_to_string(&mut string).unwrap();
@@ -489,7 +466,7 @@ mod tests {
             let file = path.create().unwrap();
         }
         {
-            let mut file = path.open().unwrap();
+            let mut file = path.read().unwrap();
             let mut string: String = "".to_owned();
             file.read_to_string(&mut string).unwrap();
             assert_eq!(string, "");
@@ -506,7 +483,7 @@ mod tests {
             write!(file, " world").unwrap();
         }
         {
-            let mut file = path.open().unwrap();
+            let mut file = path.read().unwrap();
             let mut string: String = "".to_owned();
             file.read_to_string(&mut string).unwrap();
             assert_eq!(string, "Hello world");
@@ -516,7 +493,7 @@ mod tests {
             write!(file, "!").unwrap();
         }
         {
-            let mut file = path.open().unwrap();
+            let mut file = path.read().unwrap();
             let mut string: String = "".to_owned();
             file.read_to_string(&mut string).unwrap();
             assert_eq!(string, "Hello world!");
