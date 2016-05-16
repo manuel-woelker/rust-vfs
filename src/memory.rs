@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf, Component, Components};
 use std::fmt::Debug;
 use std::io::{Read, Write, Seek, SeekFrom, Result};
 use std::io::{Error, ErrorKind};
+use std;
 
 use std::cell::RefCell;
 use std::sync::Arc;
@@ -39,6 +40,17 @@ struct FsNode {
     pub data: DataHandle,
 }
 
+fn to_io_error<E: std::error::Error>(error: E) -> Error {
+    Error::new(ErrorKind::Other, error.description())
+}
+
+fn to_io_result<T, E: std::error::Error>(result: std::result::Result<T, E>) -> Result<T> {
+    match result {
+        Ok(result) => Ok(result),
+        Err(error) => Err(to_io_error(error)),
+    }
+}
+
 impl FsNode {
     pub fn new_directory() -> Self {
         FsNode {
@@ -56,11 +68,11 @@ impl FsNode {
         }
     }
 
-    fn metadata(&mut self) -> MemoryMetadata {
-        MemoryMetadata {
+    fn metadata(&mut self) -> Result<MemoryMetadata> {
+        Ok(MemoryMetadata {
             kind: self.kind.clone(),
-            len: self.data.0.read().unwrap().len() as u64,
-        }
+            len: try!(to_io_result(self.data.0.read())).len() as u64,
+        })
     }
 }
 
@@ -92,7 +104,8 @@ pub struct MemoryFile {
 
 impl Read for MemoryFile {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        let n = try!((&self.data.0.write().unwrap().deref()[self.pos as usize..]).read(buf));
+        let data = try!(to_io_result(self.data.0.write()));
+        let n = try!((&data.deref()[self.pos as usize..]).read(buf));
         self.pos += n as u64;
         Ok(n)
     }
@@ -100,7 +113,7 @@ impl Read for MemoryFile {
 
 impl Write for MemoryFile {
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
-        let mut guard = self.data.0.write().unwrap();
+        let mut guard = try!(to_io_result(self.data.0.write()));
         let ref mut vec: &mut Vec<u8> = guard.deref_mut();
         // From cursor.rs
         let pos = self.pos;
@@ -132,7 +145,10 @@ impl Seek for MemoryFile {
                 self.pos = n;
                 return Ok(n);
             }
-            SeekFrom::End(n) => self.data.0.read().unwrap().len() as i64 + n,
+            SeekFrom::End(n) => {
+                let data = try!(to_io_result(self.data.0.read()));
+                data.len() as i64 + n
+            }
             SeekFrom::Current(n) => self.pos as i64 + n,
         };
 
@@ -266,8 +282,14 @@ impl VPath for MemoryPath {
     }
 
     fn create(&self) -> Result<MemoryFile> {
-        let parent_path = self.parent().unwrap();
-        let data = try!(try!(parent_path.with_node(|node| {
+        let parent_path = match self.parent() {
+            None => {
+                return Err(Error::new(ErrorKind::Other,
+                                      format!("File is not a file: {:?}", self.file_name())))
+            }
+            Some(parent) => parent,
+        };
+        let data_handle = try!(try!(parent_path.with_node(|node| {
             let file_node = node.children
                                 .entry(self.file_name().unwrap())
                                 .or_insert_with(FsNode::new_file);
@@ -277,9 +299,12 @@ impl VPath for MemoryPath {
             }
             return Ok(file_node.data.clone());
         })));
-        data.0.write().unwrap().clear();
+        {
+            let mut data = try!(to_io_result(data_handle.0.write()));
+            data.clear();
+        }
         Ok(MemoryFile {
-            data: data,
+            data: data_handle,
             pos: 0,
         })
     }
@@ -288,7 +313,11 @@ impl VPath for MemoryPath {
         let parent_path = self.parent().unwrap();
         let data = try!(try!(parent_path.with_node(|node| {
             let file_node = node.children
-                                .entry(self.file_name().unwrap())
+                                .entry(try!(self.file_name()
+                                                .ok_or(Error::new(ErrorKind::Other,
+                                                                  format!("File is not a \
+                                                                           file: {:?}",
+                                                                          self.file_name())))))
                                 .or_insert_with(FsNode::new_file);
             if file_node.kind != NodeKind::File {
                 return Err(Error::new(ErrorKind::Other,
@@ -296,7 +325,7 @@ impl VPath for MemoryPath {
             }
             return Ok(file_node.data.clone());
         })));
-        let len = data.0.read().unwrap().len();
+        let len = try!(to_io_result(data.0.read())).len();
         Ok(MemoryFile {
             data: data,
             pos: len as u64,
@@ -337,7 +366,7 @@ impl VPath for MemoryPath {
 
 
     fn mkdir(&self) -> Result<()> {
-        let root = &mut self.fs.write().unwrap().root;
+        let root = &mut try!(to_io_result(self.fs.write())).root;
         let mut components: Vec<&str> = self.path.split("/").collect();
         components.reverse();
         components.pop();
@@ -349,7 +378,7 @@ impl VPath for MemoryPath {
     }
 
     fn metadata(&self) -> Result<MemoryMetadata> {
-        return self.with_node(FsNode::metadata);
+        return try!(self.with_node(FsNode::metadata));
     }
 
     fn read_dir(&self) -> Result<Box<Iterator<Item = Result<MemoryPath>>>> {

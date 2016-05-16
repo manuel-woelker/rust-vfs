@@ -18,9 +18,11 @@ impl<P: VPath> Iterator for WalkDirIter<P> {
         if let Some(ref path) = res {
             if let Ok(metadata) = path.metadata() {
                 if metadata.is_dir() {
-                    for entry in path.read_dir().unwrap() {
-                        if let Ok(child) = entry {
-                            self.todo.push(child);
+                    if let Ok(entries) = path.read_dir() {
+                        for entry in entries {
+                            if let Ok(child) = entry {
+                                self.todo.push(child);
+                            }
                         }
                     }
                 }
