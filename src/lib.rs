@@ -26,6 +26,8 @@ pub use physical::PhysicalFS;
 pub mod memory;
 pub use memory::MemoryFS;
 
+pub mod util;
+
 use std::path::Path;
 use std::convert::AsRef;
 
@@ -66,7 +68,7 @@ pub trait VPath: Clone + Debug {
     fn metadata(&self) -> Result<<Self::FS as VFS>::METADATA>;
 
     /// Retrieve the path entries in this path
-    fn read_dir(&self) -> Result<Box<Iterator<Item = Result<<<Self as VPath>::FS as VFS>::PATH>>>>;
+    fn read_dir(&self) -> Result<Box<Iterator<Item = Result<Self>>>>;
 }
 
 /// An abstract file object
