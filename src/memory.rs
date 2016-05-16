@@ -40,17 +40,6 @@ struct FsNode {
     pub data: DataHandle,
 }
 
-fn to_io_error<E: std::error::Error>(error: E) -> Error {
-    Error::new(ErrorKind::Other, error.description())
-}
-
-fn to_io_result<T, E: std::error::Error>(result: std::result::Result<T, E>) -> Result<T> {
-    match result {
-        Ok(result) => Ok(result),
-        Err(error) => Err(to_io_error(error)),
-    }
-}
-
 impl FsNode {
     pub fn new_directory() -> Self {
         FsNode {
@@ -71,7 +60,7 @@ impl FsNode {
     fn metadata(&mut self) -> Result<MemoryMetadata> {
         Ok(MemoryMetadata {
             kind: self.kind.clone(),
-            len: try!(to_io_result(self.data.0.read())).len() as u64,
+            len: ctry!(self.data.0.read()).len() as u64,
         })
     }
 }
@@ -104,7 +93,7 @@ pub struct MemoryFile {
 
 impl Read for MemoryFile {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        let data = try!(to_io_result(self.data.0.write()));
+        let data = ctry!(self.data.0.write());
         let n = try!((&data.deref()[self.pos as usize..]).read(buf));
         self.pos += n as u64;
         Ok(n)
@@ -113,7 +102,7 @@ impl Read for MemoryFile {
 
 impl Write for MemoryFile {
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
-        let mut guard = try!(to_io_result(self.data.0.write()));
+        let mut guard = ctry!(self.data.0.write());
         let ref mut vec: &mut Vec<u8> = guard.deref_mut();
         // From cursor.rs
         let pos = self.pos;
@@ -146,7 +135,7 @@ impl Seek for MemoryFile {
                 return Ok(n);
             }
             SeekFrom::End(n) => {
-                let data = try!(to_io_result(self.data.0.read()));
+                let data = ctry!(self.data.0.read());
                 data.len() as i64 + n
             }
             SeekFrom::Current(n) => self.pos as i64 + n,
@@ -300,7 +289,7 @@ impl VPath for MemoryPath {
             return Ok(file_node.data.clone());
         })));
         {
-            let mut data = try!(to_io_result(data_handle.0.write()));
+            let mut data = ctry!(data_handle.0.write());
             data.clear();
         }
         Ok(MemoryFile {
@@ -325,7 +314,7 @@ impl VPath for MemoryPath {
             }
             return Ok(file_node.data.clone());
         })));
-        let len = try!(to_io_result(data.0.read())).len();
+        let len = ctry!(data.0.read()).len();
         Ok(MemoryFile {
             data: data,
             pos: len as u64,
@@ -366,7 +355,7 @@ impl VPath for MemoryPath {
 
 
     fn mkdir(&self) -> Result<()> {
-        let root = &mut try!(to_io_result(self.fs.write())).root;
+        let root = &mut ctry!(self.fs.write()).root;
         let mut components: Vec<&str> = self.path.split("/").collect();
         components.reverse();
         components.pop();

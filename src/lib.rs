@@ -19,6 +19,30 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
 
+#[macro_use]
+mod macros {
+    use std::io::{Result, Error, ErrorKind};
+    use std;
+
+    fn to_io_error<E: std::error::Error>(error: E) -> Error {
+        Error::new(ErrorKind::Other, error.description())
+    }
+
+    pub fn to_io_result<T, E: std::error::Error>(result: std::result::Result<T, E>) -> Result<T> {
+        match result {
+            Ok(result) => Ok(result),
+            Err(error) => Err(to_io_error(error)),
+        }
+    }
+
+    macro_rules! ctry {
+    ($result:expr) => (try!($crate::macros::to_io_result($result)));
+    }
+
+
+}
+
+
 
 pub mod physical;
 pub use physical::PhysicalFS;
