@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::fs::{File, DirBuilder, Metadata, OpenOptions, ReadDir, DirEntry};
 use std::io::Result;
-use ::{VFS, VPath, VMetadata};
+use {VFS, VPath, VMetadata};
 
 
 /// A "physical" file system implementation using the underlying OS file system
@@ -90,12 +90,14 @@ impl VPath for PathBuf {
     }
 
     fn read_dir(&self) -> Result<Box<Iterator<Item = Result<PathBuf>>>> {
-        <Path>::read_dir(self).map(|inner| Box::new(PhysicalReadDir {inner: inner})  as Box<Iterator<Item = Result<PathBuf>>>)
+        <Path>::read_dir(self).map(|inner| {
+            Box::new(PhysicalReadDir { inner: inner }) as Box<Iterator<Item = Result<PathBuf>>>
+        })
     }
 }
 
 struct PhysicalReadDir {
-    inner: ReadDir
+    inner: ReadDir,
 }
 
 impl Iterator for PhysicalReadDir {

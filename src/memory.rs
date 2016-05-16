@@ -13,7 +13,7 @@ use std::collections::hash_map::Entry;
 
 use std::cmp;
 
-use ::{VFS, VPath, VMetadata};
+use {VFS, VPath, VMetadata};
 
 pub type Filename = String;
 
@@ -219,6 +219,10 @@ fn traverse_mkdir(node: &mut FsNode, components: &mut Vec<&str>) -> Result<()> {
         let directory = &mut node.children
                                  .entry(component.to_owned())
                                  .or_insert_with(FsNode::new_directory);
+        if directory.kind != NodeKind::Directory {
+            return Err(Error::new(ErrorKind::Other,
+                                  format!("File is not a directory: {}", component)));
+        }
         traverse_mkdir(directory, components)
     } else {
         Ok(())
@@ -248,7 +252,13 @@ impl VPath for MemoryPath {
     type FS = MemoryFS;
 
     fn open(&self) -> Result<MemoryFile> {
-        let data = self.with_node(|node| node.data.clone()).unwrap();
+        let data = try!(try!(self.with_node(|node| {
+            if node.kind != NodeKind::File {
+                return Err(Error::new(ErrorKind::Other,
+                                      format!("File is not a file: {:?}", self.file_name())));
+            }
+            Ok(node.data.clone())
+        })));
         Ok(MemoryFile {
             data: data,
             pos: 0,
@@ -257,13 +267,16 @@ impl VPath for MemoryPath {
 
     fn create(&self) -> Result<MemoryFile> {
         let parent_path = self.parent().unwrap();
-        let data = try!(parent_path.with_node(|node| {
+        let data = try!(try!(parent_path.with_node(|node| {
             let file_node = node.children
                                 .entry(self.file_name().unwrap())
                                 .or_insert_with(FsNode::new_file);
-            // TODO: check not directory
-            return file_node.data.clone();
-        }));
+            if file_node.kind != NodeKind::File {
+                return Err(Error::new(ErrorKind::Other,
+                                      format!("File is not a file: {:?}", self.file_name())));
+            }
+            return Ok(file_node.data.clone());
+        })));
         data.0.write().unwrap().clear();
         Ok(MemoryFile {
             data: data,
@@ -273,13 +286,16 @@ impl VPath for MemoryPath {
 
     fn append(&self) -> Result<MemoryFile> {
         let parent_path = self.parent().unwrap();
-        let data = try!(parent_path.with_node(|node| {
+        let data = try!(try!(parent_path.with_node(|node| {
             let file_node = node.children
                                 .entry(self.file_name().unwrap())
                                 .or_insert_with(FsNode::new_file);
-            // TODO: check not directory
-            return file_node.data.clone();
-        }));
+            if file_node.kind != NodeKind::File {
+                return Err(Error::new(ErrorKind::Other,
+                                      format!("File is not a file: {:?}", self.file_name())));
+            }
+            return Ok(file_node.data.clone());
+        })));
         let len = data.0.read().unwrap().len();
         Ok(MemoryFile {
             data: data,
@@ -338,14 +354,17 @@ impl VPath for MemoryPath {
 
     fn read_dir(&self) -> Result<Box<Iterator<Item = Result<MemoryPath>>>> {
         let children = try!(self.with_node(|node| {
-            let children: Vec<_> = node.children.keys().map(|name| {
-                Ok(MemoryPath::new(&self.fs, self.path.clone() + "/" + name))
-            }).collect();
+            let children: Vec<_> = node.children
+                                       .keys()
+                                       .map(|name| {
+                                           Ok(MemoryPath::new(&self.fs,
+                                                              self.path.clone() + "/" + name))
+                                       })
+                                       .collect();
             return Box::new(children.into_iter());
         }));
         return Ok(children);
     }
-
 }
 
 
@@ -370,7 +389,7 @@ mod tests {
 
     use super::*;
     use VPath;
-    use ::{VFS, VMetadata};
+    use {VFS, VMetadata};
 
     #[test]
     fn mkdir() {
@@ -386,6 +405,14 @@ mod tests {
     }
 
     #[test]
+    fn mkdir_fails_for_file() {
+        let fs = MemoryFS::new();
+        let path = fs.path("/foo");
+        path.create().unwrap();
+        assert!(path.mkdir().is_err(), "Path should not be created");
+    }
+
+    #[test]
     fn read_empty_file() {
         let fs = MemoryFS::new();
         let path = fs.path("/foobar.txt");
@@ -395,6 +422,17 @@ mod tests {
         file.read_to_string(&mut string).unwrap();
         assert_eq!(string, "");
     }
+
+    #[test]
+    fn access_directory_as_file() {
+        let fs = MemoryFS::new();
+        let path = fs.path("/foo");
+        path.mkdir().unwrap();
+        assert!(path.create().is_err(), "Directory should not be openable");
+        assert!(path.append().is_err(), "Directory should not be openable");
+        assert!(path.open().is_err(), "Directory should not be openable");
+    }
+
 
     #[test]
     fn write_and_read_file() {
@@ -501,7 +539,11 @@ mod tests {
         let path3 = fs.path("/foo/baz");
         path2.mkdir().unwrap();
         path3.create().unwrap();
-        let mut entries: Vec<String> = path.read_dir().unwrap().map(Result::unwrap).map(|x| x.path.clone()).collect();
+        let mut entries: Vec<String> = path.read_dir()
+                                           .unwrap()
+                                           .map(Result::unwrap)
+                                           .map(|x| x.path.clone())
+                                           .collect();
         entries.sort();
         assert_eq!(entries, vec!["/foo/bar".to_owned(), "/foo/baz".to_owned()]);
     }
@@ -516,4 +558,3 @@ mod tests {
     }
 
 }
-

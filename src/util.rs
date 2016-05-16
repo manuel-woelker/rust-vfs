@@ -1,16 +1,16 @@
 
-use ::{VFS, VPath, VMetadata};
+use {VFS, VPath, VMetadata};
 use std::io::Result;
 
 pub struct WalkDirIter<P: VPath> {
-    todo: Vec<P>
+    todo: Vec<P>,
 }
 
 pub fn walk_dir<P: VPath>(path: &P) -> WalkDirIter<P> {
-    WalkDirIter {todo: vec![path.clone()]}
+    WalkDirIter { todo: vec![path.clone()] }
 }
 
-impl <P: VPath> Iterator for WalkDirIter<P> {
+impl<P: VPath> Iterator for WalkDirIter<P> {
     type Item = P;
     // TODO: handle loops
     fn next(&mut self) -> Option<P> {
@@ -28,7 +28,6 @@ impl <P: VPath> Iterator for WalkDirIter<P> {
         }
         res
     }
-
 }
 
 
@@ -43,9 +42,9 @@ mod tests {
     use std::io::{Read, Write, Seek, SeekFrom, Result};
 
     use super::*;
-    use ::VPath;
-    use ::{VFS, VMetadata};
-    use ::memory::{MemoryFS, MemoryPath};
+    use VPath;
+    use {VFS, VMetadata};
+    use memory::{MemoryFS, MemoryPath};
 
     #[test]
     fn mkdir() {
@@ -56,7 +55,3 @@ mod tests {
         assert_eq!(paths, vec!["/foo", "/foo/bar", "/foo/bar/baz"]);
     }
 }
-
-
-
-

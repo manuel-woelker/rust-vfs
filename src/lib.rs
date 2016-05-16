@@ -95,4 +95,3 @@ pub trait VFS {
     /// Create a new path within this filesystem
     fn path<T: Into<String>>(&self, path: T) -> Self::PATH;
 }
-
