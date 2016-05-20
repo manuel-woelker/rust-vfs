@@ -57,49 +57,58 @@ use std::convert::AsRef;
 
 use std::fmt::Debug;
 use std::io::{Read, Write, Seek, Result};
-
+use std::borrow::Cow;
 
 /// A abstract path to a location in a filesystem
-pub trait VPath: Clone + Debug {
-    /// The kind of filesystem
-    type FS: VFS;
+pub trait VPath: Debug + std::marker::Send + std::marker::Sync {
     /// Open the file at this path with the given options
-    fn open(&self, openOptions: &OpenOptions) -> Result<<Self::FS as VFS>::FILE>;
+    fn open(&self, openOptions: &OpenOptions) -> Result<Box<VFile>>;
     /// Open the file at this path for reading
-    fn read(&self) -> Result<<Self::FS as VFS>::FILE> {
+    fn read(&self) -> Result<Box<VFile>> {
         self.open(OpenOptions::new().read(true))
     }
     /// Open the file at this path for writing, truncating it if it exists already
-    fn create(&self) -> Result<<Self::FS as VFS>::FILE> {
+    fn create(&self) -> Result<Box<VFile>> {
         self.open(OpenOptions::new().write(true).create(true).truncate(true))
     }
     /// Open the file at this path for appending, creating it if necessary
-    fn append(&self) -> Result<<Self::FS as VFS>::FILE> {
+    fn append(&self) -> Result<Box<VFile>> {
         self.open(OpenOptions::new().write(true).create(true).append(true))
     }
     /// Create a directory at the location by this path
     fn mkdir(&self) -> Result<()>;
 
-    /// Get the parent path
-    fn parent(&self) -> Option<Self>;
 
     /// The file name of this path
     fn file_name(&self) -> Option<String>;
 
     /// The extension of this filename
     fn extension(&self) -> Option<String>;
-
     /// append a segment to this path
-    fn push<'a, T: Into<&'a str>>(&mut self, path: T);
+    fn push(&mut self, path: &String);
+
+    /// Get the parent path
+    fn parent(&self) -> Option<Box<VPath>>;
 
     /// Check if the file existst
     fn exists(&self) -> bool;
 
     /// Get the file's metadata
-    fn metadata(&self) -> Result<<Self::FS as VFS>::METADATA>;
+    fn metadata(&self) -> Result<Box<VMetadata>>;
 
     /// Retrieve the path entries in this path
-    fn read_dir(&self) -> Result<Box<Iterator<Item = Result<Self>>>>;
+    fn read_dir(&self) -> Result<Box<Iterator<Item = Result<Box<VPath>>>>>;
+
+    /// Retrieve a string representation
+    fn to_string(&self) -> Cow<str>;
+
+    fn box_clone(&self) -> Box<VPath>;
+}
+
+impl Clone for Box<VPath> {
+    fn clone(&self) -> Box<VPath> {
+        self.box_clone()
+    }
 }
 
 /// An abstract file object
@@ -165,8 +174,8 @@ impl OpenOptions {
         self.create = create;
         self
     }
-
-    pub fn open<P: VPath>(&self, path: &P) -> Result<<P::FS as VFS>::FILE> {
-        path.open(self)
-    }
+    // pub fn open<P: VPath>(&self, path: &P) -> Result<Box<VFile>> {
+    // path.open(self)
+    // }
+    //
 }

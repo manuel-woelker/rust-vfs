@@ -2,18 +2,18 @@
 use {VFS, VPath, VMetadata};
 use std::io::Result;
 
-pub struct WalkDirIter<P: VPath> {
-    todo: Vec<P>,
+pub struct WalkDirIter {
+    todo: Vec<Box<VPath>>,
 }
 
-pub fn walk_dir<P: VPath>(path: &P) -> WalkDirIter<P> {
+pub fn walk_dir(path: &Box<VPath>) -> WalkDirIter {
     WalkDirIter { todo: vec![path.clone()] }
 }
 
-impl<P: VPath> Iterator for WalkDirIter<P> {
-    type Item = P;
+impl Iterator for WalkDirIter {
+    type Item = Box<VPath>;
     // TODO: handle loops
-    fn next(&mut self) -> Option<P> {
+    fn next(&mut self) -> Option<Box<VPath>> {
         let res = self.todo.pop();
         if let Some(ref path) = res {
             if let Ok(metadata) = path.metadata() {
@@ -53,7 +53,9 @@ mod tests {
         let fs = MemoryFS::new();
         let path = fs.path("/foo/bar/baz");
         path.mkdir().unwrap();
-        let paths: Vec<String> = walk_dir(&fs.path("/foo")).map(|x: MemoryPath| x.path).collect();
+        let paths: Vec<String> = walk_dir(&(Box::new(fs.path("/foo")) as Box<VPath>))
+                                     .map(|x: Box<VPath>| x.to_string().into_owned())
+                                     .collect();
         assert_eq!(paths, vec!["/foo", "/foo/bar", "/foo/bar/baz"]);
     }
 }
