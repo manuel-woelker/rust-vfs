@@ -258,7 +258,7 @@ fn traverse_with<R, F: FnOnce(&mut FsNode) -> R>(node: &mut FsNode,
 }
 
 impl VPath for MemoryPath {
-    fn open(&self, open_options: &OpenOptions) -> Result<Box<VFile>> {
+    fn open_with_options(&self, open_options: &OpenOptions) -> Result<Box<VFile>> {
         let parent_path = match self.parent_internal() {
             None => {
                 return Err(Error::new(ErrorKind::Other,
@@ -424,7 +424,7 @@ mod tests {
         let fs = MemoryFS::new();
         let path = fs.path("/foobar.txt");
         path.create().unwrap();
-        let mut file = path.read().unwrap();
+        let mut file = path.open().unwrap();
         let mut string: String = "".to_owned();
         file.read_to_string(&mut string).unwrap();
         assert_eq!(string, "");
@@ -437,7 +437,7 @@ mod tests {
         path.mkdir().unwrap();
         assert!(path.create().is_err(), "Directory should not be openable");
         assert!(path.append().is_err(), "Directory should not be openable");
-        assert!(path.read().is_err(), "Directory should not be openable");
+        assert!(path.open().is_err(), "Directory should not be openable");
     }
 
 
@@ -451,24 +451,24 @@ mod tests {
             write!(file, "!").unwrap();
         }
         {
-            let mut file = path.read().unwrap();
+            let mut file = path.open().unwrap();
             let mut string: String = "".to_owned();
             file.read_to_string(&mut string).unwrap();
             assert_eq!(string, "Hello world!");
         }
         {
-            let mut file = path.read().unwrap();
+            let mut file = path.open().unwrap();
             file.seek(SeekFrom::Start(1)).unwrap();
             write!(file, "a").unwrap();
         }
         {
-            let mut file = path.read().unwrap();
+            let mut file = path.open().unwrap();
             let mut string: String = "".to_owned();
             file.read_to_string(&mut string).unwrap();
             assert_eq!(string, "Hallo world!");
         }
         {
-            let mut file = path.read().unwrap();
+            let mut file = path.open().unwrap();
             let mut string: String = "".to_owned();
             file.seek(SeekFrom::End(-1)).unwrap();
             file.read_to_string(&mut string).unwrap();
@@ -478,7 +478,7 @@ mod tests {
             let file = path.create().unwrap();
         }
         {
-            let mut file = path.read().unwrap();
+            let mut file = path.open().unwrap();
             let mut string: String = "".to_owned();
             file.read_to_string(&mut string).unwrap();
             assert_eq!(string, "");
@@ -495,7 +495,7 @@ mod tests {
             write!(file, " world").unwrap();
         }
         {
-            let mut file = path.read().unwrap();
+            let mut file = path.open().unwrap();
             let mut string: String = "".to_owned();
             file.read_to_string(&mut string).unwrap();
             assert_eq!(string, "Hello world");
@@ -505,7 +505,7 @@ mod tests {
             write!(file, "!").unwrap();
         }
         {
-            let mut file = path.read().unwrap();
+            let mut file = path.open().unwrap();
             let mut string: String = "".to_owned();
             file.read_to_string(&mut string).unwrap();
             assert_eq!(string, "Hello world!");

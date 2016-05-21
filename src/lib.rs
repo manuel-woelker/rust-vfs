@@ -62,18 +62,18 @@ use std::borrow::Cow;
 /// A abstract path to a location in a filesystem
 pub trait VPath: Debug + std::marker::Send + std::marker::Sync {
     /// Open the file at this path with the given options
-    fn open(&self, openOptions: &OpenOptions) -> Result<Box<VFile>>;
+    fn open_with_options(&self, openOptions: &OpenOptions) -> Result<Box<VFile>>;
     /// Open the file at this path for reading
-    fn read(&self) -> Result<Box<VFile>> {
-        self.open(OpenOptions::new().read(true))
+    fn open(&self) -> Result<Box<VFile>> {
+        self.open_with_options(OpenOptions::new().read(true))
     }
     /// Open the file at this path for writing, truncating it if it exists already
     fn create(&self) -> Result<Box<VFile>> {
-        self.open(OpenOptions::new().write(true).create(true).truncate(true))
+        self.open_with_options(OpenOptions::new().write(true).create(true).truncate(true))
     }
     /// Open the file at this path for appending, creating it if necessary
     fn append(&self) -> Result<Box<VFile>> {
-        self.open(OpenOptions::new().write(true).create(true).append(true))
+        self.open_with_options(OpenOptions::new().write(true).create(true).append(true))
     }
     /// Create a directory at the location by this path
     fn mkdir(&self) -> Result<()>;

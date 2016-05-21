@@ -35,7 +35,7 @@ impl VFS for PhysicalFS {
 
 
 impl VPath for PathBuf {
-    fn open(&self, open_options: &::OpenOptions) -> Result<Box<VFile>> {
+    fn open_with_options(&self, open_options: &::OpenOptions) -> Result<Box<VFile>> {
         OpenOptions::new()
             .read(open_options.read)
             .write(open_options.write)
@@ -47,7 +47,7 @@ impl VPath for PathBuf {
             .map(|x| Box::new(x) as Box<VFile>)
     }
 
-    fn read(&self) -> Result<Box<VFile>> {
+    fn open(&self) -> Result<Box<VFile>> {
         File::open(&self).map(|x| Box::new(x) as Box<VFile>)
     }
 
@@ -141,7 +141,7 @@ mod tests {
     #[test]
     fn read_file() {
         let path = PathBuf::from("Cargo.toml");
-        let mut file = path.read().unwrap();
+        let mut file = path.open().unwrap();
         let mut string: String = "".to_owned();
         file.read_to_string(&mut string).unwrap();
         assert!(string.len() > 10);
