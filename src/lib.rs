@@ -84,8 +84,9 @@ pub trait VPath: Debug + std::marker::Send + std::marker::Sync {
 
     /// The extension of this filename
     fn extension(&self) -> Option<String>;
+
     /// append a segment to this path
-    fn push(&mut self, path: &String);
+    fn resolve(&self, path: &String) -> Box<VPath>;
 
     /// Get the parent path
     fn parent(&self) -> Option<Box<VPath>>;
@@ -174,8 +175,4 @@ impl OpenOptions {
         self.create = create;
         self
     }
-    // pub fn open<P: VPath>(&self, path: &P) -> Result<Box<VFile>> {
-    // path.open(self)
-    // }
-    //
 }

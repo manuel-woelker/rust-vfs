@@ -84,8 +84,10 @@ impl VPath for PathBuf {
         }
     }
 
-    fn push(&mut self, path: &String) {
-        <PathBuf>::push(self, path);
+    fn resolve(&self, path: &String) -> Box<VPath> {
+        let mut result = self.clone();
+        <PathBuf>::push(&mut result, path);
+        return Box::new(result);
     }
 
     fn mkdir(&self) -> Result<()> {

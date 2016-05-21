@@ -324,12 +324,14 @@ impl VPath for MemoryPath {
         }
 
     }
-    fn push(&mut self, path: &String) {
-        // TODO: sanity checks
-        if !self.path.ends_with('/') {
-            self.path.push_str("/");
+
+    fn resolve(&self, path: &String) -> Box<VPath> {
+        let mut new_path = self.path.clone();
+        if !new_path.ends_with('/') {
+            new_path.push_str("/");
         }
-        self.path.push_str(&path);
+        new_path.push_str(&path);
+        return Box::new(MemoryPath::new(&self.fs, new_path));
     }
 
     fn mkdir(&self) -> Result<()> {
@@ -350,15 +352,14 @@ impl VPath for MemoryPath {
 
     fn read_dir(&self) -> Result<Box<Iterator<Item = Result<Box<VPath>>>>> {
         let children = try!(self.with_node(|node| {
-            let children: Vec<_> =
-                node.children
-                    .keys()
-                    .map(|name| {
-                        Ok(Box::new(MemoryPath::new(&self.fs,
+            let children: Vec<_> = node.children
+                                       .keys()
+                                       .map(|name| {
+                                           Ok(Box::new(MemoryPath::new(&self.fs,
                                                     self.path.clone() + "/" +
                                                     name)) as Box<VPath>)
-                    })
-                    .collect();
+                                       })
+                                       .collect();
             return Box::new(children.into_iter());
         }));
         return Ok(children);
