@@ -112,6 +112,8 @@ impl Clone for Box<VPath> {
     }
 }
 
+
+/// Resolve the path relative to the given base returning a new path
 pub fn resolve<S: Into<String>>(base: &VPath, path: S) -> Box<VPath> {
     base.resolve(&path.into())
 }
@@ -123,8 +125,11 @@ impl<T> VFile for T where T: Read + Write + Seek + Debug {}
 
 /// File metadata abstraction
 pub trait VMetadata {
+    /// Returns true iff this path is a directory
     fn is_dir(&self) -> bool;
+    /// Returns true iff this path is a file
     fn is_file(&self) -> bool;
+    /// Returns the length of the file at this path
     fn len(&self) -> u64;
 }
 
@@ -141,6 +146,8 @@ pub trait VFS {
     fn path<T: Into<String>>(&self, path: T) -> Self::PATH;
 }
 
+
+/// Options for opening files
 #[derive(Debug, Default)]
 pub struct OpenOptions {
     read: bool,
@@ -151,32 +158,38 @@ pub struct OpenOptions {
 }
 
 impl OpenOptions {
+    /// Create a new instance
     pub fn new() -> OpenOptions {
         Default::default()
     }
 
+    /// Open for reading
     pub fn read(&mut self, read: bool) -> &mut OpenOptions {
         self.read = read;
         self
     }
 
+    /// Open for writing
     pub fn write(&mut self, write: bool) -> &mut OpenOptions {
         self.write = write;
         self
     }
 
+    /// Create the file if it does not exist yet
+    pub fn create(&mut self, create: bool) -> &mut OpenOptions {
+        self.create = create;
+        self
+    }
+
+    /// Append at the end of the file
     pub fn append(&mut self, append: bool) -> &mut OpenOptions {
         self.append = append;
         self
     }
 
+    /// Truncate the file to 0 bytes after opening
     pub fn truncate(&mut self, truncate: bool) -> &mut OpenOptions {
         self.truncate = truncate;
-        self
-    }
-
-    pub fn create(&mut self, create: bool) -> &mut OpenOptions {
-        self.create = create;
         self
     }
 }

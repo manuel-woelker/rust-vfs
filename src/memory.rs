@@ -1,3 +1,6 @@
+//! An ephemeral in-memory file system, intended mainly for unit tests
+
+
 use std::path::{Path, PathBuf, Component, Components};
 use std::fmt::Debug;
 use std::io::{Read, Write, Seek, SeekFrom, Result};
