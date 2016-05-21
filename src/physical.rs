@@ -149,14 +149,14 @@ mod tests {
         assert!(path.metadata().unwrap().is_file());
         assert!(PathBuf::from(".").metadata().unwrap().is_dir());
     }
-    // #[test]
-    // fn parent() {
-    // let src = PathBuf::from("./src");
-    // let parent = PathBuf::from(".");
-    // assert_eq!(src.parent().unwrap(), parent);
-    // assert_eq!(PathBuf::from("/").parent(), None);
-    // }
-    //
+    #[test]
+    fn parent() {
+        let src = PathBuf::from("./src");
+        let parent = PathBuf::from(".");
+        assert_eq!(src.parent().unwrap().to_string(), parent.to_string());
+        assert!(PathBuf::from("/").parent().is_none());
+    }
+
     #[test]
     fn read_dir() {
         let src = PathBuf::from("./src");

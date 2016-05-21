@@ -34,12 +34,7 @@ impl Iterator for WalkDirIter {
 
 
 
-
-
-
-
-
-    #[cfg(test)]
+#[cfg(test)]
 mod tests {
     use std::io::{Read, Write, Seek, SeekFrom, Result};
 

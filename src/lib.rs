@@ -112,6 +112,10 @@ impl Clone for Box<VPath> {
     }
 }
 
+pub fn resolve<S: Into<String>>(base: &VPath, path: S) -> Box<VPath> {
+    base.resolve(&path.into())
+}
+
 /// An abstract file object
 pub trait VFile: Read + Write + Seek + Debug {}
 

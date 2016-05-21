@@ -511,50 +511,50 @@ mod tests {
             assert_eq!(string, "Hello world!");
         }
     }
-    // #[test]
-    // fn push() {
-    // let fs = MemoryFS::new();
-    // let mut path = fs.path("/");
-    // let mut path2 = path.clone();
-    // assert_eq!(String::from(&path), "/");
-    // path.push("foo");
-    // assert_eq!(String::from(&path), "/foo");
-    // path.push("bar");
-    // assert_eq!(String::from(&path), "/foo/bar");
-    //
-    // assert_eq!(String::from(&path2), "/");
-    // path2.push("foo/bar");
-    // assert_eq!(String::from(&path2), "/foo/bar");
-    // }
-    //
+    #[test]
+    fn resolve() {
+        let fs = MemoryFS::new();
+        let path = fs.path("/");
+        assert_eq!(path.to_string(), "/");
+        let path2 = path.resolve(&"foo".to_string());
+        assert_eq!(path2.to_string(), "/foo");
+        let path3 = path2.resolve(&"bar".to_string());
+        assert_eq!(path3.to_string(), "/foo/bar");
 
-    // #[test]
-    // fn parent() {
-    // let fs = MemoryFS::new();
-    // let path = fs.path("/foo");
-    // let path2 = fs.path("/foo/bar");
-    // assert_eq!(path2.parent().unwrap(), path);
-    // assert_eq!(String::from(&path.parent().unwrap()), "/");
-    // assert_eq!(fs.path("/").parent(), None);
-    // }
-    //
-    // #[test]
-    // fn read_dir() {
-    // let fs = MemoryFS::new();
-    // let path = fs.path("/foo");
-    // let path2 = fs.path("/foo/bar");
-    // let path3 = fs.path("/foo/baz");
-    // path2.mkdir().unwrap();
-    // path3.create().unwrap();
-    // let mut entries: Vec<String> = path.read_dir()
-    // .unwrap()
-    // .map(Result::unwrap)
-    // .map(|x| x.path.clone())
-    // .collect();
-    // entries.sort();
-    // assert_eq!(entries, vec!["/foo/bar".to_owned(), "/foo/baz".to_owned()]);
-    // }
-    //
+        assert_eq!(path.to_string(), "/");
+        let path4 = path.resolve(&"foo/bar".to_string());
+        assert_eq!(path4.to_string(), "/foo/bar");
+    }
+
+
+    #[test]
+    fn parent() {
+        let fs = MemoryFS::new();
+        let path = fs.path("/foo");
+        let path2 = fs.path("/foo/bar");
+        assert_eq!(path2.parent().unwrap().to_string(), path.to_string());
+        assert_eq!(path.parent().unwrap().to_string(), "/");
+        assert!(fs.path("/").parent().is_none());
+    }
+
+
+    #[test]
+    fn read_dir() {
+        let fs = MemoryFS::new();
+        let path = fs.path("/foo");
+        let path2 = fs.path("/foo/bar");
+        let path3 = fs.path("/foo/baz");
+        path2.mkdir().unwrap();
+        path3.create().unwrap();
+        let mut entries: Vec<String> = path.read_dir()
+                                           .unwrap()
+                                           .map(Result::unwrap)
+                                           .map(|path| path.to_string().into_owned())
+                                           .collect();
+        entries.sort();
+        assert_eq!(entries, vec!["/foo/bar".to_owned(), "/foo/baz".to_owned()]);
+    }
+
     #[test]
     fn file_name() {
         let fs = MemoryFS::new();
