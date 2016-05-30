@@ -119,6 +119,10 @@ impl VPath for PathBuf {
     fn box_clone(&self) -> Box<VPath> {
         Box::new((*self).clone())
     }
+
+    fn to_path_buf(&self) -> Option<PathBuf> {
+        Some(self.clone())
+    }
 }
 
 struct PhysicalReadDir {
@@ -171,6 +175,12 @@ mod tests {
         let src = PathBuf::from("./src/lib.rs");
         assert_eq!(src.file_name(), Some("lib.rs".to_owned()));
         assert_eq!(src.extension(), Some("rs".to_owned()));
+    }
+
+    #[test]
+    fn to_path_buf() {
+        let src = PathBuf::from("./src/lib.rs");
+        assert_eq!(Some(src.clone()), src.to_path_buf());
     }
 
 

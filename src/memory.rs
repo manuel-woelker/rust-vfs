@@ -372,6 +372,11 @@ impl VPath for MemoryPath {
         std::borrow::Cow::Owned(self.path.clone())
     }
 
+    fn to_path_buf(&self) -> Option<PathBuf> {
+        None
+    }
+
+
     fn box_clone(&self) -> Box<VPath> {
         Box::new((*self).clone())
     }
@@ -567,4 +572,11 @@ mod tests {
         assert_eq!(path.parent().unwrap().extension(), None);
     }
 
+
+    #[test]
+    fn path_buf() {
+        let fs = MemoryFS::new();
+        let path = fs.path("/foo/bar.txt");
+        assert_eq!(None, path.to_path_buf());
+    }
 }

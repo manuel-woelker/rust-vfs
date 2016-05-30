@@ -52,7 +52,7 @@ pub use memory::MemoryFS;
 
 pub mod util;
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::convert::AsRef;
 
 use std::fmt::Debug;
@@ -102,6 +102,9 @@ pub trait VPath: Debug + std::marker::Send + std::marker::Sync {
 
     /// Retrieve a string representation
     fn to_string(&self) -> Cow<str>;
+
+    /// Retrieve a standard PathBuf, if available (usually only for PhysicalFS)
+    fn to_path_buf(&self) -> Option<PathBuf>;
 
     fn box_clone(&self) -> Box<VPath>;
 }
