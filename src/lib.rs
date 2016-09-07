@@ -78,6 +78,12 @@ pub trait VPath: Debug + std::marker::Send + std::marker::Sync {
     /// Create a directory at the location by this path
     fn mkdir(&self) -> Result<()>;
 
+    /// Remove a file
+    fn rm(&self) -> Result<()>;
+
+    /// Remove a file or directory and all its contents
+    fn rmrf(&self) -> Result<()>;
+
 
     /// The file name of this path
     fn file_name(&self) -> Option<String>;

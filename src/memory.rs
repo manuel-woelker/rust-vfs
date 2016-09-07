@@ -376,6 +376,27 @@ impl VPath for MemoryPath {
         None
     }
 
+    fn rm(&self) -> Result<()> {
+        let parent_path = match self.parent_internal() {
+            None => {
+                return Err(Error::new(ErrorKind::Other,
+                                      format!("File is not a file: {:?}", self.file_name())))
+            }
+            Some(parent) => parent,
+        };
+        try!(parent_path.with_node(|node| {
+            let file_name = self.file_name().unwrap();
+            node.children.remove(&file_name);
+        }));
+        Ok(())
+
+    }
+
+    fn rmrf(&self) -> Result<()> {
+        self.rm()
+    }
+
+
 
     fn box_clone(&self) -> Box<VPath> {
         Box::new((*self).clone())
@@ -436,6 +457,36 @@ mod tests {
         let mut string: String = "".to_owned();
         file.read_to_string(&mut string).unwrap();
         assert_eq!(string, "");
+    }
+
+    #[test]
+    fn rm() {
+        let fs = MemoryFS::new();
+        let path = fs.path("/foobar.txt");
+        path.create().unwrap();
+        path.rm().unwrap();
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn rmdir() {
+        let fs = MemoryFS::new();
+        let path = fs.path("/foobar");
+        path.mkdir().unwrap();
+        path.rm().unwrap();
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn rmrf() {
+        let fs = MemoryFS::new();
+        let dir = fs.path("/foo");
+        dir.mkdir().unwrap();
+        let path = fs.path("/foo/bar.txt");
+        path.create().unwrap();
+        dir.rmrf().unwrap();
+        assert!(!path.exists());
+        assert!(!dir.exists());
     }
 
     #[test]

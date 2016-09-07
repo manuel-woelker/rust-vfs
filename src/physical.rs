@@ -1,7 +1,7 @@
 //! A "physical" file system implementation using the underlying OS file system
 
 use std::path::{Path, PathBuf};
-use std::fs::{File, DirBuilder, Metadata, OpenOptions, ReadDir, DirEntry};
+use std::fs::{File, DirBuilder, Metadata, OpenOptions, ReadDir, DirEntry, remove_file, remove_dir, remove_dir_all};
 use std::io::Result;
 use std::borrow::Cow;
 use {VFS, VPath, VFile, VMetadata};
@@ -97,6 +97,23 @@ impl VPath for PathBuf {
             .recursive(true)
             .create(&self)
     }
+
+    fn rm(&self) -> Result<()> {
+        if self.is_dir() {
+            remove_dir(&self)
+        } else {
+            remove_file(&self)
+        }
+    }
+
+    fn rmrf(&self) -> Result<()> {
+        if self.is_dir() {
+            remove_dir_all(&self)
+        } else {
+            remove_file(&self)
+        }
+    }
+
 
     fn exists(&self) -> bool {
         <Path>::exists(self)
