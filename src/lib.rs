@@ -47,6 +47,9 @@ mod macros {
 pub mod physical;
 pub use physical::PhysicalFS;
 
+pub mod altroot;
+pub use altroot::AltrootFS;
+
 pub mod memory;
 pub use memory::MemoryFS;
 
