@@ -9,17 +9,18 @@ use std::path::{self, Path, PathBuf};
 use std::fs::{File, DirBuilder, Metadata, OpenOptions, ReadDir, DirEntry, remove_file, remove_dir, remove_dir_all};
 use std::io::Result;
 use std::borrow::Cow;
+use std::sync::Arc;
 use {VFS, VPath, VFile, VMetadata};
 
 #[derive(Debug, Clone)]
 pub struct AltrootFS {
-    root: PathBuf,
+    root: Arc<PathBuf>,
 }
 
 impl AltrootFS {
     pub fn new<T>(root: T) -> Self where PathBuf: From<T> {
         AltrootFS {
-            root: PathBuf::from(root)
+            root: Arc::new(PathBuf::from(root))
         }
     }
 }
@@ -29,7 +30,10 @@ impl AltrootFS {
 ///
 /// It must be absolute.
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct AltPath(PathBuf);
+pub struct AltPath {
+    root: Arc<PathBuf>,
+    full_path: PathBuf,
+}
 
 /// Helper function to turn a path::Component into an Option<String> iff the Component
 /// is a normal portion.
@@ -47,23 +51,18 @@ impl AltPath {
         let pathbuf = PathBuf::from(path);
 
         let relative_path = pathbuf.components().filter_map(component_filter);
-        let mut root_path = fs.root.clone();
-        root_path.extend(relative_path);
-        root_path.canonicalize().unwrap();
-        assert!(root_path.starts_with(&fs.root));
+        let root_path = fs.root.clone();
+        let mut full_path = (*root_path).clone();
+        full_path.extend(relative_path);
+        full_path.canonicalize().unwrap();
+        if !full_path.starts_with(&*fs.root) {
+            panic!("Tried to create an AltPath that exits the AltrootFS's root dir");
+        }
         
-        
-        // println!("fjdklaf: {:?}", pathbuf);
-        // let pathbuf = pathbuf.canonicalize().expect("Tried to create AltPath from a non-canonical path!");
-        // if !pathbuf.is_absolute() {
-        //     panic!("Tried to create an AltPath from a relative path.");
-        // }
-        // let mut root_path = fs.root.clone();
-        // println!("Root: {:?}, pathbuf: {:?}", root_path, pathbuf);
-        // // We can't just push() an absolute path, so we iterate over all its components
-        // // and push those iff they're a normal path segment.
-        // root_path.extend(pathbuf.components().filter_map(component_filter));
-        AltPath(root_path)
+        AltPath {
+            root: root_path,
+            full_path: full_path,
+        }
     }
 }
 
@@ -88,14 +87,14 @@ impl VFS for AltrootFS {
     type METADATA = Metadata;
 
     fn path<T: Into<String>>(&self, path: T) -> AltPath {
-        AltPath(PathBuf::from(path.into()))
+        AltPath::new(&self, PathBuf::from(path.into()))
     }
 }
 
 use std::convert;
 impl convert::AsRef<Path> for AltPath {
     fn as_ref(&self) -> &Path {
-        &self.0
+        &self.full_path
     }
 }
 
@@ -110,49 +109,55 @@ impl VPath for AltPath {
             .append(open_options.append)
             .truncate(open_options.truncate)
             .create(open_options.create)
-            .open(&self.0)
+            .open(&self.full_path)
             .map(|x| Box::new(x) as Box<VFile>)
     }
 
     fn open(&self) -> Result<Box<VFile>> {
-        File::open(&self.0).map(|x| Box::new(x) as Box<VFile>)
+        File::open(&self.full_path).map(|x| Box::new(x) as Box<VFile>)
     }
 
     fn create(&self) -> Result<Box<VFile>> {
-        File::create(&self.0).map(|x| Box::new(x) as Box<VFile>)
+        File::create(&self.full_path).map(|x| Box::new(x) as Box<VFile>)
     }
 
     fn append(&self) -> Result<Box<VFile>> {
         OpenOptions::new()
             .write(true)
             .append(true)
-            .open(&self.0)
+            .open(&self.full_path)
             .map(|x| Box::new(x) as Box<VFile>)
     }
 
     fn parent(&self) -> Option<Box<VPath>> {
-        match <Path>::parent(&self.0) {
-            Some(path) => Some(Box::new(path.to_path_buf())),
+        match <Path>::parent(&self.full_path) {
+            Some(path) => {
+                if path.starts_with(&*self.root) {
+                    Some(Box::new(path.to_path_buf()))
+                } else {
+                    None
+                }
+            },
             None => None,
         }
     }
 
     fn file_name(&self) -> Option<String> {
-        match <Path>::file_name(&self.0) {
+        match <Path>::file_name(&self.full_path) {
             Some(name) => Some(name.to_string_lossy().into_owned()),
             None => None,
         }
     }
 
     fn extension(&self) -> Option<String> {
-        match <Path>::extension(&self.0) {
+        match <Path>::extension(&self.full_path) {
             Some(name) => Some(name.to_string_lossy().into_owned()),
             None => None,
         }
     }
 
     fn resolve(&self, path: &String) -> Box<VPath> {
-        let mut result = self.0.clone();
+        let mut result = self.full_path.clone();
         <PathBuf>::push(&mut result, path);
         return Box::new(result);
     }
@@ -160,42 +165,42 @@ impl VPath for AltPath {
     fn mkdir(&self) -> Result<()> {
         DirBuilder::new()
             .recursive(true)
-            .create(&self.0)
+            .create(&self.full_path)
     }
 
     fn rm(&self) -> Result<()> {
-        if self.0.is_dir() {
-            remove_dir(&self.0)
+        if self.full_path.is_dir() {
+            remove_dir(&self.full_path)
         } else {
-            remove_file(&self.0)
+            remove_file(&self.full_path)
         }
     }
 
     fn rmrf(&self) -> Result<()> {
-        if self.0.is_dir() {
-            remove_dir_all(&self.0)
+        if self.full_path.is_dir() {
+            remove_dir_all(&self.full_path)
         } else {
-            remove_file(&self.0)
+            remove_file(&self.full_path)
         }
     }
 
 
     fn exists(&self) -> bool {
-        <Path>::exists(&self.0)
+        <Path>::exists(&self.full_path)
     }
 
     fn metadata(&self) -> Result<Box<VMetadata>> {
-        <Path>::metadata(&self.0).map(|x| Box::new(x) as Box<VMetadata>)
+        <Path>::metadata(&self.full_path).map(|x| Box::new(x) as Box<VMetadata>)
     }
 
     fn read_dir(&self) -> Result<Box<Iterator<Item = Result<Box<VPath>>>>> {
-        <Path>::read_dir(&self.0).map(|inner| {
+        <Path>::read_dir(&self.full_path).map(|inner| {
             Box::new(PhysicalReadDir { inner: inner }) as Box<Iterator<Item = Result<Box<VPath>>>>
         })
     }
 
     fn to_string(&self) -> Cow<str> {
-        <Path>::to_string_lossy(&self.0)
+        <Path>::to_string_lossy(&self.full_path)
     }
 
     fn box_clone(&self) -> Box<VPath> {
@@ -203,7 +208,8 @@ impl VPath for AltPath {
     }
 
     fn to_path_buf(&self) -> Option<PathBuf> {
-        Some(self.0.clone())
+        let relative_path = self.full_path.strip_prefix(&*self.root).expect("Should always succeed");
+        Some(relative_path.into())
     }
 }
 
