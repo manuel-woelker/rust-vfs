@@ -65,7 +65,7 @@ use std::borrow::Cow;
 /// A abstract path to a location in a filesystem
 pub trait VPath: Debug + std::marker::Send + std::marker::Sync {
     /// Open the file at this path with the given options
-    fn open_with_options(&self, openOptions: &OpenOptions) -> Result<Box<VFile>>;
+    fn open_with_options(&self, open_options: &OpenOptions) -> Result<Box<VFile>>;
     /// Open the file at this path for reading
     fn open(&self) -> Result<Box<VFile>> {
         self.open_with_options(OpenOptions::new().read(true))
