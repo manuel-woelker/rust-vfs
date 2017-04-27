@@ -354,12 +354,17 @@ impl VPath for MemoryPath {
     }
 
     fn read_dir(&self) -> Result<Box<Iterator<Item = Result<Box<VPath>>>>> {
+        let seporator = if self.path.ends_with("/") {
+            ""
+        } else {
+            "/"
+        };
         let children = try!(self.with_node(|node| {
             let children: Vec<_> = node.children
                                        .keys()
                                        .map(|name| {
                                            Ok(Box::new(MemoryPath::new(&self.fs,
-                                                    self.path.clone() + "/" +
+                                                    self.path.clone() + seporator +
                                                     name)) as Box<VPath>)
                                        })
                                        .collect();
@@ -600,18 +605,31 @@ mod tests {
     #[test]
     fn read_dir() {
         let fs = MemoryFS::new();
-        let path = fs.path("/foo");
+        let root = fs.path("/");
+        let parent = fs.path("/foo");
         let path2 = fs.path("/foo/bar");
         let path3 = fs.path("/foo/baz");
         path2.mkdir().unwrap();
         path3.create().unwrap();
-        let mut entries: Vec<String> = path.read_dir()
-                                           .unwrap()
-                                           .map(Result::unwrap)
-                                           .map(|path| path.to_string().into_owned())
-                                           .collect();
-        entries.sort();
-        assert_eq!(entries, vec!["/foo/bar".to_owned(), "/foo/baz".to_owned()]);
+
+        {
+            let mut entries: Vec<String> = root.read_dir()
+                                               .unwrap()
+                                               .map(Result::unwrap)
+                                               .map(|path| path.to_string().into_owned())
+                                               .collect();
+            entries.sort();
+            assert_eq!(entries, vec!["/foo".to_owned()]);
+        }
+        {
+            let mut entries: Vec<String> = parent.read_dir()
+                                               .unwrap()
+                                               .map(Result::unwrap)
+                                               .map(|path| path.to_string().into_owned())
+                                               .collect();
+            entries.sort();
+            assert_eq!(entries, vec!["/foo/bar".to_owned(), "/foo/baz".to_owned()]);
+        }
     }
 
     #[test]
