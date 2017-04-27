@@ -354,7 +354,7 @@ impl VPath for MemoryPath {
     }
 
     fn read_dir(&self) -> Result<Box<Iterator<Item = Result<Box<VPath>>>>> {
-        let seporator = if self.path.ends_with("/") {
+        let separator = if self.path.ends_with("/") {
             ""
         } else {
             "/"
@@ -364,7 +364,7 @@ impl VPath for MemoryPath {
                                        .keys()
                                        .map(|name| {
                                            Ok(Box::new(MemoryPath::new(&self.fs,
-                                                    self.path.clone() + seporator +
+                                                    self.path.clone() + separator +
                                                     name)) as Box<VPath>)
                                        })
                                        .collect();
