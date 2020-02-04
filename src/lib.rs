@@ -162,11 +162,11 @@ pub trait VFS {
 /// Options for opening files
 #[derive(Debug, Default)]
 pub struct OpenOptions {
-    read: bool,
-    write: bool,
-    create: bool,
-    append: bool,
-    truncate: bool,
+    pub read: bool,
+    pub write: bool,
+    pub create: bool,
+    pub append: bool,
+    pub truncate: bool,
 }
 
 impl OpenOptions {
