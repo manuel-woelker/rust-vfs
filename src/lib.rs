@@ -19,14 +19,33 @@
 use std::error::Error;
 
 use std::sync::Arc;
-use std::io::{Seek, Read};
+use std::io::{Seek, Read, Write};
 use std::fmt::Debug;
 
-type Result<T> = std::result::Result<T, Box<dyn Error>>;
+pub type Result<T> = std::result::Result<T, Box<dyn Error>>;
+
+pub trait SeekAndRead: Seek + Read {}
+
+impl <T> SeekAndRead for T where T: Seek + Read {}
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum VFileType {
+    File,
+    Directory,
+}
+
+#[derive(Debug)]
+pub struct VMetadata {
+    pub file_type: VFileType,
+    pub len: u64,
+}
 
 pub trait VFS: Debug {
     fn read_dir(&self, path: &str) -> Result<Box<dyn Iterator<Item=String>>>;
-    fn open_file(&self, path: &str) -> Result<Box<dyn Read>>;
+    fn open_file(&self, path: &str) -> Result<Box<dyn SeekAndRead>>;
+    fn create_file(&self, path: &str) -> Result<Box<dyn Write>>;
+    fn metadata(&self, path: &str) -> Result<VMetadata>;
+    fn exists(&self, path: &str) -> bool;
 }
 
 
@@ -46,16 +65,6 @@ impl VPath {
         &self.path
     }
 
-    fn read_dir(&self) -> Result<Box<dyn Iterator<Item=VPath>>> {
-        let parent = self.path.clone();
-        let fs = self.fs.clone();
-        Ok(Box::new(self.fs.vfs.read_dir(&self.path)?.map(move |path| VPath { path: format!("{}/{}", parent, path), fs: fs.clone() })))
-    }
-
-    fn open_file(&self) -> Result<Box<dyn Read>> {
-        self.fs.vfs.open_file(&self.path)
-    }
-
     fn join(&self, path: &str) -> Self {
         VPath {
             path: format!("{}/{}", self.path, path),
@@ -63,9 +72,29 @@ impl VPath {
         }
     }
 
+    fn read_dir(&self) -> Result<Box<dyn Iterator<Item=VPath>>> {
+        let parent = self.path.clone();
+        let fs = self.fs.clone();
+        Ok(Box::new(self.fs.vfs.read_dir(&self.path)?.map(move |path| VPath { path: format!("{}/{}", parent, path), fs: fs.clone() })))
+    }
+
+    fn open_file(&self) -> Result<Box<dyn SeekAndRead>> {
+        self.fs.vfs.open_file(&self.path)
+    }
+    fn create_file(&self) -> Result<Box<dyn Write>> {
+        self.fs.vfs.create_file(&self.path)
+    }
+
+    fn metadata(&self) -> Result<VMetadata> {
+        self.fs.vfs.metadata(&self.path)
+    }
+
+    fn exists(&self) -> bool {
+        self.fs.vfs.exists(&self.path)
+    }
     fn create<T: VFS + 'static>(vfs: T) -> Result<Self> {
         Ok(VPath {
-            path: ".".to_string(),
+            path: "".to_string(),
             fs: Arc::new(FileSystem {
                 vfs: Box::new(vfs)
             })

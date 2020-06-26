@@ -1,10 +1,11 @@
 //! A "physical" file system implementation using the underlying OS file system
 
-use VFS;
+use ::{VFS, VMetadata};
 use crate::Result;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::fs::File;
+use ::{VFileType, SeekAndRead};
 
 #[derive(Debug)]
 pub struct PhysicalFS {
@@ -17,19 +18,49 @@ impl PhysicalFS {
             root,
         }
     }
+    fn get_path(&self,mut path: &str) -> PathBuf {
+        if(path.starts_with("/")) {
+            path = &path[1..];
+        }
+        self.root.join(path)
+    }
 }
 
 
 impl VFS for PhysicalFS {
     fn read_dir(&self, path: &str) -> Result<Box<dyn Iterator<Item=String>>> {
-        let entries = Box::new(self.root.join(path).read_dir()?.map(|entry| entry.unwrap().file_name().into_string().unwrap()));
+        let entries = Box::new(self.get_path(path).read_dir()?.map(|entry| entry.unwrap().file_name().into_string().unwrap()));
         Ok(entries)
     }
 
-    fn open_file(&self, path: &str) -> Result<Box<dyn Read>> {
-        Ok(Box::new(File::open(self.root.join(path))?))
+    fn open_file(&self, path: &str) -> Result<Box<dyn SeekAndRead>> {
+        Ok(Box::new(File::open(self.get_path(path))?))
+    }
+
+    fn create_file(&self, path: &str) -> Result<Box<dyn Write>> {
+        Ok(Box::new(File::create(self.get_path(path))?))
+    }
+
+    fn metadata(&self, path: &str) -> Result<VMetadata> {
+        let metadata = self.get_path(path).metadata()?;
+        Ok(if metadata.is_dir() {
+            VMetadata {
+                file_type: VFileType::Directory,
+                len: 0,
+            }
+        } else {
+            VMetadata {
+                file_type: VFileType::File,
+                len: metadata.len(),
+            }
+        })
+    }
+
+    fn exists(&self, path: &str) -> bool {
+        self.get_path(path).exists()
     }
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -38,6 +69,7 @@ mod tests {
 
     use super::*;
     use VPath;
+    use std::fs::FileType;
 
     #[test]
     fn open_file() {
@@ -46,6 +78,15 @@ mod tests {
         let mut string = String::new();
         root.join("Cargo.toml").open_file().unwrap().read_to_string(&mut string);
         assert_eq!(string, expected);
+    }
+
+    #[test]
+    fn create_file() {
+        let root = create_root();
+        let mut string = String::new();
+        root.join("target/test.txt").create_file().unwrap().write_all(b"Testing only").unwrap();
+        let read = std::fs::read_to_string("target/test.txt").unwrap();
+        assert_eq!(read, "Testing only");
     }
 
     fn create_root() -> VPath {
@@ -58,9 +99,28 @@ mod tests {
         let root = create_root();
         let entries: Vec<_> = root.read_dir().unwrap().collect();
         let map: Vec<_> = entries.iter().map(|path: &VPath| path.path()).filter(|x| x.ends_with(".toml")).collect();
-        assert_eq!(&["./Cargo.toml"], &map[..]);
+        assert_eq!(&["/Cargo.toml"], &map[..]);
     }
 
+    #[test]
+    fn file_metadata() {
+        let expected = std::fs::read_to_string("Cargo.toml").unwrap();
+        let root = create_root();
+        let metadata = root.join("Cargo.toml").metadata().unwrap();
+        assert_eq!(metadata.len, expected.len() as u64);
+        assert_eq!(metadata.file_type, VFileType::File);
+    }
+
+    #[test]
+    fn dir_metadata() {
+        let root = create_root();
+        let metadata = root.metadata().unwrap();
+        assert_eq!(metadata.len, 0);
+        assert_eq!(metadata.file_type, VFileType::Directory);
+        let metadata = root.join("src").metadata().unwrap();
+        assert_eq!(metadata.len, 0);
+        assert_eq!(metadata.file_type, VFileType::Directory);
+    }
 }
 /*
 use std::path::{Path, PathBuf};
@@ -266,3 +326,4 @@ mod tests {
 
 }
 */
+
