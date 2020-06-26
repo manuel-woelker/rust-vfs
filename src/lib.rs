@@ -16,6 +16,67 @@
 //!  * **MemoryFS** - an ephemeral in-memory implementation (intended for unit tests)
 
 
+use std::error::Error;
+
+use std::sync::Arc;
+use std::io::{Seek, Read};
+use std::fmt::Debug;
+
+type Result<T> = std::result::Result<T, Box<dyn Error>>;
+
+pub trait VFS: Debug {
+    fn read_dir(&self, path: &str) -> Result<Box<dyn Iterator<Item=String>>>;
+    fn open_file(&self, path: &str) -> Result<Box<dyn Read>>;
+}
+
+
+#[derive(Debug)]
+pub struct FileSystem {
+    vfs: Box<dyn VFS>,
+}
+
+#[derive(Debug)]
+pub struct VPath {
+    path: String,
+    fs: Arc<FileSystem>,
+}
+
+impl VPath {
+    fn path(&self) -> &str {
+        &self.path
+    }
+
+    fn read_dir(&self) -> Result<Box<dyn Iterator<Item=VPath>>> {
+        let parent = self.path.clone();
+        let fs = self.fs.clone();
+        Ok(Box::new(self.fs.vfs.read_dir(&self.path)?.map(move |path| VPath { path: format!("{}/{}", parent, path), fs: fs.clone() })))
+    }
+
+    fn open_file(&self) -> Result<Box<dyn Read>> {
+        self.fs.vfs.open_file(&self.path)
+    }
+
+    fn join(&self, path: &str) -> Self {
+        VPath {
+            path: format!("{}/{}", self.path, path),
+            fs: self.fs.clone(),
+        }
+    }
+
+    fn create<T: VFS + 'static>(vfs: T) -> Result<Self> {
+        Ok(VPath {
+            path: ".".to_string(),
+            fs: Arc::new(FileSystem {
+                vfs: Box::new(vfs)
+            })
+        })
+    }
+}
+
+pub mod physical;
+
+/*
+
 #![allow(unused_imports)]
 #![allow(unused_variables)]
 
@@ -205,3 +266,4 @@ impl OpenOptions {
         self
     }
 }
+*/

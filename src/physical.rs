@@ -1,5 +1,68 @@
 //! A "physical" file system implementation using the underlying OS file system
 
+use VFS;
+use crate::Result;
+use std::io::Read;
+use std::path::PathBuf;
+use std::fs::File;
+
+#[derive(Debug)]
+pub struct PhysicalFS {
+    root: PathBuf,
+}
+
+impl PhysicalFS {
+    fn new(root: PathBuf) -> Self {
+        PhysicalFS {
+            root,
+        }
+    }
+}
+
+
+impl VFS for PhysicalFS {
+    fn read_dir(&self, path: &str) -> Result<Box<dyn Iterator<Item=String>>> {
+        let entries = Box::new(self.root.join(path).read_dir()?.map(|entry| entry.unwrap().file_name().into_string().unwrap()));
+        Ok(entries)
+    }
+
+    fn open_file(&self, path: &str) -> Result<Box<dyn Read>> {
+        Ok(Box::new(File::open(self.root.join(path))?))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::{Read, Result};
+    use std::path::PathBuf;
+
+    use super::*;
+    use VPath;
+
+    #[test]
+    fn open_file() {
+        let expected = std::fs::read_to_string("Cargo.toml").unwrap();
+        let root = create_root();
+        let mut string = String::new();
+        root.join("Cargo.toml").open_file().unwrap().read_to_string(&mut string);
+        assert_eq!(string, expected);
+    }
+
+    fn create_root() -> VPath {
+        VPath::create(PhysicalFS::new(std::env::current_dir().unwrap())).unwrap()
+    }
+
+    #[test]
+    fn read_dir() {
+        let expected = std::fs::read_to_string("Cargo.toml").unwrap();
+        let root = create_root();
+        let entries: Vec<_> = root.read_dir().unwrap().collect();
+        let map: Vec<_> = entries.iter().map(|path: &VPath| path.path()).filter(|x| x.ends_with(".toml")).collect();
+        assert_eq!(&["./Cargo.toml"], &map[..]);
+    }
+
+}
+/*
 use std::path::{Path, PathBuf};
 use std::fs::{File, DirBuilder, Metadata, OpenOptions, ReadDir, DirEntry, remove_file, remove_dir, remove_dir_all};
 use std::io::Result;
@@ -202,3 +265,4 @@ mod tests {
 
 
 }
+*/
