@@ -1,7 +1,7 @@
 //! A "physical" file system implementation using the underlying OS file system
 
 use crate::Result;
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
 use {SeekAndRead, VFileType};
@@ -35,12 +35,26 @@ impl VFS for PhysicalFS {
         Ok(entries)
     }
 
+    fn create_dir(&self, path: &str) -> Result<()> {
+        std::fs::create_dir(self.get_path(path))?;
+        Ok(())
+    }
+
     fn open_file(&self, path: &str) -> Result<Box<dyn SeekAndRead>> {
         Ok(Box::new(File::open(self.get_path(path))?))
     }
 
     fn create_file(&self, path: &str) -> Result<Box<dyn Write>> {
         Ok(Box::new(File::create(self.get_path(path))?))
+    }
+
+    fn append_file(&self, path: &str) -> Result<Box<dyn Write>> {
+        Ok(Box::new(
+            OpenOptions::new()
+                .write(true)
+                .append(true)
+                .open(self.get_path(path))?,
+        ))
     }
 
     fn metadata(&self, path: &str) -> Result<VMetadata> {
@@ -66,7 +80,7 @@ impl VFS for PhysicalFS {
 #[cfg(test)]
 mod tests {
     use std::io::Read;
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
 
     use super::*;
     use std::fs::FileType;
@@ -97,6 +111,17 @@ mod tests {
         assert_eq!(read, "Testing only");
     }
 
+    #[test]
+    fn append_file() {
+        let root = create_root();
+        let mut string = String::new();
+        let path = root.join("target/test_append.txt");
+        path.create_file().unwrap().write_all(b"Testing 1").unwrap();
+        path.append_file().unwrap().write_all(b"Testing 2").unwrap();
+        let read = std::fs::read_to_string("target/test_append.txt").unwrap();
+        assert_eq!(read, "Testing 1Testing 2");
+    }
+
     fn create_root() -> VPath {
         VPath::create(PhysicalFS::new(std::env::current_dir().unwrap())).unwrap()
     }
@@ -104,6 +129,7 @@ mod tests {
     #[test]
     fn read_dir() {
         let expected = std::fs::read_to_string("Cargo.toml").unwrap();
+        std::fs::remove_dir("target/fs_test").unwrap();
         let root = create_root();
         let entries: Vec<_> = root.read_dir().unwrap().collect();
         let map: Vec<_> = entries
@@ -112,6 +138,17 @@ mod tests {
             .filter(|x| x.ends_with(".toml"))
             .collect();
         assert_eq!(&["/Cargo.toml"], &map[..]);
+    }
+
+    #[test]
+    fn create_dir() {
+        let _ = std::fs::remove_dir("target/fs_test");
+        let root = create_root();
+        root.join("target/fs_test").create_dir().unwrap();
+        let path = Path::new("target/fs_test");
+        assert!(path.exists(), "Path was not created");
+        assert!(path.is_dir(), "Path is not a directory");
+        std::fs::remove_dir("target/fs_test").unwrap();
     }
 
     #[test]

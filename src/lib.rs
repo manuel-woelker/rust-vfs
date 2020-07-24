@@ -32,7 +32,7 @@ pub trait SeekAndRead: Seek + Read {}
 
 impl<T> SeekAndRead for T where T: Seek + Read {}
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum VFileType {
     File,
     Directory,
@@ -44,10 +44,13 @@ pub struct VMetadata {
     pub len: u64,
 }
 
-pub trait VFS: Debug {
+pub trait VFS: Debug + Sync + Send {
     fn read_dir(&self, path: &str) -> Result<Box<dyn Iterator<Item = String>>>;
+    fn create_dir(&self, path: &str) -> Result<()>;
+    // TODO: mkdirp
     fn open_file(&self, path: &str) -> Result<Box<dyn SeekAndRead>>;
     fn create_file(&self, path: &str) -> Result<Box<dyn Write>>;
+    fn append_file(&self, path: &str) -> Result<Box<dyn Write>>;
     fn metadata(&self, path: &str) -> Result<VMetadata>;
     fn exists(&self, path: &str) -> bool;
 }
@@ -86,11 +89,18 @@ impl VPath {
         )))
     }
 
+    pub fn create_dir(&self) -> Result<()> {
+        self.fs.vfs.create_dir(&self.path)
+    }
+
     pub fn open_file(&self) -> Result<Box<dyn SeekAndRead>> {
         self.fs.vfs.open_file(&self.path)
     }
     pub fn create_file(&self) -> Result<Box<dyn Write>> {
         self.fs.vfs.create_file(&self.path)
+    }
+    pub fn append_file(&self) -> Result<Box<dyn Write>> {
+        self.fs.vfs.append_file(&self.path)
     }
 
     pub fn metadata(&self) -> Result<VMetadata> {

@@ -101,8 +101,19 @@ impl Seek for ReadableFile {
 }
 
 impl VFS for MemoryFS {
-    fn read_dir(&self, path: &str) -> Result<Box<dyn Iterator<Item = String>>> {
+    fn read_dir(&self, _path: &str) -> Result<Box<dyn Iterator<Item = String>>> {
         unimplemented!()
+    }
+
+    fn create_dir(&self, path: &str) -> Result<()> {
+        self.handle.write().unwrap().files.insert(
+            path.to_string(),
+            MemoryFile {
+                file_type: VFileType::Directory,
+                content: Default::default(),
+            },
+        );
+        Ok(())
     }
 
     fn open_file(&self, path: &str) -> Result<Box<dyn SeekAndRead>> {
@@ -131,12 +142,25 @@ impl VFS for MemoryFS {
         Ok(Box::new(writer))
     }
 
+    fn append_file(&self, path: &str) -> Result<Box<dyn Write>> {
+        let handle = self.handle.write().unwrap();
+        let file = handle.files.get(path).unwrap();
+        let mut content = Cursor::new(file.content.as_ref().clone());
+        content.seek(SeekFrom::End(0))?;
+        let writer = WritableFile {
+            content,
+            destination: path.to_string(),
+            fs: self.handle.clone(),
+        };
+        Ok(Box::new(writer))
+    }
+
     fn metadata(&self, path: &str) -> Result<VMetadata> {
         let guard = self.handle.read().unwrap();
         let files = &guard.files;
         let file = files.get(path).unwrap();
         Ok(VMetadata {
-            file_type: VFileType::File,
+            file_type: file.file_type,
             len: file.content.len() as u64,
         })
     }
@@ -172,6 +196,7 @@ mod tests {
     fn write_and_read_file() {
         let root = VPath::create(MemoryFS::new()).unwrap();
         let path = root.join("foobar.txt");
+        let send = &path as &dyn Send;
         {
             let mut file = path.create_file().unwrap();
             write!(file, "Hello world").unwrap();
@@ -188,7 +213,30 @@ mod tests {
         let metadata = path.metadata().unwrap();
         assert_eq!(metadata.len, 12);
         assert_eq!(metadata.file_type, VFileType::File);
-
     }
 
+    #[test]
+    fn append_file() {
+        let root = VPath::create(MemoryFS::new()).unwrap();
+        let mut string = String::new();
+        let path = root.join("test_append.txt");
+        path.create_file().unwrap().write_all(b"Testing 1").unwrap();
+        path.append_file().unwrap().write_all(b"Testing 2").unwrap();
+        {
+            let mut file = path.open_file().unwrap();
+            let mut string: String = String::new();
+            file.read_to_string(&mut string).unwrap();
+            assert_eq!(string, "Testing 1Testing 2");
+        }
+    }
+
+    #[test]
+    fn create_dir() {
+        let root = VPath::create(MemoryFS::new()).unwrap();
+        let mut string = String::new();
+        let path = root.join("foo");
+        path.create_dir().unwrap();
+        let metadata = path.metadata().unwrap();
+        assert_eq!(metadata.file_type, VFileType::Directory);
+    }
 }
