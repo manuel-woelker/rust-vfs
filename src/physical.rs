@@ -1,11 +1,11 @@
 //! A "physical" file system implementation using the underlying OS file system
 
-use ::{VFS, VMetadata};
 use crate::Result;
-use std::io::{Read, Write};
-use std::path::PathBuf;
 use std::fs::File;
-use ::{VFileType, SeekAndRead};
+use std::io::Write;
+use std::path::PathBuf;
+use {SeekAndRead, VFileType};
+use {VMetadata, VFS};
 
 #[derive(Debug)]
 pub struct PhysicalFS {
@@ -13,23 +13,25 @@ pub struct PhysicalFS {
 }
 
 impl PhysicalFS {
-    fn new(root: PathBuf) -> Self {
-        PhysicalFS {
-            root,
-        }
+    pub fn new(root: PathBuf) -> Self {
+        PhysicalFS { root }
     }
-    fn get_path(&self,mut path: &str) -> PathBuf {
-        if(path.starts_with("/")) {
+
+    fn get_path(&self, mut path: &str) -> PathBuf {
+        if path.starts_with("/") {
             path = &path[1..];
         }
         self.root.join(path)
     }
 }
 
-
 impl VFS for PhysicalFS {
-    fn read_dir(&self, path: &str) -> Result<Box<dyn Iterator<Item=String>>> {
-        let entries = Box::new(self.get_path(path).read_dir()?.map(|entry| entry.unwrap().file_name().into_string().unwrap()));
+    fn read_dir(&self, path: &str) -> Result<Box<dyn Iterator<Item = String>>> {
+        let entries = Box::new(
+            self.get_path(path)
+                .read_dir()?
+                .map(|entry| entry.unwrap().file_name().into_string().unwrap()),
+        );
         Ok(entries)
     }
 
@@ -61,22 +63,24 @@ impl VFS for PhysicalFS {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    use std::io::{Read, Result};
+    use std::io::Read;
     use std::path::PathBuf;
 
     use super::*;
-    use VPath;
     use std::fs::FileType;
+    use VPath;
 
     #[test]
     fn open_file() {
         let expected = std::fs::read_to_string("Cargo.toml").unwrap();
         let root = create_root();
         let mut string = String::new();
-        root.join("Cargo.toml").open_file().unwrap().read_to_string(&mut string);
+        root.join("Cargo.toml")
+            .open_file()
+            .unwrap()
+            .read_to_string(&mut string);
         assert_eq!(string, expected);
     }
 
@@ -84,7 +88,11 @@ mod tests {
     fn create_file() {
         let root = create_root();
         let mut string = String::new();
-        root.join("target/test.txt").create_file().unwrap().write_all(b"Testing only").unwrap();
+        root.join("target/test.txt")
+            .create_file()
+            .unwrap()
+            .write_all(b"Testing only")
+            .unwrap();
         let read = std::fs::read_to_string("target/test.txt").unwrap();
         assert_eq!(read, "Testing only");
     }
@@ -98,7 +106,11 @@ mod tests {
         let expected = std::fs::read_to_string("Cargo.toml").unwrap();
         let root = create_root();
         let entries: Vec<_> = root.read_dir().unwrap().collect();
-        let map: Vec<_> = entries.iter().map(|path: &VPath| path.path()).filter(|x| x.ends_with(".toml")).collect();
+        let map: Vec<_> = entries
+            .iter()
+            .map(|path: &VPath| path.path())
+            .filter(|x| x.ends_with(".toml"))
+            .collect();
         assert_eq!(&["/Cargo.toml"], &map[..]);
     }
 
@@ -326,4 +338,3 @@ mod tests {
 
 }
 */
-

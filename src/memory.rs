@@ -1,633 +1,194 @@
 //! An ephemeral in-memory file system, intended mainly for unit tests
 
-
-use std::path::{Path, PathBuf, Component, Components};
-use std::fmt::Debug;
-use std::io::{Read, Write, Seek, SeekFrom, Result};
-use std::io::{Error, ErrorKind};
-use std;
-
-use std::cell::RefCell;
-use std::sync::Arc;
-use std::sync::RwLock;
-use std::ops::{Deref, DerefMut};
-
+use crate::Result;
+use core::cmp;
 use std::collections::HashMap;
-use std::collections::hash_map::Entry;
+use std::fmt;
+use std::fmt::{Debug, Formatter};
+use std::io::{Cursor, Read, Seek, SeekFrom, Write};
+use std::mem::swap;
+use std::sync::{Arc, RwLock};
+use {SeekAndRead, VMetadata};
+use {VFileType, VFS};
 
-use std::cmp;
-
-use {VFS, VPath, VFile, VMetadata, OpenOptions};
-
-pub type Filename = String;
-
-#[derive(Debug, Clone)]
-pub struct DataHandle(Arc<RwLock<Vec<u8>>>);
-
-impl DataHandle {
-    fn new() -> DataHandle {
-        DataHandle(Arc::new(RwLock::new(Vec::new())))
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-enum NodeKind {
-    Directory,
-    File,
-}
-
-#[derive(Debug)]
-struct FsNode {
-    kind: NodeKind,
-    pub children: HashMap<String, FsNode>,
-    pub data: DataHandle,
-}
-
-impl FsNode {
-    pub fn new_directory() -> Self {
-        FsNode {
-            kind: NodeKind::Directory,
-            children: HashMap::new(),
-            data: DataHandle::new(),
-        }
-    }
-
-    pub fn new_file() -> Self {
-        FsNode {
-            kind: NodeKind::File,
-            children: HashMap::new(),
-            data: DataHandle::new(),
-        }
-    }
-
-    fn metadata(&mut self) -> Result<MemoryMetadata> {
-        Ok(MemoryMetadata {
-            kind: self.kind.clone(),
-            len: ctry!(self.data.0.read()).len() as u64,
-        })
-    }
-}
-
-#[derive(Debug)]
-pub struct MemoryFSImpl {
-    root: FsNode,
-}
-
-pub type MemoryFSHandle = Arc<RwLock<MemoryFSImpl>>;
+type MemoryFsHandle = Arc<RwLock<MemoryFsImpl>>;
 
 /// An ephemeral in-memory file system, intended mainly for unit tests
-#[derive(Debug)]
 pub struct MemoryFS {
-    handle: MemoryFSHandle,
+    handle: MemoryFsHandle,
+}
+
+impl Debug for MemoryFS {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str("In Memory File System")
+    }
 }
 
 impl MemoryFS {
-    pub fn new() -> MemoryFS {
-        MemoryFS { handle: Arc::new(RwLock::new(MemoryFSImpl { root: FsNode::new_directory() })) }
-    }
-}
-
-
-#[derive(Debug)]
-pub struct MemoryFile {
-    pub data: DataHandle,
-    pub pos: u64,
-}
-
-impl Read for MemoryFile {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        let data = ctry!(self.data.0.write());
-        let n = try!((&data.deref()[self.pos as usize..]).read(buf));
-        self.pos += n as u64;
-        Ok(n)
-    }
-}
-
-impl Write for MemoryFile {
-    fn write(&mut self, buf: &[u8]) -> Result<usize> {
-        let mut guard = ctry!(self.data.0.write());
-        let ref mut vec: &mut Vec<u8> = guard.deref_mut();
-        // From cursor.rs
-        let pos = self.pos;
-        let len = vec.len();
-        let amt = pos.saturating_sub(len as u64);
-        vec.resize(len + amt as usize, 0);
-        {
-            let pos = pos as usize;
-            let space = vec.len() - pos;
-            let (left, right) = buf.split_at(cmp::min(space, buf.len()));
-            vec[pos..pos + left.len()].clone_from_slice(left);
-            vec.extend_from_slice(right);
-        }
-
-        // Bump us forward
-        self.pos = pos + buf.len() as u64;
-        Ok(buf.len())
-    }
-    fn flush(&mut self) -> Result<()> {
-        // Nothing to do
-        Ok(())
-    }
-}
-
-impl Seek for MemoryFile {
-    fn seek(&mut self, style: SeekFrom) -> Result<u64> {
-        let pos = match style {
-            SeekFrom::Start(n) => {
-                self.pos = n;
-                return Ok(n);
-            }
-            SeekFrom::End(n) => {
-                let data = ctry!(self.data.0.read());
-                data.len() as i64 + n
-            }
-            SeekFrom::Current(n) => self.pos as i64 + n,
-        };
-
-        if pos < 0 {
-            Err(Error::new(ErrorKind::InvalidInput,
-                           "invalid seek to a negative position"))
-        } else {
-            self.pos = pos as u64;
-            Ok(self.pos)
+    pub fn new() -> Self {
+        MemoryFS {
+            handle: Arc::new(RwLock::new(MemoryFsImpl::new())),
         }
     }
 }
 
-pub struct MemoryMetadata {
-    kind: NodeKind,
-    len: u64,
+struct WritableFile {
+    content: Cursor<Vec<u8>>,
+    destination: String,
+    fs: MemoryFsHandle,
 }
 
-impl VMetadata for MemoryMetadata {
-    fn is_dir(&self) -> bool {
-        self.kind == NodeKind::Directory
+impl Write for WritableFile {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.content.write(buf)
     }
-    fn is_file(&self) -> bool {
-        self.kind == NodeKind::File
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.content.flush()
     }
+}
+
+impl Drop for WritableFile {
+    fn drop(&mut self) {
+        let mut content = vec![];
+        swap(&mut content, &mut self.content.get_mut());
+        self.fs.write().unwrap().files.insert(
+            self.destination.clone(),
+            MemoryFile {
+                file_type: VFileType::File,
+                content: Arc::new(content),
+            },
+        );
+    }
+}
+
+struct ReadableFile {
+    content: Arc<Vec<u8>>,
+    position: u64,
+}
+
+impl ReadableFile {
     fn len(&self) -> u64 {
-        self.len
+        self.content.len() as u64 - self.position
+    }
+}
+
+impl Read for ReadableFile {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let amt = cmp::min(buf.len(), self.len() as usize);
+
+        if amt == 1 {
+            buf[0] = self.content[self.position as usize];
+        } else {
+            buf[..amt].copy_from_slice(
+                &self.content.as_slice()[self.position as usize..self.position as usize + amt],
+            );
+        }
+        self.position += amt as u64;
+        Ok(amt)
+    }
+}
+
+impl Seek for ReadableFile {
+    fn seek(&mut self, pos: SeekFrom) -> std::io::Result<u64> {
+        match pos {
+            SeekFrom::Start(offset) => self.position = offset,
+            SeekFrom::Current(offset) => self.position = (self.position as i64 + offset) as u64,
+            SeekFrom::End(offset) => self.position = (self.content.len() as i64 + offset) as u64,
+        }
+        Ok(self.position)
     }
 }
 
 impl VFS for MemoryFS {
-    type PATH = MemoryPath;
-    type FILE = MemoryFile;
-    type METADATA = MemoryMetadata;
-
-    fn path<T: Into<String>>(&self, path: T) -> MemoryPath {
-        MemoryPath::new(&self.handle, path.into())
-    }
-}
-
-
-#[derive(Debug, Clone)]
-pub struct MemoryPath {
-    pub path: Filename,
-    fs: MemoryFSHandle,
-}
-
-impl MemoryPath {
-    pub fn new(fs: &MemoryFSHandle, path: Filename) -> Self {
-        return MemoryPath {
-            path: path,
-            fs: fs.clone(),
-        };
+    fn read_dir(&self, path: &str) -> Result<Box<dyn Iterator<Item = String>>> {
+        unimplemented!()
     }
 
-    fn with_node<R, F: FnOnce(&mut FsNode) -> R>(&self, f: F) -> Result<R> {
-        let root = &mut self.fs.write().unwrap().root;
-        let mut components: Vec<&str> = self.path.split("/").collect();
-        components.reverse();
-        components.pop();
-        return traverse_with(root, &mut components, f);
-    }
-
-    pub fn decompose_path(&self) -> (Option<String>, String) {
-        let mut split = self.path.rsplitn(2, "/");
-        if let Some(mut filename) = split.next() {
-            if let Some(mut parent) = split.next() {
-                if parent.is_empty() {
-                    parent = "/";
-                }
-                if filename.is_empty() {
-                    filename = parent;
-                    return (None, filename.to_owned());
-                }
-                return (Some(parent.to_owned()), filename.to_owned());
-            }
-        }
-        return (None, self.path.clone());
-    }
-
-    fn parent_internal(&self) -> Option<MemoryPath> {
-        self.decompose_path().0.map(|parent| MemoryPath::new(&self.fs.clone(), parent))
-    }
-}
-
-fn traverse_mkdir(node: &mut FsNode, components: &mut Vec<&str>) -> Result<()> {
-    if let Some(component) = components.pop() {
-        let directory = &mut node.children
-                                 .entry(component.to_owned())
-                                 .or_insert_with(FsNode::new_directory);
-        if directory.kind != NodeKind::Directory {
-            return Err(Error::new(ErrorKind::Other,
-                                  format!("File is not a directory: {}", component)));
-        }
-        traverse_mkdir(directory, components)
-    } else {
-        Ok(())
-    }
-}
-
-fn traverse_with<R, F: FnOnce(&mut FsNode) -> R>(node: &mut FsNode,
-                                                 components: &mut Vec<&str>,
-                                                 f: F)
-                                                 -> Result<R> {
-    if let Some(component) = components.pop() {
-        if component.is_empty() {
-            return traverse_with(node, components, f);
-        }
-        let entry = node.children.get_mut(component);
-        if let Some(directory) = entry {
-            return traverse_with(directory, components, f);
-        } else {
-            return Err(Error::new(ErrorKind::Other, format!("File not found {:?}", component)));
-        }
-    } else {
-        Ok(f(node))
-    }
-}
-
-impl VPath for MemoryPath {
-    fn open_with_options(&self, open_options: &OpenOptions) -> Result<Box<VFile>> {
-        let parent_path = match self.parent_internal() {
-            None => {
-                return Err(Error::new(ErrorKind::Other,
-                                      format!("File is not a file: {:?}", self.file_name())))
-            }
-            Some(parent) => parent,
-        };
-        let data_handle = try!(try!(parent_path.with_node(|node| {
-            let file_name = self.file_name().unwrap();
-            let file_node_entry = node.children.entry(file_name);
-            let file_node = match file_node_entry {
-                Entry::Occupied(entry) => entry.into_mut(),
-                Entry::Vacant(entry) => {
-                    if !open_options.create {
-                        return Err(Error::new(ErrorKind::Other,
-                                              format!("File does not exist: {}", self.path)));
-                    }
-                    entry.insert(FsNode::new_file())
-                }
-            };
-            if file_node.kind != NodeKind::File {
-                return Err(Error::new(ErrorKind::Other,
-                                      format!("File is not a file: {:?}", self.file_name())));
-            }
-            return Ok(file_node.data.clone());
-        })));
-        if open_options.truncate {
-            let mut data = ctry!(data_handle.0.write());
-            data.clear();
-        }
-        let mut pos = 0u64;
-        if open_options.append {
-            pos = ctry!(data_handle.0.read()).len() as u64;
-        }
-
-        Ok(Box::new(MemoryFile {
-            data: data_handle,
-            pos: pos,
+    fn open_file(&self, path: &str) -> Result<Box<dyn SeekAndRead>> {
+        let handle = self.handle.read().unwrap();
+        let file = handle.files.get(path).unwrap();
+        Ok(Box::new(ReadableFile {
+            content: file.content.clone(),
+            position: 0,
         }))
-
     }
 
-    fn parent(&self) -> Option<Box<VPath>> {
-        self.parent_internal().map(|path| Box::new(path) as Box<VPath>)
-    }
-
-
-    fn file_name(&self) -> Option<String> {
-        Some(self.decompose_path().1)
-    }
-
-    fn extension(&self) -> Option<String> {
-        match self.file_name() {
-            Some(name) => {
-                let v: Vec<&str> = name.rsplitn(2, '.').collect();
-                if v.len() == 2 {
-                    Some(v.get(0).unwrap().to_owned().to_owned())
-                } else {
-                    None
-                }
-            }
-            None => None,
-        }
-
-    }
-
-    fn resolve(&self, path: &String) -> Box<VPath> {
-        let mut new_path = self.path.clone();
-        if !new_path.ends_with('/') {
-            new_path.push_str("/");
-        }
-        new_path.push_str(&path);
-        return Box::new(MemoryPath::new(&self.fs, new_path));
-    }
-
-    fn mkdir(&self) -> Result<()> {
-        let root = &mut ctry!(self.fs.write()).root;
-        let mut components: Vec<&str> = self.path.split("/").collect();
-        components.reverse();
-        components.pop();
-        traverse_mkdir(root, &mut components)
-    }
-
-    fn exists(&self) -> bool {
-        return self.with_node(|node| ()).is_ok();
-    }
-
-    fn metadata(&self) -> Result<Box<VMetadata>> {
-        return try!(self.with_node(FsNode::metadata)).map(|x| Box::new(x) as Box<VMetadata>);
-    }
-
-    fn read_dir(&self) -> Result<Box<Iterator<Item = Result<Box<VPath>>>>> {
-        let children = try!(self.with_node(|node| {
-            let children: Vec<_> = node.children
-                                       .keys()
-                                       .map(|name| {
-                                           Ok(Box::new(MemoryPath::new(&self.fs,
-                                                    self.path.clone() + "/" +
-                                                    name)) as Box<VPath>)
-                                       })
-                                       .collect();
-            return Box::new(children.into_iter());
-        }));
-        return Ok(children);
-    }
-
-    fn to_string(&self) -> std::borrow::Cow<str> {
-        std::borrow::Cow::Owned(self.path.clone())
-    }
-
-    fn to_path_buf(&self) -> Option<PathBuf> {
-        None
-    }
-
-    fn rm(&self) -> Result<()> {
-        let parent_path = match self.parent_internal() {
-            None => {
-                return Err(Error::new(ErrorKind::Other,
-                                      format!("File is not a file: {:?}", self.file_name())))
-            }
-            Some(parent) => parent,
+    fn create_file(&self, path: &str) -> Result<Box<dyn Write>> {
+        let content = Arc::new(Vec::<u8>::new());
+        self.handle.write().unwrap().files.insert(
+            path.to_string(),
+            MemoryFile {
+                file_type: VFileType::File,
+                content,
+            },
+        );
+        let writer = WritableFile {
+            content: Default::default(),
+            destination: path.to_string(),
+            fs: self.handle.clone(),
         };
-        try!(parent_path.with_node(|node| {
-            let file_name = self.file_name().unwrap();
-            node.children.remove(&file_name);
-        }));
-        Ok(())
-
+        Ok(Box::new(writer))
     }
 
-    fn rmrf(&self) -> Result<()> {
-        self.rm()
+    fn metadata(&self, path: &str) -> Result<VMetadata> {
+        let guard = self.handle.read().unwrap();
+        let files = &guard.files;
+        let file = files.get(path).unwrap();
+        Ok(VMetadata {
+            file_type: VFileType::File,
+            len: file.content.len() as u64,
+        })
     }
 
-
-
-    fn box_clone(&self) -> Box<VPath> {
-        Box::new((*self).clone())
-    }
-}
-
-
-impl<'a> From<&'a MemoryPath> for String {
-    fn from(path: &'a MemoryPath) -> String {
-        path.path.clone()
+    fn exists(&self, path: &str) -> bool {
+        self.handle.read().unwrap().files.contains_key(path)
     }
 }
 
-impl PartialEq for MemoryPath {
-    fn eq(&self, other: &MemoryPath) -> bool {
-        self.path == other.path
+struct MemoryFsImpl {
+    files: HashMap<String, MemoryFile>,
+}
+
+impl MemoryFsImpl {
+    pub fn new() -> Self {
+        Self {
+            files: HashMap::new(),
+        }
     }
 }
 
-
-
+struct MemoryFile {
+    file_type: VFileType,
+    content: Arc<Vec<u8>>,
+}
 
 #[cfg(test)]
 mod tests {
-    use std::io::{Read, Write, Seek, SeekFrom, Result};
-
     use super::*;
     use VPath;
-    use {VFS, VMetadata};
-
-    #[test]
-    fn mkdir() {
-        let fs = MemoryFS::new();
-        let path = fs.path("/foo/bar/baz");
-        assert!(!path.exists(), "Path should not exist");
-        path.mkdir().unwrap();
-        assert!(path.exists(), "Path should exist now");
-        assert!(path.metadata().unwrap().is_dir(), "Path should be dir");
-        assert!(!path.metadata().unwrap().is_file(),
-                "Path should be not be a file");
-        assert!(path.metadata().unwrap().len() == 0, "Path size should be 0");
-    }
-
-    #[test]
-    fn mkdir_fails_for_file() {
-        let fs = MemoryFS::new();
-        let path = fs.path("/foo");
-        path.create().unwrap();
-        assert!(path.mkdir().is_err(), "Path should not be created");
-    }
-
-    #[test]
-    fn read_empty_file() {
-        let fs = MemoryFS::new();
-        let path = fs.path("/foobar.txt");
-        path.create().unwrap();
-        let mut file = path.open().unwrap();
-        let mut string: String = "".to_owned();
-        file.read_to_string(&mut string).unwrap();
-        assert_eq!(string, "");
-    }
-
-    #[test]
-    fn rm() {
-        let fs = MemoryFS::new();
-        let path = fs.path("/foobar.txt");
-        path.create().unwrap();
-        path.rm().unwrap();
-        assert!(!path.exists());
-    }
-
-    #[test]
-    fn rmdir() {
-        let fs = MemoryFS::new();
-        let path = fs.path("/foobar");
-        path.mkdir().unwrap();
-        path.rm().unwrap();
-        assert!(!path.exists());
-    }
-
-    #[test]
-    fn rmrf() {
-        let fs = MemoryFS::new();
-        let dir = fs.path("/foo");
-        dir.mkdir().unwrap();
-        let path = fs.path("/foo/bar.txt");
-        path.create().unwrap();
-        dir.rmrf().unwrap();
-        assert!(!path.exists());
-        assert!(!dir.exists());
-    }
-
-    #[test]
-    fn access_directory_as_file() {
-        let fs = MemoryFS::new();
-        let path = fs.path("/foo");
-        path.mkdir().unwrap();
-        assert!(path.create().is_err(), "Directory should not be openable");
-        assert!(path.append().is_err(), "Directory should not be openable");
-        assert!(path.open().is_err(), "Directory should not be openable");
-    }
-
 
     #[test]
     fn write_and_read_file() {
-        let fs = MemoryFS::new();
-        let path = fs.path("/foobar.txt");
+        let root = VPath::create(MemoryFS::new()).unwrap();
+        let path = root.join("foobar.txt");
         {
-            let mut file = path.create().unwrap();
+            let mut file = path.create_file().unwrap();
             write!(file, "Hello world").unwrap();
             write!(file, "!").unwrap();
         }
         {
-            let mut file = path.open().unwrap();
-            let mut string: String = "".to_owned();
+            let mut file = path.open_file().unwrap();
+            let mut string: String = String::new();
             file.read_to_string(&mut string).unwrap();
             assert_eq!(string, "Hello world!");
         }
-        {
-            let mut file = path.open().unwrap();
-            file.seek(SeekFrom::Start(1)).unwrap();
-            write!(file, "a").unwrap();
-        }
-        {
-            let mut file = path.open().unwrap();
-            let mut string: String = "".to_owned();
-            file.read_to_string(&mut string).unwrap();
-            assert_eq!(string, "Hallo world!");
-        }
-        {
-            let mut file = path.open().unwrap();
-            let mut string: String = "".to_owned();
-            file.seek(SeekFrom::End(-1)).unwrap();
-            file.read_to_string(&mut string).unwrap();
-            assert_eq!(string, "!");
-        }
-        {
-            let file = path.create().unwrap();
-        }
-        {
-            let mut file = path.open().unwrap();
-            let mut string: String = "".to_owned();
-            file.read_to_string(&mut string).unwrap();
-            assert_eq!(string, "");
-        }
+        assert!(path.exists());
+        assert!(!root.join("foo").exists());
+        let metadata = path.metadata().unwrap();
+        assert_eq!(metadata.len, 12);
+        assert_eq!(metadata.file_type, VFileType::File);
+
     }
 
-    #[test]
-    fn append() {
-        let fs = MemoryFS::new();
-        let path = fs.path("/foobar.txt");
-        {
-            let mut file = path.append().unwrap();
-            write!(file, "Hello").unwrap();
-            write!(file, " world").unwrap();
-        }
-        {
-            let mut file = path.open().unwrap();
-            let mut string: String = "".to_owned();
-            file.read_to_string(&mut string).unwrap();
-            assert_eq!(string, "Hello world");
-        }
-        {
-            let mut file = path.append().unwrap();
-            write!(file, "!").unwrap();
-        }
-        {
-            let mut file = path.open().unwrap();
-            let mut string: String = "".to_owned();
-            file.read_to_string(&mut string).unwrap();
-            assert_eq!(string, "Hello world!");
-        }
-    }
-    #[test]
-    fn resolve() {
-        let fs = MemoryFS::new();
-        let path = fs.path("/");
-        assert_eq!(path.to_string(), "/");
-        let path2 = path.resolve(&"foo".to_string());
-        assert_eq!(path2.to_string(), "/foo");
-        let path3 = path2.resolve(&"bar".to_string());
-        assert_eq!(path3.to_string(), "/foo/bar");
-
-        assert_eq!(path.to_string(), "/");
-        let path4 = path.resolve(&"foo/bar".to_string());
-        assert_eq!(path4.to_string(), "/foo/bar");
-    }
-
-
-    #[test]
-    fn parent() {
-        let fs = MemoryFS::new();
-        let path = fs.path("/foo");
-        let path2 = fs.path("/foo/bar");
-        assert_eq!(path2.parent().unwrap().to_string(), path.to_string());
-        assert_eq!(path.parent().unwrap().to_string(), "/");
-        assert!(fs.path("/").parent().is_none());
-    }
-
-
-    #[test]
-    fn read_dir() {
-        let fs = MemoryFS::new();
-        let path = fs.path("/foo");
-        let path2 = fs.path("/foo/bar");
-        let path3 = fs.path("/foo/baz");
-        path2.mkdir().unwrap();
-        path3.create().unwrap();
-        let mut entries: Vec<String> = path.read_dir()
-                                           .unwrap()
-                                           .map(Result::unwrap)
-                                           .map(|path| path.to_string().into_owned())
-                                           .collect();
-        entries.sort();
-        assert_eq!(entries, vec!["/foo/bar".to_owned(), "/foo/baz".to_owned()]);
-    }
-
-    #[test]
-    fn file_name() {
-        let fs = MemoryFS::new();
-        let path = fs.path("/foo/bar.txt");
-        assert_eq!(path.file_name(), Some("bar.txt".to_owned()));
-        assert_eq!(path.extension(), Some("txt".to_owned()));
-        assert_eq!(path.parent().unwrap().extension(), None);
-    }
-
-
-    #[test]
-    fn path_buf() {
-        let fs = MemoryFS::new();
-        let path = fs.path("/foo/bar.txt");
-        assert_eq!(None, path.to_path_buf());
-    }
 }

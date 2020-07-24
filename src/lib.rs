@@ -15,18 +15,22 @@
 //!  * **PhysicalFS** - the actual filesystem of the underlying OS
 //!  * **MemoryFS** - an ephemeral in-memory implementation (intended for unit tests)
 
+extern crate core;
+
+pub mod memory;
+pub mod physical;
 
 use std::error::Error;
 
-use std::sync::Arc;
-use std::io::{Seek, Read, Write};
 use std::fmt::Debug;
+use std::io::{Read, Seek, Write};
+use std::sync::Arc;
 
 pub type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
 pub trait SeekAndRead: Seek + Read {}
 
-impl <T> SeekAndRead for T where T: Seek + Read {}
+impl<T> SeekAndRead for T where T: Seek + Read {}
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum VFileType {
@@ -41,13 +45,12 @@ pub struct VMetadata {
 }
 
 pub trait VFS: Debug {
-    fn read_dir(&self, path: &str) -> Result<Box<dyn Iterator<Item=String>>>;
+    fn read_dir(&self, path: &str) -> Result<Box<dyn Iterator<Item = String>>>;
     fn open_file(&self, path: &str) -> Result<Box<dyn SeekAndRead>>;
     fn create_file(&self, path: &str) -> Result<Box<dyn Write>>;
     fn metadata(&self, path: &str) -> Result<VMetadata>;
     fn exists(&self, path: &str) -> bool;
 }
-
 
 #[derive(Debug)]
 pub struct FileSystem {
@@ -61,48 +64,49 @@ pub struct VPath {
 }
 
 impl VPath {
-    fn path(&self) -> &str {
+    pub fn path(&self) -> &str {
         &self.path
     }
 
-    fn join(&self, path: &str) -> Self {
+    pub fn join(&self, path: &str) -> Self {
         VPath {
             path: format!("{}/{}", self.path, path),
             fs: self.fs.clone(),
         }
     }
 
-    fn read_dir(&self) -> Result<Box<dyn Iterator<Item=VPath>>> {
+    pub fn read_dir(&self) -> Result<Box<dyn Iterator<Item = VPath>>> {
         let parent = self.path.clone();
         let fs = self.fs.clone();
-        Ok(Box::new(self.fs.vfs.read_dir(&self.path)?.map(move |path| VPath { path: format!("{}/{}", parent, path), fs: fs.clone() })))
+        Ok(Box::new(self.fs.vfs.read_dir(&self.path)?.map(
+            move |path| VPath {
+                path: format!("{}/{}", parent, path),
+                fs: fs.clone(),
+            },
+        )))
     }
 
-    fn open_file(&self) -> Result<Box<dyn SeekAndRead>> {
+    pub fn open_file(&self) -> Result<Box<dyn SeekAndRead>> {
         self.fs.vfs.open_file(&self.path)
     }
-    fn create_file(&self) -> Result<Box<dyn Write>> {
+    pub fn create_file(&self) -> Result<Box<dyn Write>> {
         self.fs.vfs.create_file(&self.path)
     }
 
-    fn metadata(&self) -> Result<VMetadata> {
+    pub fn metadata(&self) -> Result<VMetadata> {
         self.fs.vfs.metadata(&self.path)
     }
 
-    fn exists(&self) -> bool {
+    pub fn exists(&self) -> bool {
         self.fs.vfs.exists(&self.path)
     }
-    fn create<T: VFS + 'static>(vfs: T) -> Result<Self> {
+    pub fn create<T: VFS + 'static>(vfs: T) -> Result<Self> {
         Ok(VPath {
             path: "".to_string(),
-            fs: Arc::new(FileSystem {
-                vfs: Box::new(vfs)
-            })
+            fs: Arc::new(FileSystem { vfs: Box::new(vfs) }),
         })
     }
 }
-
-pub mod physical;
 
 /*
 
