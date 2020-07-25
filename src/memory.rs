@@ -8,8 +8,8 @@ use std::fmt::{Debug, Formatter};
 use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 use std::mem::swap;
 use std::sync::{Arc, RwLock};
-use {SeekAndRead, VMetadata};
-use {VFileType, VFS};
+use crate::{SeekAndRead, VMetadata};
+use crate::{VFileType, VFS};
 
 type MemoryFsHandle = Arc<RwLock<MemoryFsImpl>>;
 
@@ -190,13 +190,13 @@ struct MemoryFile {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use VPath;
+    use crate::VPath;
 
     #[test]
     fn write_and_read_file() {
         let root = VPath::create(MemoryFS::new()).unwrap();
         let path = root.join("foobar.txt");
-        let send = &path as &dyn Send;
+        let _send = &path as &dyn Send;
         {
             let mut file = path.create_file().unwrap();
             write!(file, "Hello world").unwrap();
@@ -218,7 +218,7 @@ mod tests {
     #[test]
     fn append_file() {
         let root = VPath::create(MemoryFS::new()).unwrap();
-        let mut string = String::new();
+        let _string = String::new();
         let path = root.join("test_append.txt");
         path.create_file().unwrap().write_all(b"Testing 1").unwrap();
         path.append_file().unwrap().write_all(b"Testing 2").unwrap();
@@ -233,7 +233,7 @@ mod tests {
     #[test]
     fn create_dir() {
         let root = VPath::create(MemoryFS::new()).unwrap();
-        let mut string = String::new();
+        let _string = String::new();
         let path = root.join("foo");
         path.create_dir().unwrap();
         let metadata = path.metadata().unwrap();

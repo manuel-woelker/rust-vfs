@@ -15,7 +15,7 @@
 //!  * **PhysicalFS** - the actual filesystem of the underlying OS
 //!  * **MemoryFS** - an ephemeral in-memory implementation (intended for unit tests)
 
-extern crate core;
+
 
 pub mod memory;
 pub mod physical;

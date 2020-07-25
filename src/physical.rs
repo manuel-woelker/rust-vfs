@@ -4,8 +4,8 @@ use crate::Result;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
-use {SeekAndRead, VFileType};
-use {VMetadata, VFS};
+use crate::{SeekAndRead, VFileType};
+use crate::{VMetadata, VFS};
 
 #[derive(Debug)]
 pub struct PhysicalFS {
@@ -80,11 +80,11 @@ impl VFS for PhysicalFS {
 #[cfg(test)]
 mod tests {
     use std::io::Read;
-    use std::path::{Path, PathBuf};
+    use std::path::{Path};
 
     use super::*;
-    use std::fs::FileType;
-    use VPath;
+
+    use crate::VPath;
 
     #[test]
     fn open_file() {
@@ -94,14 +94,15 @@ mod tests {
         root.join("Cargo.toml")
             .open_file()
             .unwrap()
-            .read_to_string(&mut string);
+            .read_to_string(&mut string)
+            .unwrap();
         assert_eq!(string, expected);
     }
 
     #[test]
     fn create_file() {
         let root = create_root();
-        let mut string = String::new();
+        let _string = String::new();
         root.join("target/test.txt")
             .create_file()
             .unwrap()
@@ -114,7 +115,7 @@ mod tests {
     #[test]
     fn append_file() {
         let root = create_root();
-        let mut string = String::new();
+        let _string = String::new();
         let path = root.join("target/test_append.txt");
         path.create_file().unwrap().write_all(b"Testing 1").unwrap();
         path.append_file().unwrap().write_all(b"Testing 2").unwrap();
@@ -128,7 +129,7 @@ mod tests {
 
     #[test]
     fn read_dir() {
-        let expected = std::fs::read_to_string("Cargo.toml").unwrap();
+        let _expected = std::fs::read_to_string("Cargo.toml").unwrap();
         std::fs::remove_dir("target/fs_test").unwrap();
         let root = create_root();
         let entries: Vec<_> = root.read_dir().unwrap().collect();
