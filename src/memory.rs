@@ -100,6 +100,7 @@ impl Seek for ReadableFile {
     }
 }
 
+
 impl VFS for MemoryFS {
     fn read_dir(&self, _path: &str) -> Result<Box<dyn Iterator<Item = String>>> {
         unimplemented!()
@@ -191,6 +192,8 @@ struct MemoryFile {
 mod tests {
     use super::*;
     use crate::VPath;
+    test_vfs!(MemoryFS::new());
+
 
     #[test]
     fn write_and_read_file() {
@@ -240,3 +243,4 @@ mod tests {
         assert_eq!(metadata.file_type, VFileType::Directory);
     }
 }
+

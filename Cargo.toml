@@ -10,3 +10,6 @@ license = "Apache-2.0/MIT"
 edition = "2018"
 
 [dependencies]
+
+[dev-dependencies]
+uuid = { version = "0.8", features = ["v4"] }

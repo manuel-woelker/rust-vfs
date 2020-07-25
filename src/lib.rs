@@ -15,6 +15,9 @@
 //!  * **PhysicalFS** - the actual filesystem of the underlying OS
 //!  * **MemoryFS** - an ephemeral in-memory implementation (intended for unit tests)
 
+#[cfg(test)]
+#[macro_use]
+pub mod test_macros;
 
 
 pub mod memory;

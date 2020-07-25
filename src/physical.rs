@@ -85,6 +85,12 @@ mod tests {
     use super::*;
 
     use crate::VPath;
+    test_vfs!({
+        let temp_dir = std::env::temp_dir();
+        let dir = temp_dir.join(uuid::Uuid::new_v4().to_string());
+        std::fs::create_dir_all(&dir).unwrap();
+        PhysicalFS::new(dir)
+    });
 
     #[test]
     fn open_file() {
@@ -130,7 +136,6 @@ mod tests {
     #[test]
     fn read_dir() {
         let _expected = std::fs::read_to_string("Cargo.toml").unwrap();
-        std::fs::remove_dir("target/fs_test").unwrap();
         let root = create_root();
         let entries: Vec<_> = root.read_dir().unwrap().collect();
         let map: Vec<_> = entries
