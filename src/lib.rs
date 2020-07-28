@@ -96,6 +96,24 @@ impl VPath {
         self.fs.vfs.create_dir(&self.path)
     }
 
+    pub fn create_dir_all(&self) -> Result<()> {
+        let mut pos = 1;
+        let path = &self.path;
+        loop {
+            // Iterate over path segments
+            let end = path[pos..].find("/").map(|it| it+pos).unwrap_or(path.len());
+            let directory = &path[..end];
+            if !self.fs.vfs.exists(directory) {
+                self.fs.vfs.create_dir(directory)?;
+            }
+            if end == path.len() {
+                break;
+            }
+            pos = end+1;
+        }
+        Ok(())
+    }
+
     pub fn open_file(&self) -> Result<Box<dyn SeekAndRead>> {
         self.fs.vfs.open_file(&self.path)
     }

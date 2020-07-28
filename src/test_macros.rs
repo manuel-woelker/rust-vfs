@@ -65,6 +65,19 @@ macro_rules! test_vfs {
                 assert_eq!(metadata.len, 0);
             }
 
+            #[test]
+            fn create_dir_all() {
+                let root = create_root();
+                let _string = String::new();
+                let path = root.join("foo");
+                path.create_dir().unwrap();
+                let path = root.join("foo/bar/baz");
+                path.create_dir_all().unwrap();
+                let metadata = path.metadata().unwrap();
+                assert_eq!(metadata.file_type, VFileType::Directory);
+                assert_eq!(metadata.len, 0);
+            }
+
         }
 
     };
