@@ -102,8 +102,18 @@ impl Seek for ReadableFile {
 
 
 impl VFS for MemoryFS {
-    fn read_dir(&self, _path: &str) -> Result<Box<dyn Iterator<Item = String>>> {
-        unimplemented!()
+    fn read_dir(&self, path: &str) -> Result<Box<dyn Iterator<Item = String>>> {
+        let prefix = format!("{}/", path);
+        let handle = self.handle.read().unwrap();
+        let entries: Vec<_> = handle.files.iter().filter_map(|(candidate_path, _)| {
+            if let Some(rest) = candidate_path.strip_prefix(&prefix) {
+                if !rest.contains("/") {
+                    return Some(rest.to_string());
+                }
+            }
+            None
+        }).collect();
+        Ok(Box::new(entries.into_iter()))
     }
 
     fn create_dir(&self, path: &str) -> Result<()> {

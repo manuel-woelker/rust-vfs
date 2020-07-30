@@ -50,7 +50,6 @@ pub struct VMetadata {
 pub trait VFS: Debug + Sync + Send {
     fn read_dir(&self, path: &str) -> Result<Box<dyn Iterator<Item = String>>>;
     fn create_dir(&self, path: &str) -> Result<()>;
-    // TODO: mkdirp
     fn open_file(&self, path: &str) -> Result<Box<dyn SeekAndRead>>;
     fn create_file(&self, path: &str) -> Result<Box<dyn Write>>;
     fn append_file(&self, path: &str) -> Result<Box<dyn Write>>;

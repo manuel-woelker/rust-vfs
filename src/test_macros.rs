@@ -78,6 +78,21 @@ macro_rules! test_vfs {
                 assert_eq!(metadata.len, 0);
             }
 
+            #[test]
+            fn read_dir() {
+                let root = create_root();
+                let _string = String::new();
+                root.join("foo/bar/biz").create_dir_all().unwrap();
+                root.join("baz").create_file().unwrap();
+                root.join("foo/fizz").create_file().unwrap();
+                let mut files: Vec<_> = root.read_dir().unwrap().map(|path| path.path().to_string()).collect();
+                files.sort();
+                assert_eq!(files, vec!["/baz".to_string(), "/foo".to_string()]);
+                let mut files: Vec<_> = root.join("foo").read_dir().unwrap().map(|path| path.path().to_string()).collect();
+                files.sort();
+                assert_eq!(files, vec!["/foo/bar".to_string(), "/foo/fizz".to_string()]);
+            }
+
         }
 
     };
