@@ -110,10 +110,14 @@ impl VFS for MemoryFS {
     fn read_dir(&self, path: &str) -> Result<Box<dyn Iterator<Item = String>>> {
         let prefix = format!("{}/", path);
         let handle = self.handle.read().unwrap();
+        let mut found_directory = false;
         let entries: Vec<_> = handle
             .files
             .iter()
             .filter_map(|(candidate_path, _)| {
+                if candidate_path == path {
+                    found_directory = true;
+                }
                 if let Some(rest) = candidate_path.strip_prefix(&prefix) {
                     if !rest.contains('/') {
                         return Some(rest.to_string());
@@ -122,6 +126,11 @@ impl VFS for MemoryFS {
                 None
             })
             .collect();
+        if !found_directory {
+            return Err(VfsError::FileNotFound {
+                path: path.to_string(),
+            });
+        }
         Ok(Box::new(entries.into_iter()))
     }
 
@@ -194,21 +203,25 @@ impl VFS for MemoryFS {
         handle
             .files
             .remove(path)
-            .ok_or_else(|| VfsError::FileNotFound(path.to_string()))?;
+            .ok_or_else(|| VfsError::FileNotFound {
+                path: path.to_string(),
+            })?;
         Ok(())
     }
 
     fn remove_dir(&self, path: &str) -> Result<()> {
         if self.read_dir(path)?.next().is_some() {
-            return Err(VfsError::Other(
-                "Directory to remove is not empty".to_string(),
-            ));
+            return Err(VfsError::Other {
+                message: "Directory to remove is not empty".to_string(),
+            });
         }
         let mut handle = self.handle.write().unwrap();
         handle
             .files
             .remove(path)
-            .ok_or_else(|| VfsError::FileNotFound(path.to_string()))?;
+            .ok_or_else(|| VfsError::FileNotFound {
+                path: path.to_string(),
+            })?;
         Ok(())
     }
 }
@@ -219,9 +232,16 @@ struct MemoryFsImpl {
 
 impl MemoryFsImpl {
     pub fn new() -> Self {
-        Self {
-            files: HashMap::new(),
-        }
+        let mut files = HashMap::new();
+        // Add root directory
+        files.insert(
+            "".to_string(),
+            MemoryFile {
+                file_type: VFileType::Directory,
+                content: Arc::new(vec![]),
+            },
+        );
+        Self { files }
     }
 }
 
@@ -282,5 +302,28 @@ mod tests {
         path.create_dir().unwrap();
         let metadata = path.metadata().unwrap();
         assert_eq!(metadata.file_type, VFileType::Directory);
+    }
+
+    #[test]
+    fn remove_dir_error_message() {
+        let root = VPath::create(MemoryFS::new()).unwrap();
+        let path = root.join("foo");
+        let result = path.remove_dir();
+        assert_eq!(format!("{:?}", result), "Err(WithContext { context: \"Could not remove directory \\'/foo\\'\", cause: FileNotFound { path: \"/foo\" } })");
+        assert_eq!(format!("{}", result.unwrap_err()), "Could not remove directory '/foo', cause: the file or directory `/foo` could not be found");
+    }
+
+    #[test]
+    fn read_dir_error_message() {
+        let root = VPath::create(MemoryFS::new()).unwrap();
+        let path = root.join("foo");
+        let result = path.read_dir();
+        match result {
+            Ok(_) => panic!("Error expected"),
+            Err(err) => {
+                assert_eq!(format!("{:?}", err), "WithContext { context: \"Could not read directory \\'/foo\\'\", cause: FileNotFound { path: \"/foo\" } }");
+                assert_eq!(format!("{}", err), "Could not read directory '/foo', cause: the file or directory `/foo` could not be found");
+            }
+        }
     }
 }

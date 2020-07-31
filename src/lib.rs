@@ -22,7 +22,7 @@ pub mod test_macros;
 pub mod memory;
 pub mod physical;
 
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 use std::io::{Read, Seek, Write};
 use std::sync::Arc;
 
@@ -32,13 +32,39 @@ use thiserror::Error;
 pub enum VfsError {
     #[error("data store disconnected")]
     IoError(#[from] std::io::Error),
-    #[error("the file or directory `{0}` could not be found")]
-    FileNotFound(String),
-    #[error("other VFS error: {0}")]
-    Other(String),
+    #[error("the file or directory `{path}` could not be found")]
+    FileNotFound { path: String },
+    #[error("other VFS error: {message}")]
+    Other { message: String },
+    #[error("{context}, cause: {cause}")]
+    WithContext {
+        context: String,
+        #[source]
+        cause: Box<VfsError>,
+    },
 }
 
 pub type Result<T> = std::result::Result<T, VfsError>;
+
+pub trait ResultExt<T> {
+    fn with_context<C, F>(self, f: F) -> Result<T>
+    where
+        C: Display + Send + Sync + 'static,
+        F: FnOnce() -> C;
+}
+
+impl<T> ResultExt<T> for Result<T> {
+    fn with_context<C, F>(self, context: F) -> Result<T>
+    where
+        C: Display + Send + Sync + 'static,
+        F: FnOnce() -> C,
+    {
+        self.map_err(|error| VfsError::WithContext {
+            context: context().to_string(),
+            cause: Box::new(error),
+        })
+    }
+}
 
 pub trait SeekAndRead: Seek + Read {}
 
@@ -94,16 +120,23 @@ impl VPath {
     pub fn read_dir(&self) -> Result<Box<dyn Iterator<Item = VPath>>> {
         let parent = self.path.clone();
         let fs = self.fs.clone();
-        Ok(Box::new(self.fs.vfs.read_dir(&self.path)?.map(
-            move |path| VPath {
-                path: format!("{}/{}", parent, path),
-                fs: fs.clone(),
-            },
-        )))
+        Ok(Box::new(
+            self.fs
+                .vfs
+                .read_dir(&self.path)
+                .with_context(|| format!("Could not read directory '{}'", &self.path))?
+                .map(move |path| VPath {
+                    path: format!("{}/{}", parent, path),
+                    fs: fs.clone(),
+                }),
+        ))
     }
 
     pub fn create_dir(&self) -> Result<()> {
-        self.fs.vfs.create_dir(&self.path)
+        self.fs
+            .vfs
+            .create_dir(&self.path)
+            .with_context(|| format!("Could not create directory '{}'", &self.path))
     }
 
     pub fn create_dir_all(&self) -> Result<()> {
@@ -128,20 +161,35 @@ impl VPath {
     }
 
     pub fn open_file(&self) -> Result<Box<dyn SeekAndRead>> {
-        self.fs.vfs.open_file(&self.path)
+        self.fs
+            .vfs
+            .open_file(&self.path)
+            .with_context(|| format!("Could not open file '{}'", &self.path))
     }
     pub fn create_file(&self) -> Result<Box<dyn Write>> {
-        self.fs.vfs.create_file(&self.path)
+        self.fs
+            .vfs
+            .create_file(&self.path)
+            .with_context(|| format!("Could not create file '{}'", &self.path))
     }
     pub fn append_file(&self) -> Result<Box<dyn Write>> {
-        self.fs.vfs.append_file(&self.path)
+        self.fs
+            .vfs
+            .append_file(&self.path)
+            .with_context(|| format!("Could not open file '{}' for appending", &self.path))
     }
     pub fn remove_file(&self) -> Result<()> {
-        self.fs.vfs.remove_file(&self.path)
+        self.fs
+            .vfs
+            .remove_file(&self.path)
+            .with_context(|| format!("Could not remove file '{}'", &self.path))
     }
 
     pub fn remove_dir(&self) -> Result<()> {
-        self.fs.vfs.remove_dir(&self.path)
+        self.fs
+            .vfs
+            .remove_dir(&self.path)
+            .with_context(|| format!("Could not remove directory '{}'", &self.path))
     }
 
     pub fn remove_dir_all(&self) -> Result<()> {
@@ -160,7 +208,10 @@ impl VPath {
     }
 
     pub fn metadata(&self) -> Result<VMetadata> {
-        self.fs.vfs.metadata(&self.path)
+        self.fs
+            .vfs
+            .metadata(&self.path)
+            .with_context(|| format!("Could get metadata for '{}'", &self.path))
     }
 
     pub fn exists(&self) -> bool {
