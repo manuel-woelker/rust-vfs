@@ -1,6 +1,6 @@
 //! An ephemeral in-memory file system, intended mainly for unit tests
 
-use crate::Result;
+use crate::{Result, VfsError};
 use crate::{SeekAndRead, VMetadata};
 use crate::{VFileType, VFS};
 use core::cmp;
@@ -191,22 +191,24 @@ impl VFS for MemoryFS {
 
     fn remove_file(&self, path: &str) -> Result<()> {
         let mut handle = self.handle.write().unwrap();
-        handle.files.remove(path).ok_or_else(|| {
-            Box::<dyn std::error::Error>::from(format!("File not found: {}", path))
-        })?;
+        handle
+            .files
+            .remove(path)
+            .ok_or_else(|| VfsError::FileNotFound(path.to_string()))?;
         Ok(())
     }
 
     fn remove_dir(&self, path: &str) -> Result<()> {
         if self.read_dir(path)?.next().is_some() {
-            return Err(Box::<dyn std::error::Error>::from(
-                "Directory to remove is not empty",
+            return Err(VfsError::Other(
+                "Directory to remove is not empty".to_string(),
             ));
         }
         let mut handle = self.handle.write().unwrap();
-        handle.files.remove(path).ok_or_else(|| {
-            Box::<dyn std::error::Error>::from(format!("Directory not found: {}", path))
-        })?;
+        handle
+            .files
+            .remove(path)
+            .ok_or_else(|| VfsError::FileNotFound(path.to_string()))?;
         Ok(())
     }
 }

@@ -22,13 +22,23 @@ pub mod test_macros;
 pub mod memory;
 pub mod physical;
 
-use std::error::Error;
-
 use std::fmt::Debug;
 use std::io::{Read, Seek, Write};
 use std::sync::Arc;
 
-pub type Result<T> = std::result::Result<T, Box<dyn Error>>;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum VfsError {
+    #[error("data store disconnected")]
+    IoError(#[from] std::io::Error),
+    #[error("the file or directory `{0}` could not be found")]
+    FileNotFound(String),
+    #[error("other VFS error: {0}")]
+    Other(String),
+}
+
+pub type Result<T> = std::result::Result<T, VfsError>;
 
 pub trait SeekAndRead: Seek + Read {}
 
