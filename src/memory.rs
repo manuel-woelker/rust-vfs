@@ -1,6 +1,8 @@
 //! An ephemeral in-memory file system, intended mainly for unit tests
 
 use crate::Result;
+use crate::{SeekAndRead, VMetadata};
+use crate::{VFileType, VFS};
 use core::cmp;
 use std::collections::HashMap;
 use std::fmt;
@@ -8,8 +10,6 @@ use std::fmt::{Debug, Formatter};
 use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 use std::mem::swap;
 use std::sync::{Arc, RwLock};
-use crate::{SeekAndRead, VMetadata};
-use crate::{VFileType, VFS};
 
 type MemoryFsHandle = Arc<RwLock<MemoryFsImpl>>;
 
@@ -29,6 +29,12 @@ impl MemoryFS {
         MemoryFS {
             handle: Arc::new(RwLock::new(MemoryFsImpl::new())),
         }
+    }
+}
+
+impl Default for MemoryFS {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -100,19 +106,22 @@ impl Seek for ReadableFile {
     }
 }
 
-
 impl VFS for MemoryFS {
     fn read_dir(&self, path: &str) -> Result<Box<dyn Iterator<Item = String>>> {
         let prefix = format!("{}/", path);
         let handle = self.handle.read().unwrap();
-        let entries: Vec<_> = handle.files.iter().filter_map(|(candidate_path, _)| {
-            if let Some(rest) = candidate_path.strip_prefix(&prefix) {
-                if !rest.contains("/") {
-                    return Some(rest.to_string());
+        let entries: Vec<_> = handle
+            .files
+            .iter()
+            .filter_map(|(candidate_path, _)| {
+                if let Some(rest) = candidate_path.strip_prefix(&prefix) {
+                    if !rest.contains('/') {
+                        return Some(rest.to_string());
+                    }
                 }
-            }
-            None
-        }).collect();
+                None
+            })
+            .collect();
         Ok(Box::new(entries.into_iter()))
     }
 
@@ -179,6 +188,27 @@ impl VFS for MemoryFS {
     fn exists(&self, path: &str) -> bool {
         self.handle.read().unwrap().files.contains_key(path)
     }
+
+    fn remove_file(&self, path: &str) -> Result<()> {
+        let mut handle = self.handle.write().unwrap();
+        handle.files.remove(path).ok_or_else(|| {
+            Box::<dyn std::error::Error>::from(format!("File not found: {}", path))
+        })?;
+        Ok(())
+    }
+
+    fn remove_dir(&self, path: &str) -> Result<()> {
+        if self.read_dir(path)?.next().is_some() {
+            return Err(Box::<dyn std::error::Error>::from(
+                "Directory to remove is not empty",
+            ));
+        }
+        let mut handle = self.handle.write().unwrap();
+        handle.files.remove(path).ok_or_else(|| {
+            Box::<dyn std::error::Error>::from(format!("Directory not found: {}", path))
+        })?;
+        Ok(())
+    }
 }
 
 struct MemoryFsImpl {
@@ -203,7 +233,6 @@ mod tests {
     use super::*;
     use crate::VPath;
     test_vfs!(MemoryFS::new());
-
 
     #[test]
     fn write_and_read_file() {
@@ -253,4 +282,3 @@ mod tests {
         assert_eq!(metadata.file_type, VFileType::Directory);
     }
 }
-

@@ -1,11 +1,11 @@
 //! A "physical" file system implementation using the underlying OS file system
 
 use crate::Result;
+use crate::{SeekAndRead, VFileType};
+use crate::{VMetadata, VFS};
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
-use crate::{SeekAndRead, VFileType};
-use crate::{VMetadata, VFS};
 
 #[derive(Debug)]
 pub struct PhysicalFS {
@@ -18,7 +18,7 @@ impl PhysicalFS {
     }
 
     fn get_path(&self, mut path: &str) -> PathBuf {
-        if path.starts_with("/") {
+        if path.starts_with('/') {
             path = &path[1..];
         }
         self.root.join(path)
@@ -75,12 +75,22 @@ impl VFS for PhysicalFS {
     fn exists(&self, path: &str) -> bool {
         self.get_path(path).exists()
     }
+
+    fn remove_file(&self, path: &str) -> Result<()> {
+        std::fs::remove_file(self.get_path(path))?;
+        Ok(())
+    }
+
+    fn remove_dir(&self, path: &str) -> Result<()> {
+        std::fs::remove_dir(self.get_path(path))?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use std::io::Read;
-    use std::path::{Path};
+    use std::path::Path;
 
     use super::*;
 

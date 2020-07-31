@@ -19,7 +19,6 @@
 #[macro_use]
 pub mod test_macros;
 
-
 pub mod memory;
 pub mod physical;
 
@@ -55,6 +54,8 @@ pub trait VFS: Debug + Sync + Send {
     fn append_file(&self, path: &str) -> Result<Box<dyn Write>>;
     fn metadata(&self, path: &str) -> Result<VMetadata>;
     fn exists(&self, path: &str) -> bool;
+    fn remove_file(&self, path: &str) -> Result<()>;
+    fn remove_dir(&self, path: &str) -> Result<()>;
 }
 
 #[derive(Debug)]
@@ -100,7 +101,10 @@ impl VPath {
         let path = &self.path;
         loop {
             // Iterate over path segments
-            let end = path[pos..].find("/").map(|it| it+pos).unwrap_or(path.len());
+            let end = path[pos..]
+                .find('/')
+                .map(|it| it + pos)
+                .unwrap_or_else(|| path.len());
             let directory = &path[..end];
             if !self.fs.vfs.exists(directory) {
                 self.fs.vfs.create_dir(directory)?;
@@ -108,7 +112,7 @@ impl VPath {
             if end == path.len() {
                 break;
             }
-            pos = end+1;
+            pos = end + 1;
         }
         Ok(())
     }
@@ -121,6 +125,28 @@ impl VPath {
     }
     pub fn append_file(&self) -> Result<Box<dyn Write>> {
         self.fs.vfs.append_file(&self.path)
+    }
+    pub fn remove_file(&self) -> Result<()> {
+        self.fs.vfs.remove_file(&self.path)
+    }
+
+    pub fn remove_dir(&self) -> Result<()> {
+        self.fs.vfs.remove_dir(&self.path)
+    }
+
+    pub fn remove_dir_all(&self) -> Result<()> {
+        if !self.exists() {
+            return Ok(());
+        }
+        for child in self.read_dir()? {
+            let metadata = child.metadata()?;
+            match metadata.file_type {
+                VFileType::File => child.remove_file()?,
+                VFileType::Directory => child.remove_dir_all()?,
+            }
+        }
+        self.remove_dir()?;
+        Ok(())
     }
 
     pub fn metadata(&self) -> Result<VMetadata> {

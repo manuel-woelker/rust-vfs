@@ -1,9 +1,7 @@
-
 #[macro_export]
 macro_rules! test_vfs {
     // Run basic vfs test to check for conformance
     ($root:expr) => {
-
         #[cfg(test)]
         mod vfs_tests {
             use super::*;
@@ -73,6 +71,8 @@ macro_rules! test_vfs {
                 path.create_dir().unwrap();
                 let path = root.join("foo/bar/baz");
                 path.create_dir_all().unwrap();
+                assert!(path.exists());
+                assert!(root.join("foo/bar").exists());
                 let metadata = path.metadata().unwrap();
                 assert_eq!(metadata.file_type, VFileType::Directory);
                 assert_eq!(metadata.len, 0);
@@ -85,15 +85,88 @@ macro_rules! test_vfs {
                 root.join("foo/bar/biz").create_dir_all().unwrap();
                 root.join("baz").create_file().unwrap();
                 root.join("foo/fizz").create_file().unwrap();
-                let mut files: Vec<_> = root.read_dir().unwrap().map(|path| path.path().to_string()).collect();
+                let mut files: Vec<_> = root
+                    .read_dir()
+                    .unwrap()
+                    .map(|path| path.path().to_string())
+                    .collect();
                 files.sort();
                 assert_eq!(files, vec!["/baz".to_string(), "/foo".to_string()]);
-                let mut files: Vec<_> = root.join("foo").read_dir().unwrap().map(|path| path.path().to_string()).collect();
+                let mut files: Vec<_> = root
+                    .join("foo")
+                    .read_dir()
+                    .unwrap()
+                    .map(|path| path.path().to_string())
+                    .collect();
                 files.sort();
                 assert_eq!(files, vec!["/foo/bar".to_string(), "/foo/fizz".to_string()]);
             }
 
-        }
+            #[test]
+            fn remove_file() {
+                let root = create_root();
+                let path = root.join("baz");
+                assert!(!path.exists());
+                path.create_file().unwrap();
+                assert!(path.exists());
+                path.remove_file().unwrap();
+                assert!(!path.exists());
+            }
 
+            #[test]
+            fn remove_file_nonexisting() {
+                let root = create_root();
+                let path = root.join("baz");
+                assert!(!path.exists());
+                assert!(path.remove_file().is_err());
+            }
+
+            #[test]
+            fn remove_dir() {
+                let root = create_root();
+                let path = root.join("baz");
+                assert!(!path.exists());
+                path.create_dir().unwrap();
+                assert!(path.exists());
+                path.remove_dir().unwrap();
+                assert!(!path.exists());
+            }
+
+            #[test]
+            fn remove_dir_nonexisting() {
+                let root = create_root();
+                let path = root.join("baz");
+                assert!(!path.exists());
+                assert!(path.remove_dir().is_err());
+            }
+
+            #[test]
+            fn remove_dir_notempty() {
+                let root = create_root();
+                let path = root.join("bar");
+                root.join("bar/baz/fizz").create_dir_all().unwrap();
+                assert!(path.remove_dir().is_err());
+            }
+
+            #[test]
+            fn remove_dir_all() {
+                let root = create_root();
+                let path = root.join("foo");
+                assert!(!path.exists());
+                path.join("bar/baz/fizz").create_dir_all().unwrap();
+                path.join("bar/buzz").create_file().unwrap();
+                assert!(path.exists());
+                assert!(path.remove_dir_all().is_ok());
+                assert!(!path.exists());
+            }
+
+            #[test]
+            fn remove_dir_all_nonexisting() {
+                let root = create_root();
+                let path = root.join("baz");
+                assert!(!path.exists());
+                assert!(path.remove_dir_all().is_ok());
+            }
+        }
     };
 }
