@@ -1,14 +1,24 @@
+//! Error and Result definitions
+
 use std::fmt::Display;
 use thiserror::Error;
 
+/// The error type of this crate
 #[derive(Error, Debug)]
 pub enum VfsError {
-    #[error("data store disconnected")]
+    /// A generic IO error
+    #[error("IO error")]
     IoError(#[from] std::io::Error),
+
+    /// The file or directory at the given path could not be found
     #[error("the file or directory `{path}` could not be found")]
     FileNotFound { path: String },
+
+    /// Generic error variant
     #[error("other FileSystem error: {message}")]
     Other { message: String },
+
+    /// Generic error context, used for adding context to an error (like a path)
     #[error("{context}, cause: {cause}")]
     WithContext {
         context: String,
@@ -17,9 +27,10 @@ pub enum VfsError {
     },
 }
 
+/// The result type of this crate
 pub type VfsResult<T> = std::result::Result<T, VfsError>;
 
-pub trait VfsResultExt<T> {
+pub(crate) trait VfsResultExt<T> {
     fn with_context<C, F>(self, f: F) -> VfsResult<T>
     where
         C: Display + Send + Sync + 'static,

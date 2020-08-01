@@ -7,7 +7,7 @@ macro_rules! test_vfs {
             use super::*;
             use crate::VfsPath;
             fn create_root() -> VfsPath {
-                VfsPath::create($root).unwrap()
+                VfsPath::new($root).unwrap()
             }
 
             #[test]
@@ -88,7 +88,7 @@ macro_rules! test_vfs {
                 let mut files: Vec<_> = root
                     .read_dir()
                     .unwrap()
-                    .map(|path| path.path().to_string())
+                    .map(|path| path.as_str().to_string())
                     .collect();
                 files.sort();
                 assert_eq!(files, vec!["/baz".to_string(), "/foo".to_string()]);
@@ -96,7 +96,7 @@ macro_rules! test_vfs {
                     .join("foo")
                     .read_dir()
                     .unwrap()
-                    .map(|path| path.path().to_string())
+                    .map(|path| path.as_str().to_string())
                     .collect();
                 files.sort();
                 assert_eq!(files, vec!["/foo/bar".to_string(), "/foo/fizz".to_string()]);

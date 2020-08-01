@@ -139,7 +139,7 @@ mod tests {
     }
 
     fn create_root() -> VfsPath {
-        VfsPath::create(PhysicalFS::new(std::env::current_dir().unwrap())).unwrap()
+        VfsPath::new(PhysicalFS::new(std::env::current_dir().unwrap())).unwrap()
     }
 
     #[test]
@@ -149,7 +149,7 @@ mod tests {
         let entries: Vec<_> = root.read_dir().unwrap().collect();
         let map: Vec<_> = entries
             .iter()
-            .map(|path: &VfsPath| path.path())
+            .map(|path: &VfsPath| path.as_str())
             .filter(|x| x.ends_with(".toml"))
             .collect();
         assert_eq!(&["/Cargo.toml"], &map[..]);
