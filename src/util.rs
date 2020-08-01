@@ -1,21 +1,21 @@
 //! Utility functions for working with the virtual file systems
 
-use {VFS, VPath, VMetadata};
-use std::io::Result;
+use {FileSystem, VfsPath, VfsMetadata};
+use std::io::VfsResult;
 
 pub struct WalkDirIter {
-    todo: Vec<Box<VPath>>,
+    todo: Vec<Box<VfsPath>>,
 }
 
 /// Recursively traverse the file system at the given path
-pub fn walk_dir(path: &VPath) -> WalkDirIter {
+pub fn walk_dir(path: &VfsPath) -> WalkDirIter {
     WalkDirIter { todo: vec![path.box_clone()] }
 }
 
 impl Iterator for WalkDirIter {
-    type Item = Box<VPath>;
+    type Item = Box<VfsPath>;
     // TODO: handle loops
-    fn next(&mut self) -> Option<Box<VPath>> {
+    fn next(&mut self) -> Option<Box<VfsPath>> {
         let res = self.todo.pop();
         if let Some(ref path) = res {
             if let Ok(metadata) = path.metadata() {
@@ -39,11 +39,11 @@ impl Iterator for WalkDirIter {
 
 #[cfg(test)]
 mod tests {
-    use std::io::{Read, Write, Seek, SeekFrom, Result};
+    use std::io::{Read, Write, Seek, SeekFrom, VfsResult};
 
     use super::*;
-    use VPath;
-    use {VFS, VMetadata};
+    use VfsPath;
+    use {FileSystem, VfsMetadata};
     use memory::{MemoryFS, MemoryPath};
 
     #[test]
@@ -52,7 +52,7 @@ mod tests {
         let path = fs.path("/foo/bar/baz");
         path.mkdir().unwrap();
         let paths: Vec<String> = walk_dir(&fs.path("/foo"))
-                                     .map(|x: Box<VPath>| x.to_string().into_owned())
+                                     .map(|x: Box<VfsPath>| x.to_string().into_owned())
                                      .collect();
         assert_eq!(paths, vec!["/foo", "/foo/bar", "/foo/bar/baz"]);
     }

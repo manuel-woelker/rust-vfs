@@ -5,9 +5,9 @@ macro_rules! test_vfs {
         #[cfg(test)]
         mod vfs_tests {
             use super::*;
-            use crate::VPath;
-            fn create_root() -> VPath {
-                VPath::create($root).unwrap()
+            use crate::VfsPath;
+            fn create_root() -> VfsPath {
+                VfsPath::create($root).unwrap()
             }
 
             #[test]
@@ -35,7 +35,7 @@ macro_rules! test_vfs {
                 assert!(!root.join("foo").exists());
                 let metadata = path.metadata().unwrap();
                 assert_eq!(metadata.len, 12);
-                assert_eq!(metadata.file_type, VFileType::File);
+                assert_eq!(metadata.file_type, VfsFileType::File);
             }
 
             #[test]
@@ -59,7 +59,7 @@ macro_rules! test_vfs {
                 let path = root.join("foo");
                 path.create_dir().unwrap();
                 let metadata = path.metadata().unwrap();
-                assert_eq!(metadata.file_type, VFileType::Directory);
+                assert_eq!(metadata.file_type, VfsFileType::Directory);
                 assert_eq!(metadata.len, 0);
             }
 
@@ -74,7 +74,7 @@ macro_rules! test_vfs {
                 assert!(path.exists());
                 assert!(root.join("foo/bar").exists());
                 let metadata = path.metadata().unwrap();
-                assert_eq!(metadata.file_type, VFileType::Directory);
+                assert_eq!(metadata.file_type, VfsFileType::Directory);
                 assert_eq!(metadata.len, 0);
             }
 

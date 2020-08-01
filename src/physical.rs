@@ -1,8 +1,8 @@
 //! A "physical" file system implementation using the underlying OS file system
 
-use crate::Result;
-use crate::{SeekAndRead, VFileType};
-use crate::{VMetadata, VFS};
+use crate::VfsResult;
+use crate::{FileSystem, VfsMetadata};
+use crate::{SeekAndRead, VfsFileType};
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
@@ -25,8 +25,8 @@ impl PhysicalFS {
     }
 }
 
-impl VFS for PhysicalFS {
-    fn read_dir(&self, path: &str) -> Result<Box<dyn Iterator<Item = String>>> {
+impl FileSystem for PhysicalFS {
+    fn read_dir(&self, path: &str) -> VfsResult<Box<dyn Iterator<Item = String>>> {
         let entries = Box::new(
             self.get_path(path)
                 .read_dir()?
@@ -35,20 +35,20 @@ impl VFS for PhysicalFS {
         Ok(entries)
     }
 
-    fn create_dir(&self, path: &str) -> Result<()> {
+    fn create_dir(&self, path: &str) -> VfsResult<()> {
         std::fs::create_dir(self.get_path(path))?;
         Ok(())
     }
 
-    fn open_file(&self, path: &str) -> Result<Box<dyn SeekAndRead>> {
+    fn open_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndRead>> {
         Ok(Box::new(File::open(self.get_path(path))?))
     }
 
-    fn create_file(&self, path: &str) -> Result<Box<dyn Write>> {
+    fn create_file(&self, path: &str) -> VfsResult<Box<dyn Write>> {
         Ok(Box::new(File::create(self.get_path(path))?))
     }
 
-    fn append_file(&self, path: &str) -> Result<Box<dyn Write>> {
+    fn append_file(&self, path: &str) -> VfsResult<Box<dyn Write>> {
         Ok(Box::new(
             OpenOptions::new()
                 .write(true)
@@ -57,16 +57,16 @@ impl VFS for PhysicalFS {
         ))
     }
 
-    fn metadata(&self, path: &str) -> Result<VMetadata> {
+    fn metadata(&self, path: &str) -> VfsResult<VfsMetadata> {
         let metadata = self.get_path(path).metadata()?;
         Ok(if metadata.is_dir() {
-            VMetadata {
-                file_type: VFileType::Directory,
+            VfsMetadata {
+                file_type: VfsFileType::Directory,
                 len: 0,
             }
         } else {
-            VMetadata {
-                file_type: VFileType::File,
+            VfsMetadata {
+                file_type: VfsFileType::File,
                 len: metadata.len(),
             }
         })
@@ -76,12 +76,12 @@ impl VFS for PhysicalFS {
         self.get_path(path).exists()
     }
 
-    fn remove_file(&self, path: &str) -> Result<()> {
+    fn remove_file(&self, path: &str) -> VfsResult<()> {
         std::fs::remove_file(self.get_path(path))?;
         Ok(())
     }
 
-    fn remove_dir(&self, path: &str) -> Result<()> {
+    fn remove_dir(&self, path: &str) -> VfsResult<()> {
         std::fs::remove_dir(self.get_path(path))?;
         Ok(())
     }
@@ -89,12 +89,11 @@ impl VFS for PhysicalFS {
 
 #[cfg(test)]
 mod tests {
-    use std::io::Read;
     use std::path::Path;
 
     use super::*;
 
-    use crate::VPath;
+    use crate::VfsPath;
     test_vfs!({
         let temp_dir = std::env::temp_dir();
         let dir = temp_dir.join(uuid::Uuid::new_v4().to_string());
@@ -139,8 +138,8 @@ mod tests {
         assert_eq!(read, "Testing 1Testing 2");
     }
 
-    fn create_root() -> VPath {
-        VPath::create(PhysicalFS::new(std::env::current_dir().unwrap())).unwrap()
+    fn create_root() -> VfsPath {
+        VfsPath::create(PhysicalFS::new(std::env::current_dir().unwrap())).unwrap()
     }
 
     #[test]
@@ -150,7 +149,7 @@ mod tests {
         let entries: Vec<_> = root.read_dir().unwrap().collect();
         let map: Vec<_> = entries
             .iter()
-            .map(|path: &VPath| path.path())
+            .map(|path: &VfsPath| path.path())
             .filter(|x| x.ends_with(".toml"))
             .collect();
         assert_eq!(&["/Cargo.toml"], &map[..]);
@@ -173,7 +172,7 @@ mod tests {
         let root = create_root();
         let metadata = root.join("Cargo.toml").metadata().unwrap();
         assert_eq!(metadata.len, expected.len() as u64);
-        assert_eq!(metadata.file_type, VFileType::File);
+        assert_eq!(metadata.file_type, VfsFileType::File);
     }
 
     #[test]
@@ -181,18 +180,18 @@ mod tests {
         let root = create_root();
         let metadata = root.metadata().unwrap();
         assert_eq!(metadata.len, 0);
-        assert_eq!(metadata.file_type, VFileType::Directory);
+        assert_eq!(metadata.file_type, VfsFileType::Directory);
         let metadata = root.join("src").metadata().unwrap();
         assert_eq!(metadata.len, 0);
-        assert_eq!(metadata.file_type, VFileType::Directory);
+        assert_eq!(metadata.file_type, VfsFileType::Directory);
     }
 }
 /*
 use std::path::{Path, PathBuf};
 use std::fs::{File, DirBuilder, Metadata, OpenOptions, ReadDir, DirEntry, remove_file, remove_dir, remove_dir_all};
-use std::io::Result;
+use std::io::VfsResult;
 use std::borrow::Cow;
-use {VFS, VPath, VFile, VMetadata};
+use {FileSystem, VfsPath, VFile, VfsMetadata};
 
 
 /// A "physical" file system implementation using the underlying OS file system
@@ -200,7 +199,7 @@ pub struct PhysicalFS {
 
 }
 
-impl VMetadata for Metadata {
+impl VfsMetadata for Metadata {
     fn is_dir(&self) -> bool {
         self.is_dir()
     }
@@ -212,7 +211,7 @@ impl VMetadata for Metadata {
     }
 }
 
-impl VFS for PhysicalFS {
+impl FileSystem for PhysicalFS {
     type PATH = PathBuf;
     type FILE = File;
     type METADATA = Metadata;
@@ -224,8 +223,8 @@ impl VFS for PhysicalFS {
 
 
 
-impl VPath for PathBuf {
-    fn open_with_options(&self, open_options: &::OpenOptions) -> Result<Box<VFile>> {
+impl VfsPath for PathBuf {
+    fn open_with_options(&self, open_options: &::OpenOptions) -> VfsResult<Box<VFile>> {
         OpenOptions::new()
             .read(open_options.read)
             .write(open_options.write)
@@ -237,15 +236,15 @@ impl VPath for PathBuf {
             .map(|x| Box::new(x) as Box<VFile>)
     }
 
-    fn open(&self) -> Result<Box<VFile>> {
+    fn open(&self) -> VfsResult<Box<VFile>> {
         File::open(&self).map(|x| Box::new(x) as Box<VFile>)
     }
 
-    fn create(&self) -> Result<Box<VFile>> {
+    fn create(&self) -> VfsResult<Box<VFile>> {
         File::create(&self).map(|x| Box::new(x) as Box<VFile>)
     }
 
-    fn append(&self) -> Result<Box<VFile>> {
+    fn append(&self) -> VfsResult<Box<VFile>> {
         OpenOptions::new()
             .write(true)
             .append(true)
@@ -253,7 +252,7 @@ impl VPath for PathBuf {
             .map(|x| Box::new(x) as Box<VFile>)
     }
 
-    fn parent(&self) -> Option<Box<VPath>> {
+    fn parent(&self) -> Option<Box<VfsPath>> {
         match <Path>::parent(&self) {
             Some(path) => Some(Box::new(path.to_path_buf())),
             None => None,
@@ -274,19 +273,19 @@ impl VPath for PathBuf {
         }
     }
 
-    fn resolve(&self, path: &String) -> Box<VPath> {
+    fn resolve(&self, path: &String) -> Box<VfsPath> {
         let mut result = self.clone();
         <PathBuf>::push(&mut result, path);
         return Box::new(result);
     }
 
-    fn mkdir(&self) -> Result<()> {
+    fn mkdir(&self) -> VfsResult<()> {
         DirBuilder::new()
             .recursive(true)
             .create(&self)
     }
 
-    fn rm(&self) -> Result<()> {
+    fn rm(&self) -> VfsResult<()> {
         if self.is_dir() {
             remove_dir(&self)
         } else {
@@ -294,7 +293,7 @@ impl VPath for PathBuf {
         }
     }
 
-    fn rmrf(&self) -> Result<()> {
+    fn rmrf(&self) -> VfsResult<()> {
         if self.is_dir() {
             remove_dir_all(&self)
         } else {
@@ -307,13 +306,13 @@ impl VPath for PathBuf {
         <Path>::exists(self)
     }
 
-    fn metadata(&self) -> Result<Box<VMetadata>> {
-        <Path>::metadata(self).map(|x| Box::new(x) as Box<VMetadata>)
+    fn metadata(&self) -> VfsResult<Box<VfsMetadata>> {
+        <Path>::metadata(self).map(|x| Box::new(x) as Box<VfsMetadata>)
     }
 
-    fn read_dir(&self) -> Result<Box<Iterator<Item = Result<Box<VPath>>>>> {
+    fn read_dir(&self) -> VfsResult<Box<Iterator<Item = VfsResult<Box<VfsPath>>>>> {
         <Path>::read_dir(self).map(|inner| {
-            Box::new(PhysicalReadDir { inner: inner }) as Box<Iterator<Item = Result<Box<VPath>>>>
+            Box::new(PhysicalReadDir { inner: inner }) as Box<Iterator<Item = VfsResult<Box<VfsPath>>>>
         })
     }
 
@@ -321,7 +320,7 @@ impl VPath for PathBuf {
         <Path>::to_string_lossy(self)
     }
 
-    fn box_clone(&self) -> Box<VPath> {
+    fn box_clone(&self) -> Box<VfsPath> {
         Box::new((*self).clone())
     }
 
@@ -335,20 +334,20 @@ struct PhysicalReadDir {
 }
 
 impl Iterator for PhysicalReadDir {
-    type Item = Result<Box<VPath>>;
-    fn next(&mut self) -> Option<Result<Box<VPath>>> {
-        self.inner.next().map(|result| result.map(|entry| Box::new(entry.path()) as Box<VPath>))
+    type Item = VfsResult<Box<VfsPath>>;
+    fn next(&mut self) -> Option<VfsResult<Box<VfsPath>>> {
+        self.inner.next().map(|result| result.map(|entry| Box::new(entry.path()) as Box<VfsPath>))
     }
 }
 
 
 #[cfg(test)]
 mod tests {
-    use std::io::{Read, Result};
+    use std::io::{Read, VfsResult};
     use std::path::PathBuf;
 
     use super::*;
-    use VPath;
+    use VfsPath;
     #[test]
     fn read_file() {
         let path = PathBuf::from("Cargo.toml");
@@ -371,7 +370,7 @@ mod tests {
     #[test]
     fn read_dir() {
         let src = PathBuf::from("./src");
-        let entries: Vec<Result<Box<VPath>>> = src.read_dir().unwrap().collect();
+        let entries: Vec<VfsResult<Box<VfsPath>>> = src.read_dir().unwrap().collect();
         println!("{:#?}", entries);
     }
 

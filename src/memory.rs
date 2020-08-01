@@ -1,8 +1,8 @@
 //! An ephemeral in-memory file system, intended mainly for unit tests
 
-use crate::{Result, VfsError};
-use crate::{SeekAndRead, VMetadata};
-use crate::{VFileType, VFS};
+use crate::{FileSystem, VfsFileType};
+use crate::{SeekAndRead, VfsMetadata};
+use crate::{VfsError, VfsResult};
 use core::cmp;
 use std::collections::HashMap;
 use std::fmt;
@@ -61,7 +61,7 @@ impl Drop for WritableFile {
         self.fs.write().unwrap().files.insert(
             self.destination.clone(),
             MemoryFile {
-                file_type: VFileType::File,
+                file_type: VfsFileType::File,
                 content: Arc::new(content),
             },
         );
@@ -106,8 +106,8 @@ impl Seek for ReadableFile {
     }
 }
 
-impl VFS for MemoryFS {
-    fn read_dir(&self, path: &str) -> Result<Box<dyn Iterator<Item = String>>> {
+impl FileSystem for MemoryFS {
+    fn read_dir(&self, path: &str) -> VfsResult<Box<dyn Iterator<Item = String>>> {
         let prefix = format!("{}/", path);
         let handle = self.handle.read().unwrap();
         let mut found_directory = false;
@@ -134,18 +134,18 @@ impl VFS for MemoryFS {
         Ok(Box::new(entries.into_iter()))
     }
 
-    fn create_dir(&self, path: &str) -> Result<()> {
+    fn create_dir(&self, path: &str) -> VfsResult<()> {
         self.handle.write().unwrap().files.insert(
             path.to_string(),
             MemoryFile {
-                file_type: VFileType::Directory,
+                file_type: VfsFileType::Directory,
                 content: Default::default(),
             },
         );
         Ok(())
     }
 
-    fn open_file(&self, path: &str) -> Result<Box<dyn SeekAndRead>> {
+    fn open_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndRead>> {
         let handle = self.handle.read().unwrap();
         let file = handle.files.get(path).unwrap();
         Ok(Box::new(ReadableFile {
@@ -154,12 +154,12 @@ impl VFS for MemoryFS {
         }))
     }
 
-    fn create_file(&self, path: &str) -> Result<Box<dyn Write>> {
+    fn create_file(&self, path: &str) -> VfsResult<Box<dyn Write>> {
         let content = Arc::new(Vec::<u8>::new());
         self.handle.write().unwrap().files.insert(
             path.to_string(),
             MemoryFile {
-                file_type: VFileType::File,
+                file_type: VfsFileType::File,
                 content,
             },
         );
@@ -171,7 +171,7 @@ impl VFS for MemoryFS {
         Ok(Box::new(writer))
     }
 
-    fn append_file(&self, path: &str) -> Result<Box<dyn Write>> {
+    fn append_file(&self, path: &str) -> VfsResult<Box<dyn Write>> {
         let handle = self.handle.write().unwrap();
         let file = handle.files.get(path).unwrap();
         let mut content = Cursor::new(file.content.as_ref().clone());
@@ -184,11 +184,11 @@ impl VFS for MemoryFS {
         Ok(Box::new(writer))
     }
 
-    fn metadata(&self, path: &str) -> Result<VMetadata> {
+    fn metadata(&self, path: &str) -> VfsResult<VfsMetadata> {
         let guard = self.handle.read().unwrap();
         let files = &guard.files;
         let file = files.get(path).unwrap();
-        Ok(VMetadata {
+        Ok(VfsMetadata {
             file_type: file.file_type,
             len: file.content.len() as u64,
         })
@@ -198,7 +198,7 @@ impl VFS for MemoryFS {
         self.handle.read().unwrap().files.contains_key(path)
     }
 
-    fn remove_file(&self, path: &str) -> Result<()> {
+    fn remove_file(&self, path: &str) -> VfsResult<()> {
         let mut handle = self.handle.write().unwrap();
         handle
             .files
@@ -209,7 +209,7 @@ impl VFS for MemoryFS {
         Ok(())
     }
 
-    fn remove_dir(&self, path: &str) -> Result<()> {
+    fn remove_dir(&self, path: &str) -> VfsResult<()> {
         if self.read_dir(path)?.next().is_some() {
             return Err(VfsError::Other {
                 message: "Directory to remove is not empty".to_string(),
@@ -237,7 +237,7 @@ impl MemoryFsImpl {
         files.insert(
             "".to_string(),
             MemoryFile {
-                file_type: VFileType::Directory,
+                file_type: VfsFileType::Directory,
                 content: Arc::new(vec![]),
             },
         );
@@ -246,19 +246,19 @@ impl MemoryFsImpl {
 }
 
 struct MemoryFile {
-    file_type: VFileType,
+    file_type: VfsFileType,
     content: Arc<Vec<u8>>,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::VPath;
+    use crate::VfsPath;
     test_vfs!(MemoryFS::new());
 
     #[test]
     fn write_and_read_file() {
-        let root = VPath::create(MemoryFS::new()).unwrap();
+        let root = VfsPath::create(MemoryFS::new()).unwrap();
         let path = root.join("foobar.txt");
         let _send = &path as &dyn Send;
         {
@@ -276,12 +276,12 @@ mod tests {
         assert!(!root.join("foo").exists());
         let metadata = path.metadata().unwrap();
         assert_eq!(metadata.len, 12);
-        assert_eq!(metadata.file_type, VFileType::File);
+        assert_eq!(metadata.file_type, VfsFileType::File);
     }
 
     #[test]
     fn append_file() {
-        let root = VPath::create(MemoryFS::new()).unwrap();
+        let root = VfsPath::create(MemoryFS::new()).unwrap();
         let _string = String::new();
         let path = root.join("test_append.txt");
         path.create_file().unwrap().write_all(b"Testing 1").unwrap();
@@ -296,17 +296,17 @@ mod tests {
 
     #[test]
     fn create_dir() {
-        let root = VPath::create(MemoryFS::new()).unwrap();
+        let root = VfsPath::create(MemoryFS::new()).unwrap();
         let _string = String::new();
         let path = root.join("foo");
         path.create_dir().unwrap();
         let metadata = path.metadata().unwrap();
-        assert_eq!(metadata.file_type, VFileType::Directory);
+        assert_eq!(metadata.file_type, VfsFileType::Directory);
     }
 
     #[test]
     fn remove_dir_error_message() {
-        let root = VPath::create(MemoryFS::new()).unwrap();
+        let root = VfsPath::create(MemoryFS::new()).unwrap();
         let path = root.join("foo");
         let result = path.remove_dir();
         assert_eq!(format!("{:?}", result), "Err(WithContext { context: \"Could not remove directory \\'/foo\\'\", cause: FileNotFound { path: \"/foo\" } })");
@@ -315,7 +315,7 @@ mod tests {
 
     #[test]
     fn read_dir_error_message() {
-        let root = VPath::create(MemoryFS::new()).unwrap();
+        let root = VfsPath::create(MemoryFS::new()).unwrap();
         let path = root.join("foo");
         let result = path.read_dir();
         match result {
