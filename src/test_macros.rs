@@ -167,6 +167,100 @@ macro_rules! test_vfs {
                 assert!(!path.exists());
                 assert!(path.remove_dir_all().is_ok());
             }
+
+            #[test]
+            fn filename() {
+                let root = create_root();
+                assert_eq!(root.filename(), "");
+                assert_eq!(root.join("name.foo.bar").filename(), "name.foo.bar");
+                assert_eq!(
+                    root.join("fizz.buzz/name.foo.bar").filename(),
+                    "name.foo.bar"
+                );
+                assert_eq!(
+                    root.join("fizz.buzz/.name.foo.bar").filename(),
+                    ".name.foo.bar"
+                );
+                assert_eq!(root.join("fizz.buzz/foo.").filename(), "foo.");
+            }
+
+            #[test]
+            fn extension() {
+                let root = create_root();
+                assert_eq!(root.extension(), None, "root");
+                assert_eq!(root.join("name").extension(), None, "name");
+                assert_eq!(
+                    root.join("name.bar").extension(),
+                    Some("bar".to_string()),
+                    "name.bar"
+                );
+                assert_eq!(
+                    root.join("name.").extension(),
+                    Some("".to_string()),
+                    "name."
+                );
+                assert_eq!(root.join(".name").extension(), None, ".name");
+                assert_eq!(
+                    root.join(".name.bar").extension(),
+                    Some("bar".to_string()),
+                    ".name.bar"
+                );
+                assert_eq!(
+                    root.join(".name.").extension(),
+                    Some("".to_string()),
+                    ".name."
+                );
+                assert_eq!(
+                    root.join("name.foo.bar").extension(),
+                    Some("bar".to_string())
+                );
+                assert_eq!(
+                    root.join("fizz.buzz/name.foo.bar").extension(),
+                    Some("bar".to_string())
+                );
+                assert_eq!(
+                    root.join("fizz.buzz/.name.foo.bar").extension(),
+                    Some("bar".to_string())
+                );
+                assert_eq!(
+                    root.join("fizz.buzz/foo.").extension(),
+                    Some("".to_string())
+                );
+            }
+
+            #[test]
+            fn parent() {
+                let root = create_root();
+                assert_eq!(root.parent(), None, "root");
+                assert_eq!(root.join("foo").parent(), Some(root.clone()), "foo");
+                assert_eq!(
+                    root.join("foo/bar").parent(),
+                    Some(root.join("foo")),
+                    "foo/bar"
+                );
+                assert_eq!(
+                    root.join("foo/bar/baz").parent(),
+                    Some(root.join("foo/bar")),
+                    "foo/bar/baz"
+                );
+            }
+
+            #[test]
+            fn eq() {
+                let root = create_root();
+
+                assert_eq!(root, root);
+                assert_eq!(root.join("foo"), root.join("foo"));
+                assert_eq!(root.join("foo"), root.join("foo/bar").parent().unwrap());
+                assert_eq!(root, root.join("foo").parent().unwrap());
+
+                assert_ne!(root, root.join("foo"));
+                assert_ne!(root.join("bar"), root.join("foo"));
+
+                let root2 = create_root();
+                assert_ne!(root, root2);
+                assert_ne!(root.join("foo"), root2.join("foo"));
+            }
         }
     };
 }
