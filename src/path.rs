@@ -46,13 +46,13 @@ impl Eq for VfsPath {}
 
 impl VfsPath {
     /// Creates a root path for the given filesystem
-    pub fn new<T: FileSystem + 'static>(filesystem: T) -> VfsResult<Self> {
-        Ok(VfsPath {
+    pub fn new<T: FileSystem>(filesystem: T) -> Self {
+        VfsPath {
             path: "".to_string(),
             fs: Arc::new(VFS {
                 fs: Box::new(filesystem),
             }),
-        })
+        }
     }
 
     /// Returns the string representation of this path
@@ -62,6 +62,12 @@ impl VfsPath {
 
     /// Appends a path segment to this path, returning the result
     pub fn join(&self, path: &str) -> Self {
+        if path.is_empty() {
+            return VfsPath {
+                path: self.path.clone(),
+                fs: self.fs.clone(),
+            }
+        }
         VfsPath {
             path: format!("{}/{}", self.path, path),
             fs: self.fs.clone(),

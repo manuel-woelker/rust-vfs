@@ -101,6 +101,10 @@ mod tests {
         PhysicalFS::new(dir)
     });
 
+    fn create_root() -> VfsPath {
+        PhysicalFS::new(std::env::current_dir().unwrap()).into()
+    }
+
     #[test]
     fn open_file() {
         let expected = std::fs::read_to_string("Cargo.toml").unwrap();
@@ -136,10 +140,6 @@ mod tests {
         path.append_file().unwrap().write_all(b"Testing 2").unwrap();
         let read = std::fs::read_to_string("target/test_append.txt").unwrap();
         assert_eq!(read, "Testing 1Testing 2");
-    }
-
-    fn create_root() -> VfsPath {
-        VfsPath::new(PhysicalFS::new(std::env::current_dir().unwrap())).unwrap()
     }
 
     #[test]

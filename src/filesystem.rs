@@ -1,11 +1,11 @@
 //! The filesystem trait definitions needed to implement new virtual filesystems
 
-use crate::{SeekAndRead, VfsMetadata, VfsResult};
+use crate::{SeekAndRead, VfsMetadata, VfsResult, VfsPath};
 use std::fmt::Debug;
 use std::io::Write;
 
 /// File system implementations mus implement this trait
-pub trait FileSystem: Debug + Sync + Send {
+pub trait FileSystem: Debug + Sync + Send + 'static {
     /// Iterates over all entries of this directory path
     fn read_dir(&self, path: &str) -> VfsResult<Box<dyn Iterator<Item = String>>>;
     /// Creates the directory at this path
@@ -25,4 +25,10 @@ pub trait FileSystem: Debug + Sync + Send {
     fn remove_file(&self, path: &str) -> VfsResult<()>;
     /// Removes the directory at this path
     fn remove_dir(&self, path: &str) -> VfsResult<()>;
+}
+
+impl <T: FileSystem> From<T> for VfsPath {
+    fn from(filesystem: T) -> Self {
+        VfsPath::new(filesystem)
+    }
 }

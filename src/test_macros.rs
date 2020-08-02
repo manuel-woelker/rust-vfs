@@ -6,8 +6,10 @@ macro_rules! test_vfs {
         mod vfs_tests {
             use super::*;
             use crate::VfsPath;
+            use crate::VfsFileType;
+
             fn create_root() -> VfsPath {
-                VfsPath::new($root).unwrap()
+                $root.into()
             }
 
             #[test]

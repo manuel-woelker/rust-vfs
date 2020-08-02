@@ -258,7 +258,7 @@ mod tests {
 
     #[test]
     fn write_and_read_file() {
-        let root = VfsPath::new(MemoryFS::new()).unwrap();
+        let root = VfsPath::new(MemoryFS::new());
         let path = root.join("foobar.txt");
         let _send = &path as &dyn Send;
         {
@@ -281,7 +281,7 @@ mod tests {
 
     #[test]
     fn append_file() {
-        let root = VfsPath::new(MemoryFS::new()).unwrap();
+        let root = VfsPath::new(MemoryFS::new());
         let _string = String::new();
         let path = root.join("test_append.txt");
         path.create_file().unwrap().write_all(b"Testing 1").unwrap();
@@ -296,7 +296,7 @@ mod tests {
 
     #[test]
     fn create_dir() {
-        let root = VfsPath::new(MemoryFS::new()).unwrap();
+        let root = VfsPath::new(MemoryFS::new());
         let _string = String::new();
         let path = root.join("foo");
         path.create_dir().unwrap();
@@ -306,7 +306,7 @@ mod tests {
 
     #[test]
     fn remove_dir_error_message() {
-        let root = VfsPath::new(MemoryFS::new()).unwrap();
+        let root = VfsPath::new(MemoryFS::new());
         let path = root.join("foo");
         let result = path.remove_dir();
         assert_eq!(format!("{:?}", result), "Err(WithContext { context: \"Could not remove directory \\'/foo\\'\", cause: FileNotFound { path: \"/foo\" } })");
@@ -315,7 +315,7 @@ mod tests {
 
     #[test]
     fn read_dir_error_message() {
-        let root = VfsPath::new(MemoryFS::new()).unwrap();
+        let root = VfsPath::new(MemoryFS::new());
         let path = root.join("foo");
         let result = path.read_dir();
         match result {
