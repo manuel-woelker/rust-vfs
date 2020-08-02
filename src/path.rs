@@ -4,7 +4,7 @@
 //! different VirtualFileSystem implementations (i.e. an in memory implementation for unit tests)
 
 use crate::error::VfsResultExt;
-use crate::{FileSystem, VfsResult};
+use crate::{FileSystem, VfsResult, VfsError};
 use std::io::{Read, Seek, Write};
 use std::sync::Arc;
 
@@ -61,17 +61,21 @@ impl VfsPath {
     }
 
     /// Appends a path segment to this path, returning the result
-    pub fn join(&self, path: &str) -> Self {
+    pub fn join(&self, path: &str) -> VfsResult<Self> {
         if path.is_empty() {
-            return VfsPath {
+            return Ok(VfsPath {
                 path: self.path.clone(),
                 fs: self.fs.clone(),
-            }
+            })
         }
-        VfsPath {
+        if path.split('/').any(|component| component == ".." || component == ".") {
+            return Err(VfsError::InvalidPath {path: path.to_string()})
+        }
+
+        Ok(VfsPath {
             path: format!("{}/{}", self.path, path),
             fs: self.fs.clone(),
-        }
+        })
     }
 
     /// Iterates over all entries of this directory path

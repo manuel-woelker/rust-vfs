@@ -259,7 +259,7 @@ mod tests {
     #[test]
     fn write_and_read_file() {
         let root = VfsPath::new(MemoryFS::new());
-        let path = root.join("foobar.txt");
+        let path = root.join("foobar.txt").unwrap();
         let _send = &path as &dyn Send;
         {
             let mut file = path.create_file().unwrap();
@@ -273,7 +273,7 @@ mod tests {
             assert_eq!(string, "Hello world!");
         }
         assert!(path.exists());
-        assert!(!root.join("foo").exists());
+        assert!(!root.join("foo").unwrap().exists());
         let metadata = path.metadata().unwrap();
         assert_eq!(metadata.len, 12);
         assert_eq!(metadata.file_type, VfsFileType::File);
@@ -283,7 +283,7 @@ mod tests {
     fn append_file() {
         let root = VfsPath::new(MemoryFS::new());
         let _string = String::new();
-        let path = root.join("test_append.txt");
+        let path = root.join("test_append.txt").unwrap();
         path.create_file().unwrap().write_all(b"Testing 1").unwrap();
         path.append_file().unwrap().write_all(b"Testing 2").unwrap();
         {
@@ -298,7 +298,7 @@ mod tests {
     fn create_dir() {
         let root = VfsPath::new(MemoryFS::new());
         let _string = String::new();
-        let path = root.join("foo");
+        let path = root.join("foo").unwrap();
         path.create_dir().unwrap();
         let metadata = path.metadata().unwrap();
         assert_eq!(metadata.file_type, VfsFileType::Directory);
@@ -307,22 +307,22 @@ mod tests {
     #[test]
     fn remove_dir_error_message() {
         let root = VfsPath::new(MemoryFS::new());
-        let path = root.join("foo");
+        let path = root.join("foo").unwrap();
         let result = path.remove_dir();
         assert_eq!(format!("{:?}", result), "Err(WithContext { context: \"Could not remove directory \\'/foo\\'\", cause: FileNotFound { path: \"/foo\" } })");
-        assert_eq!(format!("{}", result.unwrap_err()), "Could not remove directory '/foo', cause: the file or directory `/foo` could not be found");
+        assert_eq!(format!("{}", result.unwrap_err()), "Could not remove directory '/foo', cause: The file or directory `/foo` could not be found");
     }
 
     #[test]
     fn read_dir_error_message() {
         let root = VfsPath::new(MemoryFS::new());
-        let path = root.join("foo");
+        let path = root.join("foo").unwrap();
         let result = path.read_dir();
         match result {
             Ok(_) => panic!("Error expected"),
             Err(err) => {
                 assert_eq!(format!("{:?}", err), "WithContext { context: \"Could not read directory \\'/foo\\'\", cause: FileNotFound { path: \"/foo\" } }");
-                assert_eq!(format!("{}", err), "Could not read directory '/foo', cause: the file or directory `/foo` could not be found");
+                assert_eq!(format!("{}", err), "Could not read directory '/foo', cause: The file or directory `/foo` could not be found");
             }
         }
     }

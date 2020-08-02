@@ -25,53 +25,53 @@ impl AltrootFS {
 }
 
 impl AltrootFS {
-    fn path(&self, path: &str) -> VfsPath {
+    fn path(&self, path: &str) -> VfsResult<VfsPath> {
         if path.is_empty() {
-            return self.root.clone();
+            return Ok(self.root.clone());
         }
         if path.starts_with("/") {
             return self.root.join(&path[1..]);
         }
-        self.path(path)
+        self.root.join(&path)
     }
 }
 
 
 impl FileSystem for AltrootFS {
     fn read_dir(&self, path: &str) -> VfsResult<Box<dyn Iterator<Item=String>>> {
-        self.path(path).read_dir().map(|result| result.map(|path| path.filename())).map(|entries| Box::new(entries) as Box<dyn Iterator<Item=String>>)
+        self.path(path)?.read_dir().map(|result| result.map(|path| path.filename())).map(|entries| Box::new(entries) as Box<dyn Iterator<Item=String>>)
     }
 
     fn create_dir(&self, path: &str) -> VfsResult<()> {
-        self.path(path).create_dir()
+        self.path(path)?.create_dir()
     }
 
     fn open_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndRead>> {
-        self.path(path).open_file()
+        self.path(path)?.open_file()
     }
 
     fn create_file(&self, path: &str) -> VfsResult<Box<dyn Write>> {
-        self.path(path).create_file()
+        self.path(path)?.create_file()
     }
 
     fn append_file(&self, path: &str) -> VfsResult<Box<dyn Write>> {
-        self.path(path).append_file()
+        self.path(path)?.append_file()
     }
 
     fn metadata(&self, path: &str) -> VfsResult<VfsMetadata> {
-        self.path(path).metadata()
+        self.path(path)?.metadata()
     }
 
     fn exists(&self, path: &str) -> bool {
-        self.path(path).exists()
+        self.path(path).map(|path| path.exists()).unwrap_or(false)
     }
 
     fn remove_file(&self, path: &str) -> VfsResult<()> {
-        self.path(path).remove_file()
+        self.path(path)?.remove_file()
     }
 
     fn remove_dir(&self, path: &str) -> VfsResult<()> {
-        self.path(path).remove_dir()
+        self.path(path)?.remove_dir()
     }
 }
 
@@ -83,7 +83,7 @@ mod tests {
     use crate::MemoryFS;
     test_vfs!({
         let memory_root: VfsPath = MemoryFS::new().into();
-        let altroot_path = memory_root.join("altroot");
+        let altroot_path = memory_root.join("altroot").unwrap();
         altroot_path.create_dir().unwrap();
         AltrootFS::new(altroot_path)
     });
@@ -91,7 +91,7 @@ mod tests {
     #[test]
     fn parent() {
         let memory_root: VfsPath = MemoryFS::new().into();
-        let altroot_path = memory_root.join("altroot");
+        let altroot_path = memory_root.join("altroot").unwrap();
         altroot_path.create_dir().unwrap();
         let altroot : VfsPath = AltrootFS::new(altroot_path.clone()).into();
         assert_eq!(altroot.parent(), None);

@@ -11,8 +11,12 @@ pub enum VfsError {
     IoError(#[from] std::io::Error),
 
     /// The file or directory at the given path could not be found
-    #[error("the file or directory `{path}` could not be found")]
+    #[error("The file or directory `{path}` could not be found")]
     FileNotFound { path: String },
+
+    /// The given path is invalid, e.g. because contains '.' or '..'
+    #[error("The path `{path}` is invalid")]
+    InvalidPath { path: String },
 
     /// Generic error variant
     #[error("other FileSystem error: {message}")]

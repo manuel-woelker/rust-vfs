@@ -110,7 +110,7 @@ mod tests {
         let expected = std::fs::read_to_string("Cargo.toml").unwrap();
         let root = create_root();
         let mut string = String::new();
-        root.join("Cargo.toml")
+        root.join("Cargo.toml").unwrap()
             .open_file()
             .unwrap()
             .read_to_string(&mut string)
@@ -122,7 +122,7 @@ mod tests {
     fn create_file() {
         let root = create_root();
         let _string = String::new();
-        root.join("target/test.txt")
+        root.join("target/test.txt").unwrap()
             .create_file()
             .unwrap()
             .write_all(b"Testing only")
@@ -135,7 +135,7 @@ mod tests {
     fn append_file() {
         let root = create_root();
         let _string = String::new();
-        let path = root.join("target/test_append.txt");
+        let path = root.join("target/test_append.txt").unwrap();
         path.create_file().unwrap().write_all(b"Testing 1").unwrap();
         path.append_file().unwrap().write_all(b"Testing 2").unwrap();
         let read = std::fs::read_to_string("target/test_append.txt").unwrap();
@@ -159,7 +159,7 @@ mod tests {
     fn create_dir() {
         let _ = std::fs::remove_dir("target/fs_test");
         let root = create_root();
-        root.join("target/fs_test").create_dir().unwrap();
+        root.join("target/fs_test").unwrap().create_dir().unwrap();
         let path = Path::new("target/fs_test");
         assert!(path.exists(), "Path was not created");
         assert!(path.is_dir(), "Path is not a directory");
@@ -170,7 +170,7 @@ mod tests {
     fn file_metadata() {
         let expected = std::fs::read_to_string("Cargo.toml").unwrap();
         let root = create_root();
-        let metadata = root.join("Cargo.toml").metadata().unwrap();
+        let metadata = root.join("Cargo.toml").unwrap().metadata().unwrap();
         assert_eq!(metadata.len, expected.len() as u64);
         assert_eq!(metadata.file_type, VfsFileType::File);
     }
@@ -181,7 +181,7 @@ mod tests {
         let metadata = root.metadata().unwrap();
         assert_eq!(metadata.len, 0);
         assert_eq!(metadata.file_type, VfsFileType::Directory);
-        let metadata = root.join("src").metadata().unwrap();
+        let metadata = root.join("src").unwrap().metadata().unwrap();
         assert_eq!(metadata.len, 0);
         assert_eq!(metadata.file_type, VfsFileType::Directory);
     }

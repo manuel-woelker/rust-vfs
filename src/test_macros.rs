@@ -20,7 +20,7 @@ macro_rules! test_vfs {
             #[test]
             fn write_and_read_file() {
                 let root = create_root();
-                let path = root.join("foobar.txt");
+                let path = root.join("foobar.txt").unwrap();
                 let _send = &path as &dyn Send;
                 {
                     let mut file = path.create_file().unwrap();
@@ -34,7 +34,7 @@ macro_rules! test_vfs {
                     assert_eq!(string, "Hello world!");
                 }
                 assert!(path.exists());
-                assert!(!root.join("foo").exists());
+                assert!(!root.join("foo").unwrap().exists());
                 let metadata = path.metadata().unwrap();
                 assert_eq!(metadata.len, 12);
                 assert_eq!(metadata.file_type, VfsFileType::File);
@@ -43,7 +43,7 @@ macro_rules! test_vfs {
             #[test]
             fn append_file() {
                 let root = create_root();
-                let path = root.join("test_append.txt");
+                let path = root.join("test_append.txt").unwrap();
                 path.create_file().unwrap().write_all(b"Testing 1").unwrap();
                 path.append_file().unwrap().write_all(b"Testing 2").unwrap();
                 {
@@ -58,7 +58,7 @@ macro_rules! test_vfs {
             fn create_dir() {
                 let root = create_root();
                 let _string = String::new();
-                let path = root.join("foo");
+                let path = root.join("foo").unwrap();
                 path.create_dir().unwrap();
                 let metadata = path.metadata().unwrap();
                 assert_eq!(metadata.file_type, VfsFileType::Directory);
@@ -69,12 +69,12 @@ macro_rules! test_vfs {
             fn create_dir_all() {
                 let root = create_root();
                 let _string = String::new();
-                let path = root.join("foo");
+                let path = root.join("foo").unwrap();
                 path.create_dir().unwrap();
-                let path = root.join("foo/bar/baz");
+                let path = root.join("foo/bar/baz").unwrap();
                 path.create_dir_all().unwrap();
                 assert!(path.exists());
-                assert!(root.join("foo/bar").exists());
+                assert!(root.join("foo/bar").unwrap().exists());
                 let metadata = path.metadata().unwrap();
                 assert_eq!(metadata.file_type, VfsFileType::Directory);
                 assert_eq!(metadata.len, 0);
@@ -84,9 +84,9 @@ macro_rules! test_vfs {
             fn read_dir() {
                 let root = create_root();
                 let _string = String::new();
-                root.join("foo/bar/biz").create_dir_all().unwrap();
-                root.join("baz").create_file().unwrap();
-                root.join("foo/fizz").create_file().unwrap();
+                root.join("foo/bar/biz").unwrap().create_dir_all().unwrap();
+                root.join("baz").unwrap().create_file().unwrap();
+                root.join("foo/fizz").unwrap().create_file().unwrap();
                 let mut files: Vec<_> = root
                     .read_dir()
                     .unwrap()
@@ -95,7 +95,7 @@ macro_rules! test_vfs {
                 files.sort();
                 assert_eq!(files, vec!["/baz".to_string(), "/foo".to_string()]);
                 let mut files: Vec<_> = root
-                    .join("foo")
+                    .join("foo").unwrap()
                     .read_dir()
                     .unwrap()
                     .map(|path| path.as_str().to_string())
@@ -107,7 +107,7 @@ macro_rules! test_vfs {
             #[test]
             fn remove_file() {
                 let root = create_root();
-                let path = root.join("baz");
+                let path = root.join("baz").unwrap();
                 assert!(!path.exists());
                 path.create_file().unwrap();
                 assert!(path.exists());
@@ -118,7 +118,7 @@ macro_rules! test_vfs {
             #[test]
             fn remove_file_nonexisting() {
                 let root = create_root();
-                let path = root.join("baz");
+                let path = root.join("baz").unwrap();
                 assert!(!path.exists());
                 assert!(path.remove_file().is_err());
             }
@@ -126,7 +126,7 @@ macro_rules! test_vfs {
             #[test]
             fn remove_dir() {
                 let root = create_root();
-                let path = root.join("baz");
+                let path = root.join("baz").unwrap();
                 assert!(!path.exists());
                 path.create_dir().unwrap();
                 assert!(path.exists());
@@ -137,7 +137,7 @@ macro_rules! test_vfs {
             #[test]
             fn remove_dir_nonexisting() {
                 let root = create_root();
-                let path = root.join("baz");
+                let path = root.join("baz").unwrap();
                 assert!(!path.exists());
                 assert!(path.remove_dir().is_err());
             }
@@ -145,18 +145,18 @@ macro_rules! test_vfs {
             #[test]
             fn remove_dir_notempty() {
                 let root = create_root();
-                let path = root.join("bar");
-                root.join("bar/baz/fizz").create_dir_all().unwrap();
+                let path = root.join("bar").unwrap();
+                root.join("bar/baz/fizz").unwrap().create_dir_all().unwrap();
                 assert!(path.remove_dir().is_err());
             }
 
             #[test]
             fn remove_dir_all() {
                 let root = create_root();
-                let path = root.join("foo");
+                let path = root.join("foo").unwrap();
                 assert!(!path.exists());
-                path.join("bar/baz/fizz").create_dir_all().unwrap();
-                path.join("bar/buzz").create_file().unwrap();
+                path.join("bar/baz/fizz").unwrap().create_dir_all().unwrap();
+                path.join("bar/buzz").unwrap().create_file().unwrap();
                 assert!(path.exists());
                 assert!(path.remove_dir_all().is_ok());
                 assert!(!path.exists());
@@ -165,7 +165,7 @@ macro_rules! test_vfs {
             #[test]
             fn remove_dir_all_nonexisting() {
                 let root = create_root();
-                let path = root.join("baz");
+                let path = root.join("baz").unwrap();
                 assert!(!path.exists());
                 assert!(path.remove_dir_all().is_ok());
             }
@@ -174,58 +174,58 @@ macro_rules! test_vfs {
             fn filename() {
                 let root = create_root();
                 assert_eq!(root.filename(), "");
-                assert_eq!(root.join("name.foo.bar").filename(), "name.foo.bar");
+                assert_eq!(root.join("name.foo.bar").unwrap().filename(), "name.foo.bar");
                 assert_eq!(
-                    root.join("fizz.buzz/name.foo.bar").filename(),
+                    root.join("fizz.buzz/name.foo.bar").unwrap().filename(),
                     "name.foo.bar"
                 );
                 assert_eq!(
-                    root.join("fizz.buzz/.name.foo.bar").filename(),
+                    root.join("fizz.buzz/.name.foo.bar").unwrap().filename(),
                     ".name.foo.bar"
                 );
-                assert_eq!(root.join("fizz.buzz/foo.").filename(), "foo.");
+                assert_eq!(root.join("fizz.buzz/foo.").unwrap().filename(), "foo.");
             }
 
             #[test]
             fn extension() {
                 let root = create_root();
                 assert_eq!(root.extension(), None, "root");
-                assert_eq!(root.join("name").extension(), None, "name");
+                assert_eq!(root.join("name").unwrap().extension(), None, "name");
                 assert_eq!(
-                    root.join("name.bar").extension(),
+                    root.join("name.bar").unwrap().extension(),
                     Some("bar".to_string()),
                     "name.bar"
                 );
                 assert_eq!(
-                    root.join("name.").extension(),
+                    root.join("name.").unwrap().extension(),
                     Some("".to_string()),
                     "name."
                 );
-                assert_eq!(root.join(".name").extension(), None, ".name");
+                assert_eq!(root.join(".name").unwrap().extension(), None, ".name");
                 assert_eq!(
-                    root.join(".name.bar").extension(),
+                    root.join(".name.bar").unwrap().extension(),
                     Some("bar".to_string()),
                     ".name.bar"
                 );
                 assert_eq!(
-                    root.join(".name.").extension(),
+                    root.join(".name.").unwrap().extension(),
                     Some("".to_string()),
                     ".name."
                 );
                 assert_eq!(
-                    root.join("name.foo.bar").extension(),
+                    root.join("name.foo.bar").unwrap().extension(),
                     Some("bar".to_string())
                 );
                 assert_eq!(
-                    root.join("fizz.buzz/name.foo.bar").extension(),
+                    root.join("fizz.buzz/name.foo.bar").unwrap().extension(),
                     Some("bar".to_string())
                 );
                 assert_eq!(
-                    root.join("fizz.buzz/.name.foo.bar").extension(),
+                    root.join("fizz.buzz/.name.foo.bar").unwrap().extension(),
                     Some("bar".to_string())
                 );
                 assert_eq!(
-                    root.join("fizz.buzz/foo.").extension(),
+                    root.join("fizz.buzz/foo.").unwrap().extension(),
                     Some("".to_string())
                 );
             }
@@ -234,15 +234,15 @@ macro_rules! test_vfs {
             fn parent() {
                 let root = create_root();
                 assert_eq!(root.parent(), None, "root");
-                assert_eq!(root.join("foo").parent(), Some(root.clone()), "foo");
+                assert_eq!(root.join("foo").unwrap().parent(), Some(root.clone()), "foo");
                 assert_eq!(
-                    root.join("foo/bar").parent(),
-                    Some(root.join("foo")),
+                    root.join("foo/bar").unwrap().parent(),
+                    Some(root.join("foo").unwrap()),
                     "foo/bar"
                 );
                 assert_eq!(
-                    root.join("foo/bar/baz").parent(),
-                    Some(root.join("foo/bar")),
+                    root.join("foo/bar/baz").unwrap().parent(),
+                    Some(root.join("foo/bar").unwrap()),
                     "foo/bar/baz"
                 );
             }
@@ -252,17 +252,40 @@ macro_rules! test_vfs {
                 let root = create_root();
 
                 assert_eq!(root, root);
-                assert_eq!(root.join("foo"), root.join("foo"));
-                assert_eq!(root.join("foo"), root.join("foo/bar").parent().unwrap());
-                assert_eq!(root, root.join("foo").parent().unwrap());
+                assert_eq!(root.join("foo").unwrap(), root.join("foo").unwrap());
+                assert_eq!(root.join("foo").unwrap(), root.join("foo/bar").unwrap().parent().unwrap());
+                assert_eq!(root, root.join("foo").unwrap().parent().unwrap());
 
-                assert_ne!(root, root.join("foo"));
-                assert_ne!(root.join("bar"), root.join("foo"));
+                assert_ne!(root, root.join("foo").unwrap());
+                assert_ne!(root.join("bar").unwrap(), root.join("foo").unwrap());
 
                 let root2 = create_root();
                 assert_ne!(root, root2);
-                assert_ne!(root.join("foo"), root2.join("foo"));
+                assert_ne!(root.join("foo").unwrap(), root2.join("foo").unwrap());
             }
+
+            #[test]
+            fn join() {
+                let root = create_root();
+
+                assert_eq!(root.join("foo").unwrap().as_str(), "/foo");
+                assert_eq!(root.join("foo/bar").unwrap().as_str(), "/foo/bar");
+                assert_eq!(root.join("foo/bar/baz").unwrap().as_str(), "/foo/bar/baz");
+                assert_eq!(root.join("foo").unwrap().join("bar").unwrap().as_str(), "/foo/bar");
+                assert_eq!(root.join("").unwrap().as_str(), "");
+                assert_eq!(root.join(".foo").unwrap().as_str(), "/.foo");
+                assert_eq!(root.join("..foo").unwrap().as_str(), "/..foo");
+                assert_eq!(root.join("foo.").unwrap().as_str(), "/foo.");
+                assert_eq!(root.join("foo..").unwrap().as_str(), "/foo..");
+
+                assert_eq!(root.join("..").unwrap_err().to_string(), "The path `..` is invalid".to_string());
+                assert_eq!(root.join(".").unwrap_err().to_string(), "The path `.` is invalid".to_string());
+                assert_eq!(root.join("foo/..").unwrap_err().to_string(), "The path `foo/..` is invalid".to_string());
+                assert_eq!(root.join("foo/.").unwrap_err().to_string(), "The path `foo/.` is invalid".to_string());
+                assert_eq!(root.join("../foo").unwrap_err().to_string(), "The path `../foo` is invalid".to_string());
+                assert_eq!(root.join("./foo").unwrap_err().to_string(), "The path `./foo` is invalid".to_string());
+            }
+
         }
     };
 }
