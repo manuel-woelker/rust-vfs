@@ -110,7 +110,8 @@ mod tests {
         let expected = std::fs::read_to_string("Cargo.toml").unwrap();
         let root = create_root();
         let mut string = String::new();
-        root.join("Cargo.toml").unwrap()
+        root.join("Cargo.toml")
+            .unwrap()
             .open_file()
             .unwrap()
             .read_to_string(&mut string)
@@ -122,7 +123,8 @@ mod tests {
     fn create_file() {
         let root = create_root();
         let _string = String::new();
-        root.join("target/test.txt").unwrap()
+        root.join("target/test.txt")
+            .unwrap()
             .create_file()
             .unwrap()
             .write_all(b"Testing only")

@@ -5,8 +5,8 @@ macro_rules! test_vfs {
         #[cfg(test)]
         mod vfs_tests {
             use super::*;
-            use crate::VfsPath;
             use crate::VfsFileType;
+            use crate::VfsPath;
 
             fn create_root() -> VfsPath {
                 $root.into()
@@ -95,7 +95,8 @@ macro_rules! test_vfs {
                 files.sort();
                 assert_eq!(files, vec!["/baz".to_string(), "/foo".to_string()]);
                 let mut files: Vec<_> = root
-                    .join("foo").unwrap()
+                    .join("foo")
+                    .unwrap()
                     .read_dir()
                     .unwrap()
                     .map(|path| path.as_str().to_string())
@@ -174,7 +175,10 @@ macro_rules! test_vfs {
             fn filename() {
                 let root = create_root();
                 assert_eq!(root.filename(), "");
-                assert_eq!(root.join("name.foo.bar").unwrap().filename(), "name.foo.bar");
+                assert_eq!(
+                    root.join("name.foo.bar").unwrap().filename(),
+                    "name.foo.bar"
+                );
                 assert_eq!(
                     root.join("fizz.buzz/name.foo.bar").unwrap().filename(),
                     "name.foo.bar"
@@ -234,7 +238,11 @@ macro_rules! test_vfs {
             fn parent() {
                 let root = create_root();
                 assert_eq!(root.parent(), None, "root");
-                assert_eq!(root.join("foo").unwrap().parent(), Some(root.clone()), "foo");
+                assert_eq!(
+                    root.join("foo").unwrap().parent(),
+                    Some(root.clone()),
+                    "foo"
+                );
                 assert_eq!(
                     root.join("foo/bar").unwrap().parent(),
                     Some(root.join("foo").unwrap()),
@@ -253,7 +261,10 @@ macro_rules! test_vfs {
 
                 assert_eq!(root, root);
                 assert_eq!(root.join("foo").unwrap(), root.join("foo").unwrap());
-                assert_eq!(root.join("foo").unwrap(), root.join("foo/bar").unwrap().parent().unwrap());
+                assert_eq!(
+                    root.join("foo").unwrap(),
+                    root.join("foo/bar").unwrap().parent().unwrap()
+                );
                 assert_eq!(root, root.join("foo").unwrap().parent().unwrap());
 
                 assert_ne!(root, root.join("foo").unwrap());
@@ -271,21 +282,33 @@ macro_rules! test_vfs {
                 assert_eq!(root.join("foo").unwrap().as_str(), "/foo");
                 assert_eq!(root.join("foo/bar").unwrap().as_str(), "/foo/bar");
                 assert_eq!(root.join("foo/bar/baz").unwrap().as_str(), "/foo/bar/baz");
-                assert_eq!(root.join("foo").unwrap().join("bar").unwrap().as_str(), "/foo/bar");
+                assert_eq!(
+                    root.join("foo").unwrap().join("bar").unwrap().as_str(),
+                    "/foo/bar"
+                );
                 assert_eq!(root.join("").unwrap().as_str(), "");
                 assert_eq!(root.join(".foo").unwrap().as_str(), "/.foo");
                 assert_eq!(root.join("..foo").unwrap().as_str(), "/..foo");
                 assert_eq!(root.join("foo.").unwrap().as_str(), "/foo.");
                 assert_eq!(root.join("foo..").unwrap().as_str(), "/foo..");
 
-                assert_eq!(root.join("..").unwrap_err().to_string(), "The path `..` is invalid".to_string());
-                assert_eq!(root.join(".").unwrap_err().to_string(), "The path `.` is invalid".to_string());
-                assert_eq!(root.join("foo/..").unwrap_err().to_string(), "The path `foo/..` is invalid".to_string());
-                assert_eq!(root.join("foo/.").unwrap_err().to_string(), "The path `foo/.` is invalid".to_string());
-                assert_eq!(root.join("../foo").unwrap_err().to_string(), "The path `../foo` is invalid".to_string());
-                assert_eq!(root.join("./foo").unwrap_err().to_string(), "The path `./foo` is invalid".to_string());
-            }
+                assert_eq!(root.join(".").unwrap().as_str(), "");
+                assert_eq!(root.join("./foo").unwrap().as_str(), "/foo");
+                assert_eq!(root.join("foo/.").unwrap().as_str(), "/foo");
 
+                assert_eq!(
+                    root.join("..").unwrap_err().to_string(),
+                    "The path `..` is invalid".to_string()
+                );
+                assert_eq!(
+                    root.join("foo/..").unwrap_err().to_string(),
+                    "The path `foo/..` is invalid".to_string()
+                );
+                assert_eq!(
+                    root.join("../foo").unwrap_err().to_string(),
+                    "The path `../foo` is invalid".to_string()
+                );
+            }
         }
     };
 }

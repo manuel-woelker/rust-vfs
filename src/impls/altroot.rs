@@ -1,7 +1,6 @@
 //! A file system with its root in a particular directory of another filesystem
 
-
-use crate::{VfsPath, FileSystem, VfsResult, SeekAndRead, VfsMetadata};
+use crate::{FileSystem, SeekAndRead, VfsMetadata, VfsPath, VfsResult};
 use std::io::Write;
 
 /// Similar to a chroot but done purely by path manipulation
@@ -18,9 +17,7 @@ pub struct AltrootFS {
 impl AltrootFS {
     // Create a new root FileSystem at the given virtual path
     pub fn new(root: VfsPath) -> Self {
-        AltrootFS {
-            root,
-        }
+        AltrootFS { root }
     }
 }
 
@@ -29,17 +26,19 @@ impl AltrootFS {
         if path.is_empty() {
             return Ok(self.root.clone());
         }
-        if path.starts_with("/") {
+        if path.starts_with('/') {
             return self.root.join(&path[1..]);
         }
         self.root.join(&path)
     }
 }
 
-
 impl FileSystem for AltrootFS {
-    fn read_dir(&self, path: &str) -> VfsResult<Box<dyn Iterator<Item=String>>> {
-        self.path(path)?.read_dir().map(|result| result.map(|path| path.filename())).map(|entries| Box::new(entries) as Box<dyn Iterator<Item=String>>)
+    fn read_dir(&self, path: &str) -> VfsResult<Box<dyn Iterator<Item = String>>> {
+        self.path(path)?
+            .read_dir()
+            .map(|result| result.map(|path| path.filename()))
+            .map(|entries| Box::new(entries) as Box<dyn Iterator<Item = String>>)
     }
 
     fn create_dir(&self, path: &str) -> VfsResult<()> {
@@ -75,8 +74,6 @@ impl FileSystem for AltrootFS {
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -93,11 +90,8 @@ mod tests {
         let memory_root: VfsPath = MemoryFS::new().into();
         let altroot_path = memory_root.join("altroot").unwrap();
         altroot_path.create_dir().unwrap();
-        let altroot : VfsPath = AltrootFS::new(altroot_path.clone()).into();
+        let altroot: VfsPath = AltrootFS::new(altroot_path.clone()).into();
         assert_eq!(altroot.parent(), None);
         assert_eq!(altroot_path.parent(), Some(memory_root));
     }
-
-
-
 }
