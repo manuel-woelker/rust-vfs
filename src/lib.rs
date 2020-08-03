@@ -9,6 +9,7 @@
 //!
 //!  * **[`PhysicalFS`](impls/physical/struct.PhysicalFS.html)** - the actual filesystem of the underlying OS
 //!  * **[`MemoryFS`](impls/memory/struct.MemoryFS.html)** - an ephemeral in-memory implementation (intended for unit tests)
+//!  * **[`AltrootFS`](impls/altroot/struct.Altroot.html)** - a file system with its root in a particular directory of another filesystem
 
 #[cfg(test)]
 #[macro_use]
