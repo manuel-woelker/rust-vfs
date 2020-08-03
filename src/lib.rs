@@ -10,7 +10,35 @@
 //!  * **[`PhysicalFS`](impls/physical/struct.PhysicalFS.html)** - the actual filesystem of the underlying OS
 //!  * **[`MemoryFS`](impls/memory/struct.MemoryFS.html)** - an ephemeral in-memory implementation (intended for unit tests)
 //!  * **[`AltrootFS`](impls/altroot/struct.Altroot.html)** - a file system with its root in a particular directory of another filesystem
-
+//!
+//! # Usage Examples
+//!
+//! ```
+//! use vfs::{VfsPath, PhysicalFS, VfsError};
+//!
+//! let root: VfsPath = PhysicalFS::new(std::env::current_dir().unwrap()).into();
+//! assert!(root.exists());
+//!
+//! let mut content = String::new();
+//! root.join("README.md")?.open_file()?.read_to_string(&mut content)?;
+//! assert!(content.contains("vfs"));
+//! # Ok::<(), VfsError>(())
+//! ```
+//!
+//! ```
+//! use vfs::{VfsPath, VfsError, MemoryFS};
+//!
+//! let root: VfsPath = MemoryFS::new().into();
+//! let path = root.join("test.txt")?;
+//! assert!(!path.exists());
+//!
+//! path.create_file()?.write_all(b"Hello world")?;
+//! assert!(path.exists());
+//! let mut content = String::new();
+//! path.open_file()?.read_to_string(&mut content)?;
+//! assert_eq!(content, "Hello world");
+//! # Ok::<(), VfsError>(())
+//! ```
 #[cfg(test)]
 #[macro_use]
 pub mod test_macros;
