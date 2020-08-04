@@ -9,6 +9,9 @@ keywords = ["vfs", "virtual",  "filesystem"]
 license = "Apache-2.0/MIT"
 edition = "2018"
 
+[badges]
+travis-ci = { repository = "manuel-woelker/rust-vfs", branch = "master" }
+
 [dependencies]
 thiserror = "1.0"
 

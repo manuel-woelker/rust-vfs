@@ -2,6 +2,7 @@
 
 [![Crate](https://img.shields.io/crates/v/vfs.svg)](https://crates.io/crates/vfs)
 [![API](https://docs.rs/vfs/badge.svg)](https://docs.rs/vfs)
+![Minimum rustc version](https://img.shields.io/badge/rustc-1.32.0+-green.svg)
 
 A virtual filesystem for Rust
 
@@ -12,6 +13,8 @@ This crate currently has the following implementations:
  * **PhysicalFS** - the actual filesystem of the underlying OS
  * **MemoryFS** - an ephemeral in-memory file system, intended mainly for unit tests
  * **AltrootFS** - a file system with its root in a particular directory of another filesystem
+ 
+The minimum supported Rust version is 1.32.0.
  
 Comments and pull-requests welcome!
 
