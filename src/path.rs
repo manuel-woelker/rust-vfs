@@ -62,28 +62,38 @@ impl VfsPath {
 
     /// Appends a path segment to this path, returning the result
     pub fn join(&self, path: &str) -> VfsResult<Self> {
-        if path.is_empty() {
-            return Ok(VfsPath {
-                path: self.path.clone(),
-                fs: self.fs.clone(),
-            });
-        }
-        let mut new_path = self.path.clone();
+        let mut new_components: Vec<&str> = vec![];
+        let mut base_path = self.clone();
         for component in path.split('/') {
-            if component == "." {
-                continue;
-            }
-            if component == ".." {
+            if component == "" {
                 return Err(VfsError::InvalidPath {
                     path: path.to_string(),
                 });
             }
-            new_path += "/";
-            new_path += component;
+            if component == "." {
+                continue;
+            }
+            if component == ".." {
+                if !new_components.is_empty() {
+                    new_components.truncate(new_components.len() - 1);
+                } else if let Some(parent) = base_path.parent() {
+                    base_path = parent;
+                } else {
+                    return Err(VfsError::InvalidPath {
+                        path: path.to_string(),
+                    });
+                }
+            } else {
+                new_components.push(&component);
+            }
         }
-
+        let mut path = base_path.path;
+        for component in new_components {
+            path += "/";
+            path += component
+        }
         Ok(VfsPath {
-            path: new_path,
+            path,
             fs: self.fs.clone(),
         })
     }

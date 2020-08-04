@@ -286,7 +286,6 @@ macro_rules! test_vfs {
                     root.join("foo").unwrap().join("bar").unwrap().as_str(),
                     "/foo/bar"
                 );
-                assert_eq!(root.join("").unwrap().as_str(), "");
                 assert_eq!(root.join(".foo").unwrap().as_str(), "/.foo");
                 assert_eq!(root.join("..foo").unwrap().as_str(), "/..foo");
                 assert_eq!(root.join("foo.").unwrap().as_str(), "/foo.");
@@ -296,17 +295,87 @@ macro_rules! test_vfs {
                 assert_eq!(root.join("./foo").unwrap().as_str(), "/foo");
                 assert_eq!(root.join("foo/.").unwrap().as_str(), "/foo");
 
+                assert_eq!(root.join("foo/..").unwrap().as_str(), "");
+                assert_eq!(root.join("foo").unwrap().join("..").unwrap().as_str(), "");
                 assert_eq!(
-                    root.join("..").unwrap_err().to_string(),
-                    "The path `..` is invalid".to_string()
+                    root.join("foo/bar").unwrap().join("..").unwrap().as_str(),
+                    "/foo"
                 );
                 assert_eq!(
-                    root.join("foo/..").unwrap_err().to_string(),
-                    "The path `foo/..` is invalid".to_string()
+                    root.join("foo/bar")
+                        .unwrap()
+                        .join("../baz")
+                        .unwrap()
+                        .as_str(),
+                    "/foo/baz"
+                );
+                assert_eq!(root.join("foo/bar/../..").unwrap().as_str(), "");
+                assert_eq!(root.join("foo/bar/../..").unwrap().as_str(), "");
+                assert_eq!(root.join("foo/bar/baz/../..").unwrap().as_str(), "/foo");
+                assert_eq!(
+                    root.join("foo/bar")
+                        .unwrap()
+                        .join("baz/../..")
+                        .unwrap()
+                        .as_str(),
+                    "/foo"
+                );
+                assert_eq!(
+                    root.join("foo/bar")
+                        .unwrap()
+                        .join("baz/../../fizz")
+                        .unwrap()
+                        .as_str(),
+                    "/foo/fizz"
+                );
+                assert_eq!(
+                    root.join("foo/bar")
+                        .unwrap()
+                        .join("baz/../../fizz/..")
+                        .unwrap()
+                        .as_str(),
+                    "/foo"
+                );
+
+                assert_eq!(
+                    root.join("..").unwrap_err().to_string(),
+                    "The path `..` is invalid".to_string(),
+                    ".."
                 );
                 assert_eq!(
                     root.join("../foo").unwrap_err().to_string(),
-                    "The path `../foo` is invalid".to_string()
+                    "The path `../foo` is invalid".to_string(),
+                    "../foo"
+                );
+                assert_eq!(
+                    root.join("foo/../..").unwrap_err().to_string(),
+                    "The path `foo/../..` is invalid".to_string(),
+                    "foo/../.."
+                );
+                assert_eq!(
+                    root.join("foo")
+                        .unwrap()
+                        .join("../..")
+                        .unwrap_err()
+                        .to_string(),
+                    "The path `../..` is invalid".to_string(),
+                    "foo+../.."
+                );
+
+                assert_eq!(
+                    root.join("").unwrap_err().to_string(),
+                    "The path `` is invalid".to_string(),
+                    "<empty>"
+                );
+                assert_eq!(
+                    root.join("/").unwrap_err().to_string(),
+                    "The path `/` is invalid".to_string(),
+                    "/"
+                );
+                assert_eq!(
+                    root.join("foo/").unwrap_err().to_string(),
+                    "The path `foo/` is invalid".to_string(),
+                    "foo/"
                 );
             }
         }
