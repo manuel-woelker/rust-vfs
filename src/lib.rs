@@ -16,6 +16,7 @@
 //! ```
 //! use vfs::{VfsPath, PhysicalFS, VfsError};
 //!
+//! # fn main() -> vfs::VfsResult<()> {
 //! let root: VfsPath = PhysicalFS::new(std::env::current_dir().unwrap()).into();
 //! assert!(root.exists());
 //!
@@ -23,11 +24,13 @@
 //! root.join("README.md")?.open_file()?.read_to_string(&mut content)?;
 //! assert!(content.contains("vfs"));
 //! # Ok::<(), VfsError>(())
+//! # }
 //! ```
 //!
 //! ```
 //! use vfs::{VfsPath, VfsError, MemoryFS};
 //!
+//! # fn main() -> vfs::VfsResult<()> {
 //! let root: VfsPath = MemoryFS::new().into();
 //! let path = root.join("test.txt")?;
 //! assert!(!path.exists());
@@ -38,6 +41,7 @@
 //! path.open_file()?.read_to_string(&mut content)?;
 //! assert_eq!(content, "Hello world");
 //! # Ok::<(), VfsError>(())
+//! # }
 //! ```
 #[cfg(test)]
 #[macro_use]

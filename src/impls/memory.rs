@@ -118,7 +118,8 @@ impl FileSystem for MemoryFS {
                 if candidate_path == path {
                     found_directory = true;
                 }
-                if let Some(rest) = candidate_path.strip_prefix(&prefix) {
+                if candidate_path.starts_with(&prefix) {
+                    let rest = &candidate_path[prefix.len()..];
                     if !rest.contains('/') {
                         return Some(rest.to_string());
                     }
@@ -164,7 +165,7 @@ impl FileSystem for MemoryFS {
             },
         );
         let writer = WritableFile {
-            content: Default::default(),
+            content: Cursor::new(vec![]),
             destination: path.to_string(),
             fs: self.handle.clone(),
         };
