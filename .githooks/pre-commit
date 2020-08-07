@@ -1,0 +1,5 @@
+#!/bin/bash
+# https://eugene-babichenko.github.io/blog/2018/11/08/rustfmt-git-hook/
+
+cargo fmt
+git add --update
