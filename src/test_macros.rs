@@ -378,6 +378,130 @@ macro_rules! test_vfs {
                     "foo/"
                 );
             }
+
+            #[test]
+            fn walk_dir_empty() -> VfsResult<()> {
+                let root = create_root();
+
+                assert_entries(&root, vec![])
+            }
+
+            fn assert_entries(path: &VfsPath, expected: Vec<&str>) -> VfsResult<()> {
+                let entries: Vec<VfsPath> = path.walk_dir()?.map(|path| path.unwrap()).collect();
+                let mut paths = entries.iter().map(|x| x.as_str()).collect::<Vec<&str>>();
+                paths.sort();
+                assert_eq!(paths, expected);
+                Ok(())
+            }
+
+            #[test]
+            fn walk_dir_single_file() -> VfsResult<()> {
+                let root = create_root();
+                root.join("baz").unwrap().create_file().unwrap();
+                assert_entries(&root, vec!["/baz"])
+            }
+
+            #[test]
+            fn walk_dir_single_directory() -> VfsResult<()> {
+                let root = create_root();
+                root.join("baz")?.create_dir()?;
+                assert_entries(&root, vec!["/baz"])
+            }
+
+            #[test]
+            fn walk_dir_deep_directory() -> VfsResult<()> {
+                let root = create_root();
+                root.join("foo/bar/fizz/buzz")?.create_dir_all()?;
+                assert_entries(
+                    &root,
+                    vec!["/foo", "/foo/bar", "/foo/bar/fizz", "/foo/bar/fizz/buzz"],
+                )?;
+                assert_entries(
+                    &root.join("foo")?,
+                    vec!["/foo/bar", "/foo/bar/fizz", "/foo/bar/fizz/buzz"],
+                )
+            }
+
+            #[test]
+            fn walk_dir_flat() -> VfsResult<()> {
+                let root = create_root();
+                root.join("foo/bar/foobar")?.create_dir_all()?;
+                root.join("foo/baz")?.create_dir_all()?;
+                root.join("foo/fizz")?.create_dir_all()?;
+                root.join("foo/buzz")?.create_dir_all()?;
+                root.join("foobar")?.create_dir_all()?;
+                assert_entries(
+                    &root,
+                    vec![
+                        "/foo",
+                        "/foo/bar",
+                        "/foo/bar/foobar",
+                        "/foo/baz",
+                        "/foo/buzz",
+                        "/foo/fizz",
+                        "/foobar",
+                    ],
+                )?;
+                assert_entries(
+                    &root.join("foo")?,
+                    vec![
+                        "/foo/bar",
+                        "/foo/bar/foobar",
+                        "/foo/baz",
+                        "/foo/buzz",
+                        "/foo/fizz",
+                    ],
+                )
+            }
+
+            #[test]
+            fn walk_dir_file_in_dir() -> VfsResult<()> {
+                let root = create_root();
+                root.join("foo/bar")?.create_dir_all()?;
+                root.join("foo/bar/foobar")?.create_file()?;
+                assert_entries(&root, vec!["/foo", "/foo/bar", "/foo/bar/foobar"])?;
+                assert_entries(&root.join("foo")?, vec!["/foo/bar", "/foo/bar/foobar"])
+            }
+
+            #[test]
+            fn walk_dir_missing_path() -> VfsResult<()> {
+                let root = create_root();
+                let error_message = root
+                    .join("foo")?
+                    .walk_dir()
+                    .expect_err("walk_dir")
+                    .to_string();
+                assert!(
+                    error_message.starts_with("Could not read directory '/foo'"),
+                    "Actual message: {}",
+                    error_message
+                );
+                Ok(())
+            }
+
+            #[test]
+            fn walk_dir_remove_directory_while_walking() -> VfsResult<()> {
+                let root = create_root();
+                root.join("foo")?.create_dir_all()?;
+                let mut walker = root.walk_dir()?;
+                assert_eq!(format!("{:?}", &walker), "vfs::path::WalkDirIterator[]");
+
+                assert_eq!(walker.next().expect("foo")?.as_str(), "/foo");
+                root.join("foo")?.remove_dir()?;
+                let error_message = walker
+                    .next()
+                    .expect("no next")
+                    .expect_err("walk_dir")
+                    .to_string();
+                assert!(
+                    error_message.starts_with("Could not read directory '/foo'"),
+                    "Actual message: {}",
+                    error_message
+                );
+                let next = walker.next();
+                assert!(next.is_none(), "Got next: {:?}", next);
+                Ok(())
+            }
         }
     };
 }

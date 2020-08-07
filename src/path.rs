@@ -247,4 +247,76 @@ impl VfsPath {
             fs: self.fs.clone(),
         })
     }
+
+    /// Recursively iterates over all the directories and files at this path
+    ///
+    /// Directories are visited before their children
+    ///
+    /// Note that the iterator items can contain errors, usually when directories are removed during the iteration.
+    /// The returned paths may also point to non-existant files if there is concurrent removal.
+    ///
+    /// Also note that loops in the file system hierarchy may cause this iterator to never terminate.
+    pub fn walk_dir(&self) -> VfsResult<WalkDirIterator> {
+        Ok(WalkDirIterator {
+            inner: Box::new(self.read_dir()?),
+            todo: vec![],
+        })
+    }
+
+    /// Reads a complete file to a string
+    ///
+    /// Returns an error if the file does not exist or is not valid UTF-8
+    pub fn read_to_string(&self) -> VfsResult<String> {
+        let mut result = String(self.metadata()?.len);
+        self.open_file()?.read_to_string(&mut result)?;
+        Ok(result)
+    }
+}
+
+/// An iterator for recursively walking a file hierarchy
+pub struct WalkDirIterator {
+    /// the path iterator of the current directory
+    inner: Box<dyn Iterator<Item = VfsPath>>,
+    /// stack of subdirectories still to walk
+    todo: Vec<VfsPath>,
+}
+
+impl std::fmt::Debug for WalkDirIterator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(std::any::type_name::<Self>())?;
+        self.todo.fmt(f)
+    }
+}
+
+impl Iterator for WalkDirIterator {
+    type Item = VfsResult<VfsPath>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let result = loop {
+            match self.inner.next() {
+                Some(path) => break Some(Ok(path)),
+                None => {
+                    match self.todo.pop() {
+                        None => return None, // all done!
+                        Some(directory) => match directory.read_dir() {
+                            Ok(iterator) => self.inner = iterator,
+                            Err(err) => break Some(Err(err)),
+                        },
+                    }
+                }
+            }
+        };
+        if let Some(Ok(path)) = &result {
+            let metadata = path.metadata();
+            match metadata {
+                Ok(metadata) => {
+                    if metadata.file_type == VfsFileType::Directory {
+                        self.todo.push(path.clone());
+                    }
+                }
+                Err(err) => return Some(Err(err)),
+            }
+        }
+        result
+    }
 }
