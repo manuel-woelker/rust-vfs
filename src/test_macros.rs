@@ -484,7 +484,7 @@ macro_rules! test_vfs {
                 let root = create_root();
                 root.join("foo")?.create_dir_all()?;
                 let mut walker = root.walk_dir()?;
-                assert_eq!(format!("{:?}", &walker), "vfs::path::WalkDirIterator[]");
+                assert_eq!(format!("{:?}", &walker), "WalkDirIterator[]");
 
                 assert_eq!(walker.next().expect("foo")?.as_str(), "/foo");
                 root.join("foo")?.remove_dir()?;

@@ -292,7 +292,7 @@ pub struct WalkDirIterator {
 
 impl std::fmt::Debug for WalkDirIterator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(std::any::type_name::<Self>())?;
+        f.write_str("WalkDirIterator")?;
         self.todo.fmt(f)
     }
 }
