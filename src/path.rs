@@ -211,7 +211,7 @@ impl VfsPath {
         self.fs
             .fs
             .metadata(&self.path)
-            .with_context(|| format!("Could get metadata for '{}'", &self.path))
+            .with_context(|| format!("Could not get metadata for '{}'", &self.path))
     }
 
     /// Returns true if a file or directory exists at this path, false otherwise
@@ -267,8 +267,17 @@ impl VfsPath {
     ///
     /// Returns an error if the file does not exist or is not valid UTF-8
     pub fn read_to_string(&self) -> VfsResult<String> {
-        let mut result = String(self.metadata()?.len);
-        self.open_file()?.read_to_string(&mut result)?;
+        let metadata = self.metadata()?;
+        if metadata.file_type != VfsFileType::File {
+            return Err(VfsError::Other {
+                message: format!("Could not read '{}' because it is a directory", self.path),
+            });
+        }
+        let mut result = String::with_capacity(metadata.len as usize);
+        self.open_file()?
+            .read_to_string(&mut result)
+            .map_err(|err| From::from(err))
+            .with_context(|| format!("Could not read '{}'", self.path))?;
         Ok(result)
     }
 }

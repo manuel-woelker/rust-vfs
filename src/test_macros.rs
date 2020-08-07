@@ -502,6 +502,52 @@ macro_rules! test_vfs {
                 assert!(next.is_none(), "Got next: {:?}", next);
                 Ok(())
             }
+
+            #[test]
+            fn read_as_string() -> VfsResult<()> {
+                let root = create_root();
+                let path = root.join("foobar.txt")?;
+                path.create_file()?.write_all(b"Hello World")?;
+                assert_eq!(path.read_to_string()?, "Hello World");
+                Ok(())
+            }
+
+            #[test]
+            fn read_as_string_missing() -> VfsResult<()> {
+                let root = create_root();
+                let error_message = root.join("foobar.txt")?.read_to_string().expect_err("read_to_string").to_string();
+                assert!(
+                    error_message.starts_with("Could not get metadata for '/foobar.txt'"),
+                    "Actual message: {}",
+                    error_message
+                );
+                Ok(())
+            }
+
+            #[test]
+            fn read_as_string_directory() -> VfsResult<()> {
+                let root = create_root();
+                root.join("foobar.txt")?.create_dir()?;
+                let error_message = root.join("foobar.txt")?.read_to_string().expect_err("read_to_string").to_string();
+                assert!(
+                    error_message.starts_with("FileSystem error: Could not read '/foobar.txt' because it is a directory"),
+                    "Actual message: {}",
+                    error_message
+                );
+                Ok(())
+            }
+
+            #[test]
+            fn read_as_string_nonutf8() -> VfsResult<()> {
+                let root = create_root();
+                let path = root.join("foobar.txt")?;
+                path.create_file()?.write_all(&vec![0, 159, 146, 150])?;
+                let error_message = path.read_to_string().expect_err("read_to_string").to_string();
+                assert_eq!(
+                    &error_message,
+                    "Could not read '/foobar.txt', cause: IO error: stream did not contain valid UTF-8"                );
+                Ok(())
+            }
         }
     };
 }

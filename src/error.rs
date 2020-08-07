@@ -7,7 +7,7 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum VfsError {
     /// A generic IO error
-    #[error("IO error")]
+    #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
 
     /// The file or directory at the given path could not be found
@@ -19,7 +19,7 @@ pub enum VfsError {
     InvalidPath { path: String },
 
     /// Generic error variant
-    #[error("other FileSystem error: {message}")]
+    #[error("FileSystem error: {message}")]
     Other { message: String },
 
     /// Generic error context, used for adding context to an error (like a path)

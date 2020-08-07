@@ -148,7 +148,13 @@ impl FileSystem for MemoryFS {
 
     fn open_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndRead>> {
         let handle = self.handle.read().unwrap();
-        let file = handle.files.get(path).unwrap();
+        let file = handle
+            .files
+            .get(path)
+            .ok_or_else(|| VfsError::FileNotFound {
+                path: path.to_string(),
+            })?;
+        ensure_file(file)?;
         Ok(Box::new(ReadableFile {
             content: file.content.clone(),
             position: 0,
@@ -188,7 +194,9 @@ impl FileSystem for MemoryFS {
     fn metadata(&self, path: &str) -> VfsResult<VfsMetadata> {
         let guard = self.handle.read().unwrap();
         let files = &guard.files;
-        let file = files.get(path).unwrap();
+        let file = files.get(path).ok_or_else(|| VfsError::FileNotFound {
+            path: path.to_string(),
+        })?;
         Ok(VfsMetadata {
             file_type: file.file_type,
             len: file.content.len() as u64,
@@ -327,4 +335,13 @@ mod tests {
             }
         }
     }
+}
+
+fn ensure_file(file: &MemoryFile) -> VfsResult<()> {
+    if file.file_type != VfsFileType::File {
+        return Err(VfsError::Other {
+            message: format!("Not a file"),
+        });
+    }
+    Ok(())
 }
