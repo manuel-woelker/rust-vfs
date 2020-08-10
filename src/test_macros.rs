@@ -548,6 +548,80 @@ macro_rules! test_vfs {
                     "Could not read '/foobar.txt', cause: IO error: stream did not contain valid UTF-8"                );
                 Ok(())
             }
+
+            #[test]
+            fn copy_file() -> VfsResult<()> {
+                let root = create_root();
+                let src = root.join("a.txt")?;
+                let dest = root.join("b.txt")?;
+                src.create_file()?.write_all(b"Hello World")?;
+                src.copy_file(&dest)?;
+                assert_eq!(&dest.read_to_string()?, "Hello World");
+                Ok(())
+            }
+
+            #[test]
+            fn copy_file_not_exist() -> VfsResult<()> {
+                let root = create_root();
+                let src = root.join("a.txt")?;
+                let dest = root.join("b.txt")?;
+
+                let error_message = src.copy_file(&dest).expect_err("copy_file").to_string();
+                assert!(
+                    error_message.starts_with("Could not copy '/a.txt' to '/b.txt'"),
+                    "Actual message: {}",
+                    error_message
+                );
+                Ok(())
+            }
+
+            #[test]
+            fn copy_file_parent_directory_missing() -> VfsResult<()> {
+                let root = create_root();
+                let src = root.join("a.txt")?;
+                let dest = root.join("x/b.txt")?;
+                src.create_file()?.write_all(b"Hello World")?;
+
+                let error_message = src.copy_file(&dest).expect_err("copy_file").to_string();
+                assert!(
+                    error_message.starts_with("Could not copy '/a.txt' to '/x/b.txt'"),
+                    "Actual message: {}",
+                    error_message
+                );
+                Ok(())
+            }
+
+            #[test]
+            fn copy_file_parent_directory_is_file() -> VfsResult<()> {
+                let root = create_root();
+                let src = root.join("a.txt")?;
+                let dest = root.join("a.txt/b.txt")?;
+                src.create_file()?.write_all(b"Hello World")?;
+
+                let error_message = src.copy_file(&dest).expect_err("copy_file").to_string();
+                assert!(
+                    error_message.starts_with("Could not copy '/a.txt' to '/a.txt/b.txt'"),
+                    "Actual message: {}",
+                    error_message
+                );
+                Ok(())
+            }
+
+            #[test]
+            fn copy_file_to_root() -> VfsResult<()> {
+                let root = create_root();
+                let src = root.join("a.txt")?;
+                src.create_file()?.write_all(b"Hello World")?;
+
+                let error_message = src.copy_file(&root).expect_err("copy_file").to_string();
+                assert!(
+                    error_message.starts_with("Could not copy '/a.txt' to ''"),
+                    "Actual message: {}",
+                    error_message
+                );
+                Ok(())
+            }
+
         }
     };
 }

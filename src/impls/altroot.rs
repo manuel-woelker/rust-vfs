@@ -1,6 +1,6 @@
 //! A file system with its root in a particular directory of another filesystem
 
-use crate::{FileSystem, SeekAndRead, VfsMetadata, VfsPath, VfsResult};
+use crate::{FileSystem, SeekAndRead, VfsError, VfsMetadata, VfsPath, VfsResult};
 use std::io::Write;
 
 /// Similar to a chroot but done purely by path manipulation
@@ -72,6 +72,13 @@ impl FileSystem for AltrootFS {
     fn remove_dir(&self, path: &str) -> VfsResult<()> {
         self.path(path)?.remove_dir()
     }
+
+    fn copy_file(&self, src: &str, dest: &str) -> VfsResult<()> {
+        if dest.is_empty() {
+            return Err(VfsError::NotSupported);
+        }
+        self.path(src)?.copy_file(&self.path(dest)?)
+    }
 }
 
 #[cfg(test)]
@@ -94,4 +101,20 @@ mod tests {
         assert_eq!(altroot.parent(), None);
         assert_eq!(altroot_path.parent(), Some(memory_root));
     }
+}
+
+#[cfg(test)]
+mod tests_physical {
+    use super::*;
+    use crate::PhysicalFS;
+    test_vfs!({
+        let temp_dir = std::env::temp_dir();
+        let dir = temp_dir.join(uuid::Uuid::new_v4().to_string());
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let physical_root: VfsPath = PhysicalFS::new(dir).into();
+        let altroot_path = physical_root.join("altroot").unwrap();
+        altroot_path.create_dir().unwrap();
+        AltrootFS::new(altroot_path)
+    });
 }

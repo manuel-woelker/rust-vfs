@@ -335,6 +335,18 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn copy_file_across_filesystems() -> VfsResult<()> {
+        let root_a = VfsPath::new(MemoryFS::new());
+        let root_b = VfsPath::new(MemoryFS::new());
+        let src = root_a.join("a.txt")?;
+        let dest = root_b.join("b.txt")?;
+        src.create_file()?.write_all(b"Hello World")?;
+        src.copy_file(&dest)?;
+        assert_eq!(&dest.read_to_string()?, "Hello World");
+        Ok(())
+    }
 }
 
 fn ensure_file(file: &MemoryFile) -> VfsResult<()> {

@@ -118,6 +118,7 @@ impl VfsPath {
     ///
     /// Note that the parent directory must exist.
     pub fn create_dir(&self) -> VfsResult<()> {
+        self.get_parent("create directory")?;
         self.fs
             .fs
             .create_dir(&self.path)
@@ -156,10 +157,43 @@ impl VfsPath {
 
     /// Creates a file at this path for writing
     pub fn create_file(&self) -> VfsResult<Box<dyn Write>> {
+        self.get_parent("create file")?;
         self.fs
             .fs
             .create_file(&self.path)
             .with_context(|| format!("Could not create file '{}'", &self.path))
+    }
+
+    /// Checks whether parent is a directory
+    fn get_parent(&self, action: &str) -> VfsResult<()> {
+        let parent = self.parent();
+        match parent {
+            None => {
+                return Err(format!(
+                    "Could not {} at '{}', not a valid location",
+                    action, &self.path
+                )
+                .into())
+            }
+            Some(directory) => {
+                if !directory.exists() {
+                    return Err(format!(
+                        "Could not {} at '{}', parent directory does not exist",
+                        action, &self.path
+                    )
+                    .into());
+                }
+                let metadata = directory.metadata()?;
+                if metadata.file_type != VfsFileType::Directory {
+                    return Err(format!(
+                        "Could not {} at '{}', parent path is not a directory",
+                        action, &self.path
+                    )
+                    .into());
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Opens the file at this path for appending
@@ -279,6 +313,34 @@ impl VfsPath {
             .map_err(|err| From::from(err))
             .with_context(|| format!("Could not read '{}'", self.path))?;
         Ok(result)
+    }
+
+    /// Copies a file to a new destination
+    ///
+    /// The destination must not exist, but the parent directory must
+    pub fn copy_file(&self, destination: &VfsPath) -> VfsResult<()> {
+        || -> VfsResult<()> {
+            if Arc::ptr_eq(&self.fs, &destination.fs) {
+                let result = self.fs.fs.copy_file(&self.path, &destination.path);
+                if let Err(VfsError::NotSupported) = result {
+                    // continue
+                } else {
+                    return result;
+                }
+            }
+            let mut src = self.open_file()?;
+            let mut dest = destination.create_file()?;
+            std::io::copy(&mut src, &mut dest)?;
+            Ok(())
+        }()
+        .with_context(|| {
+            format!(
+                "Could not copy '{}' to '{}'",
+                self.as_str(),
+                destination.as_str()
+            )
+        })?;
+        Ok(())
     }
 }
 

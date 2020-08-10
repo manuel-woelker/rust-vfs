@@ -29,6 +29,16 @@ pub enum VfsError {
         #[source]
         cause: Box<VfsError>,
     },
+
+    /// Functionality not supported by this filesystem
+    #[error("Functionality not supported by this filesystem")]
+    NotSupported,
+}
+
+impl From<String> for VfsError {
+    fn from(message: String) -> Self {
+        VfsError::Other { message }
+    }
 }
 
 /// The result type of this crate
