@@ -576,6 +576,23 @@ macro_rules! test_vfs {
             }
 
             #[test]
+            fn copy_file_dest_already_exist() -> VfsResult<()> {
+                let root = create_root();
+                let src = root.join("a.txt")?;
+                let dest = root.join("b.txt")?;
+                src.create_file()?.write_all(b"Hello World")?;
+                dest.create_file()?.write_all(b"Hello World")?;
+
+                let error_message = src.copy_file(&dest).expect_err("copy_file").to_string();
+                assert!(
+                    error_message.starts_with("Could not copy '/a.txt' to '/b.txt'"),
+                    "Actual message: {}",
+                    error_message
+                );
+                Ok(())
+            }
+
+            #[test]
             fn copy_file_parent_directory_missing() -> VfsResult<()> {
                 let root = create_root();
                 let src = root.join("a.txt")?;
@@ -622,6 +639,95 @@ macro_rules! test_vfs {
                 Ok(())
             }
 
+            #[test]
+            fn move_file() -> VfsResult<()> {
+                let root = create_root();
+                let src = root.join("a.txt")?;
+                let dest = root.join("b.txt")?;
+                src.create_file()?.write_all(b"Hello World")?;
+                src.move_file(&dest)?;
+                assert_eq!(&dest.read_to_string()?, "Hello World");
+                assert!(!src.exists(), "Source should not exist anymore");
+                Ok(())
+            }
+
+            #[test]
+            fn move_file_not_exist() -> VfsResult<()> {
+                let root = create_root();
+                let src = root.join("a.txt")?;
+                let dest = root.join("b.txt")?;
+
+                let error_message = src.move_file(&dest).expect_err("copy_file").to_string();
+                assert!(
+                    error_message.starts_with("Could not move '/a.txt' to '/b.txt'"),
+                    "Actual message: {}",
+                    error_message
+                );
+                Ok(())
+            }
+
+            #[test]
+            fn move_file_dest_already_exist() -> VfsResult<()> {
+                let root = create_root();
+                let src = root.join("a.txt")?;
+                let dest = root.join("b.txt")?;
+                src.create_file()?.write_all(b"Hello World")?;
+                dest.create_file()?.write_all(b"Hello World")?;
+
+                let error_message = src.move_file(&dest).expect_err("move_file").to_string();
+                assert!(
+                    error_message.starts_with("Could not move '/a.txt' to '/b.txt'"),
+                    "Actual message: {}",
+                    error_message
+                );
+                Ok(())
+            }
+            #[test]
+            fn move_file_parent_directory_missing() -> VfsResult<()> {
+                let root = create_root();
+                let src = root.join("a.txt")?;
+                let dest = root.join("x/b.txt")?;
+                src.create_file()?.write_all(b"Hello World")?;
+
+                let error_message = src.move_file(&dest).expect_err("copy_file").to_string();
+                assert!(
+                    error_message.starts_with("Could not move '/a.txt' to '/x/b.txt'"),
+                    "Actual message: {}",
+                    error_message
+                );
+                Ok(())
+            }
+
+            #[test]
+            fn move_file_parent_directory_is_file() -> VfsResult<()> {
+                let root = create_root();
+                let src = root.join("a.txt")?;
+                let dest = root.join("a.txt/b.txt")?;
+                src.create_file()?.write_all(b"Hello World")?;
+
+                let error_message = src.move_file(&dest).expect_err("copy_file").to_string();
+                assert!(
+                    error_message.starts_with("Could not move '/a.txt' to '/a.txt/b.txt'"),
+                    "Actual message: {}",
+                    error_message
+                );
+                Ok(())
+            }
+
+            #[test]
+            fn move_file_to_root() -> VfsResult<()> {
+                let root = create_root();
+                let src = root.join("a.txt")?;
+                src.create_file()?.write_all(b"Hello World")?;
+
+                let error_message = src.move_file(&root).expect_err("copy_file").to_string();
+                assert!(
+                    error_message.starts_with("Could not move '/a.txt' to ''"),
+                    "Actual message: {}",
+                    error_message
+                );
+                Ok(())
+            }
         }
     };
 }

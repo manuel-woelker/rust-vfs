@@ -90,6 +90,11 @@ impl FileSystem for PhysicalFS {
         std::fs::copy(self.get_path(src), self.get_path(dest))?;
         Ok(())
     }
+
+    fn move_file(&self, src: &str, dest: &str) -> VfsResult<()> {
+        std::fs::rename(self.get_path(src), self.get_path(dest))?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -128,6 +133,7 @@ mod tests {
     fn create_file() {
         let root = create_root();
         let _string = String::new();
+        let _ = std::fs::remove_file("target/test.txt");
         root.join("target/test.txt")
             .unwrap()
             .create_file()
@@ -142,6 +148,7 @@ mod tests {
     fn append_file() {
         let root = create_root();
         let _string = String::new();
+        let _ = std::fs::remove_file("target/test_append.txt");
         let path = root.join("target/test_append.txt").unwrap();
         path.create_file().unwrap().write_all(b"Testing 1").unwrap();
         path.append_file().unwrap().write_all(b"Testing 2").unwrap();

@@ -158,6 +158,13 @@ impl VfsPath {
     /// Creates a file at this path for writing
     pub fn create_file(&self) -> VfsResult<Box<dyn Write>> {
         self.get_parent("create file")?;
+        if self.exists() {
+            return Err(format!(
+                "Could not create file at '{}', file already exists",
+                &self.path
+            )
+            .into());
+        }
         self.fs
             .fs
             .create_file(&self.path)
@@ -320,6 +327,9 @@ impl VfsPath {
     /// The destination must not exist, but the parent directory must
     pub fn copy_file(&self, destination: &VfsPath) -> VfsResult<()> {
         || -> VfsResult<()> {
+            if destination.exists() {
+                return Err("Destination exists already".to_string().into());
+            }
             if Arc::ptr_eq(&self.fs, &destination.fs) {
                 let result = self.fs.fs.copy_file(&self.path, &destination.path);
                 if let Err(VfsError::NotSupported) = result {
@@ -336,6 +346,38 @@ impl VfsPath {
         .with_context(|| {
             format!(
                 "Could not copy '{}' to '{}'",
+                self.as_str(),
+                destination.as_str()
+            )
+        })?;
+        Ok(())
+    }
+
+    /// Moves or renames a file to a new destination
+    ///
+    /// The destination must not exist, but the parent directory must
+    pub fn move_file(&self, destination: &VfsPath) -> VfsResult<()> {
+        || -> VfsResult<()> {
+            if destination.exists() {
+                return Err("Destination exists already".to_string().into());
+            }
+            if Arc::ptr_eq(&self.fs, &destination.fs) {
+                let result = self.fs.fs.move_file(&self.path, &destination.path);
+                if let Err(VfsError::NotSupported) = result {
+                    // continue
+                } else {
+                    return result;
+                }
+            }
+            let mut src = self.open_file()?;
+            let mut dest = destination.create_file()?;
+            std::io::copy(&mut src, &mut dest)?;
+            self.remove_file()?;
+            Ok(())
+        }()
+        .with_context(|| {
+            format!(
+                "Could not move '{}' to '{}'",
                 self.as_str(),
                 destination.as_str()
             )
