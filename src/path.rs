@@ -310,7 +310,7 @@ impl VfsPath {
         let mut result = String::with_capacity(metadata.len as usize);
         self.open_file()?
             .read_to_string(&mut result)
-            .map_err(|err| From::from(err))
+            .map_err(From::from)
             .with_context(|| format!("Could not read '{}'", self.path))?;
         Ok(result)
     }

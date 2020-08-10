@@ -352,7 +352,7 @@ mod tests {
 fn ensure_file(file: &MemoryFile) -> VfsResult<()> {
     if file.file_type != VfsFileType::File {
         return Err(VfsError::Other {
-            message: format!("Not a file"),
+            message: "Not a file".to_string(),
         });
     }
     Ok(())
