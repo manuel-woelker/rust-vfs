@@ -384,6 +384,39 @@ impl VfsPath {
         })?;
         Ok(())
     }
+
+    /// Copies a directory to a new destination, recursively
+    ///
+    /// The destination must not exist, but the parent directory must
+    pub fn copy_dir(&self, destination: &VfsPath) -> VfsResult<u64> {
+        let mut files_copied = 0u64;
+        || -> VfsResult<()> {
+            if destination.exists() {
+                return Err("Destination exists already".to_string().into());
+            }
+            destination.create_dir()?;
+            let prefix = self.path.as_str();
+            let prefix_len = prefix.len();
+            for file in self.walk_dir()? {
+                let src_path: VfsPath = file?;
+                let dest_path = destination.join(&src_path.as_str()[prefix_len + 1..])?;
+                match src_path.metadata()?.file_type {
+                    VfsFileType::Directory => dest_path.create_dir()?,
+                    VfsFileType::File => src_path.copy_file(&dest_path)?,
+                }
+                files_copied += 1;
+            }
+            Ok(())
+        }()
+        .with_context(|| {
+            format!(
+                "Could not copy directory '{}' to '{}'",
+                self.as_str(),
+                destination.as_str()
+            )
+        })?;
+        Ok(files_copied)
+    }
 }
 
 /// An iterator for recursively walking a file hierarchy

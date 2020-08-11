@@ -728,6 +728,51 @@ macro_rules! test_vfs {
                 );
                 Ok(())
             }
+
+            #[test]
+            fn copy_dir() -> VfsResult<()> {
+                let root = create_root();
+                let src = root.join("foo")?;
+                src.join("bar/biz/fizz/buzz")?.create_dir_all()?;
+                src.join("bar/baz.txt")?.create_file()?.write_all(b"Hello World")?;
+
+                let dest = root.join("foo2")?;
+                assert_eq!(5, src.copy_dir(&dest)?);
+                assert_eq!(&dest.join("bar/baz.txt")?.read_to_string()?, "Hello World");
+                assert!(&dest.join("bar/biz/fizz/buzz")?.exists(), "directory should exist");
+                Ok(())
+            }
+
+            #[test]
+            fn copy_dir_to_root() -> VfsResult<()> {
+                let root = create_root();
+                let src = root.join("foo")?;
+                src.create_dir_all()?;
+                let error_message = src.copy_dir(&root).expect_err("copy_dir").to_string();
+                assert!(
+                    error_message.starts_with("Could not copy directory '/foo' to ''"),
+                    "Actual message: {}",
+                    error_message
+                );
+               Ok(())
+            }
+
+            #[test]
+            fn copy_dir_to_existing() -> VfsResult<()> {
+                let root = create_root();
+                let src = root.join("foo")?;
+                src.create_dir_all()?;
+                let dest = root.join("foo2")?;
+                dest.create_dir_all()?;
+
+                let error_message = src.copy_dir(&dest).expect_err("copy_dir").to_string();
+                assert!(
+                    error_message.starts_with("Could not copy directory '/foo' to '/foo2'"),
+                    "Actual message: {}",
+                    error_message
+                );
+               Ok(())
+            }
         }
     };
 }
