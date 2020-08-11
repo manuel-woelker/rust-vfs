@@ -62,6 +62,9 @@ impl VfsPath {
 
     /// Appends a path segment to this path, returning the result
     pub fn join(&self, path: &str) -> VfsResult<Self> {
+        if path.is_empty() {
+            return Ok(self.clone());
+        }
         let mut new_components: Vec<&str> = vec![];
         let mut base_path = self.clone();
         for component in path.split('/') {
@@ -129,6 +132,10 @@ impl VfsPath {
     pub fn create_dir_all(&self) -> VfsResult<()> {
         let mut pos = 1;
         let path = &self.path;
+        if path.is_empty() {
+            // root exists always
+            return Ok(());
+        }
         loop {
             // Iterate over path segments
             let end = path[pos..]
@@ -155,16 +162,9 @@ impl VfsPath {
             .with_context(|| format!("Could not open file '{}'", &self.path))
     }
 
-    /// Creates a file at this path for writing
+    /// Creates a file at this path for writing, overwriting any existing file
     pub fn create_file(&self) -> VfsResult<Box<dyn Write>> {
         self.get_parent("create file")?;
-        if self.exists() {
-            return Err(format!(
-                "Could not create file at '{}', file already exists",
-                &self.path
-            )
-            .into());
-        }
         self.fs
             .fs
             .create_file(&self.path)

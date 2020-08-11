@@ -9,7 +9,8 @@
 //!
 //!  * **[`PhysicalFS`](impls/physical/struct.PhysicalFS.html)** - the actual filesystem of the underlying OS
 //!  * **[`MemoryFS`](impls/memory/struct.MemoryFS.html)** - an ephemeral in-memory implementation (intended for unit tests)
-//!  * **[`AltrootFS`](impls/altroot/struct.Altroot.html)** - a file system with its root in a particular directory of another filesystem
+//!  * **[`AltrootFS`](impls/altroot/struct.AltrootFS.html)** - a file system with its root in a particular directory of another filesystem
+//!  * **[`OverlayFS`](impls/overlay/struct.OverlayFS.html)** - a union file system consisting of a read/writable upper layer and several read-only lower layers
 //!
 //! # Usage Examples
 //!

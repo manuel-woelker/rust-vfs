@@ -30,6 +30,18 @@ impl MemoryFS {
             handle: Arc::new(RwLock::new(MemoryFsImpl::new())),
         }
     }
+
+    fn ensure_has_parent(&self, path: &str) -> VfsResult<()> {
+        let separator = path.rfind('/');
+        if let Some(index) = separator {
+            if self.exists(&path[..index]) {
+                return Ok(());
+            }
+        }
+        Err(VfsError::Other {
+            message: format!("Parent path of {} does not exist", path),
+        })
+    }
 }
 
 impl Default for MemoryFS {
@@ -136,6 +148,7 @@ impl FileSystem for MemoryFS {
     }
 
     fn create_dir(&self, path: &str) -> VfsResult<()> {
+        self.ensure_has_parent(path)?;
         self.handle.write().unwrap().files.insert(
             path.to_string(),
             MemoryFile {
@@ -162,6 +175,7 @@ impl FileSystem for MemoryFS {
     }
 
     fn create_file(&self, path: &str) -> VfsResult<Box<dyn Write>> {
+        self.ensure_has_parent(path)?;
         let content = Arc::new(Vec::<u8>::new());
         self.handle.write().unwrap().files.insert(
             path.to_string(),

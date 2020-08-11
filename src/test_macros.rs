@@ -278,7 +278,8 @@ macro_rules! test_vfs {
             #[test]
             fn join() {
                 let root = create_root();
-
+                assert_eq!(root.join("").unwrap().as_str(), "");
+                assert_eq!(root.join("foo").unwrap().join("").unwrap().as_str(), "/foo");
                 assert_eq!(root.join("foo").unwrap().as_str(), "/foo");
                 assert_eq!(root.join("foo/bar").unwrap().as_str(), "/foo/bar");
                 assert_eq!(root.join("foo/bar/baz").unwrap().as_str(), "/foo/bar/baz");
@@ -362,11 +363,6 @@ macro_rules! test_vfs {
                     "foo+../.."
                 );
 
-                assert_eq!(
-                    root.join("").unwrap_err().to_string(),
-                    "The path `` is invalid".to_string(),
-                    "<empty>"
-                );
                 assert_eq!(
                     root.join("/").unwrap_err().to_string(),
                     "The path `/` is invalid".to_string(),
