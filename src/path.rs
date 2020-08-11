@@ -282,7 +282,7 @@ impl VfsPath {
     ///
     /// Returns `None` if this is a root path
     pub fn parent(&self) -> Option<Self> {
-        let index = self.path.rfind('/').map(|x| x);
+        let index = self.path.rfind('/');
         index.map(|idx| VfsPath {
             path: self.path[..idx].to_string(),
             fs: self.fs.clone(),
