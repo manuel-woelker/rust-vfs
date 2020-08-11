@@ -3,6 +3,8 @@
 [![Crate](https://img.shields.io/crates/v/vfs.svg)](https://crates.io/crates/vfs)
 [![API](https://docs.rs/vfs/badge.svg)](https://docs.rs/vfs)
 ![Minimum rustc version](https://img.shields.io/badge/rustc-1.32.0+-green.svg)
+[![Actions Status](https://github.com/manuel-woelker/rust-vfs/workflows/Continuous%20integration/badge.svg)](https://github.com/manuel-woelker/rust-vfs/actions?query=workflow%3A%22Continuous+integration%22)
+[![Build Status](https://travis-ci.org/manuel-woelker/rust-vfs.svg?branch=master)](https://travis-ci.org/manuel-woelker/rust-vfs)
 
 A virtual filesystem for Rust
 

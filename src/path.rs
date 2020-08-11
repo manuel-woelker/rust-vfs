@@ -180,7 +180,7 @@ impl VfsPath {
                     "Could not {} at '{}', not a valid location",
                     action, &self.path
                 )
-                .into())
+                .into());
             }
             Some(directory) => {
                 if !directory.exists() {
