@@ -324,7 +324,7 @@ impl VfsPath {
 
     /// Copies a file to a new destination
     ///
-    /// The destination must not exist, but the parent directory must
+    /// The destination must not exist, but its parent directory must
     pub fn copy_file(&self, destination: &VfsPath) -> VfsResult<()> {
         || -> VfsResult<()> {
             if destination.exists() {
@@ -355,7 +355,7 @@ impl VfsPath {
 
     /// Moves or renames a file to a new destination
     ///
-    /// The destination must not exist, but the parent directory must
+    /// The destination must not exist, but its parent directory must
     pub fn move_file(&self, destination: &VfsPath) -> VfsResult<()> {
         || -> VfsResult<()> {
             if destination.exists() {
@@ -422,7 +422,7 @@ impl VfsPath {
 
     /// Moves a directory to a new destination, including subdirectories and files
     ///
-    /// The destination must not exist, but the parent directory must
+    /// The destination must not exist, but its parent directory must
     pub fn move_dir(&self, destination: &VfsPath) -> VfsResult<()> {
         || -> VfsResult<()> {
             if destination.exists() {
