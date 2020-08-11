@@ -388,6 +388,8 @@ impl VfsPath {
     /// Copies a directory to a new destination, recursively
     ///
     /// The destination must not exist, but the parent directory must
+    ///
+    /// Returns the number of files copied
     pub fn copy_dir(&self, destination: &VfsPath) -> VfsResult<u64> {
         let mut files_copied = 0u64;
         || -> VfsResult<()> {
@@ -416,6 +418,46 @@ impl VfsPath {
             )
         })?;
         Ok(files_copied)
+    }
+
+    /// Moves a directory to a new destination, including subdirectories and files
+    ///
+    /// The destination must not exist, but the parent directory must
+    pub fn move_dir(&self, destination: &VfsPath) -> VfsResult<()> {
+        || -> VfsResult<()> {
+            if destination.exists() {
+                return Err("Destination exists already".to_string().into());
+            }
+            if Arc::ptr_eq(&self.fs, &destination.fs) {
+                let result = self.fs.fs.move_dir(&self.path, &destination.path);
+                if let Err(VfsError::NotSupported) = result {
+                    // continue
+                } else {
+                    return result;
+                }
+            }
+            destination.create_dir()?;
+            let prefix = self.path.as_str();
+            let prefix_len = prefix.len();
+            for file in self.walk_dir()? {
+                let src_path: VfsPath = file?;
+                let dest_path = destination.join(&src_path.as_str()[prefix_len + 1..])?;
+                match src_path.metadata()?.file_type {
+                    VfsFileType::Directory => dest_path.create_dir()?,
+                    VfsFileType::File => src_path.copy_file(&dest_path)?,
+                }
+            }
+            self.remove_dir_all()?;
+            Ok(())
+        }()
+        .with_context(|| {
+            format!(
+                "Could not move directory '{}' to '{}'",
+                self.as_str(),
+                destination.as_str()
+            )
+        })?;
+        Ok(())
     }
 }
 

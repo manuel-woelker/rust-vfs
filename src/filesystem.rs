@@ -25,12 +25,16 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
     fn remove_file(&self, path: &str) -> VfsResult<()>;
     /// Removes the directory at this path
     fn remove_dir(&self, path: &str) -> VfsResult<()>;
-    /// Copies the src path ot the destination path within the same filesystem (optional)
+    /// Copies the src path to the destination path within the same filesystem (optional)
     fn copy_file(&self, _src: &str, _dest: &str) -> VfsResult<()> {
         Err(VfsError::NotSupported)
     }
-    /// Moves the src path ot the destination path within the same filesystem (optional)
+    /// Moves the src path to the destination path within the same filesystem (optional)
     fn move_file(&self, _src: &str, _dest: &str) -> VfsResult<()> {
+        Err(VfsError::NotSupported)
+    }
+    /// Moves the src directory to the destination path within the same filesystem (optional)
+    fn move_dir(&self, _src: &str, _dest: &str) -> VfsResult<()> {
         Err(VfsError::NotSupported)
     }
 }
