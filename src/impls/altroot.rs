@@ -15,7 +15,7 @@ pub struct AltrootFS {
 }
 
 impl AltrootFS {
-    // Create a new root FileSystem at the given virtual path
+    /// Create a new root FileSystem at the given virtual path
     pub fn new(root: VfsPath) -> Self {
         AltrootFS { root }
     }

@@ -25,6 +25,7 @@ impl Debug for MemoryFS {
 }
 
 impl MemoryFS {
+    /// Create a new in-memory filesystem
     pub fn new() -> Self {
         MemoryFS {
             handle: Arc::new(RwLock::new(MemoryFsImpl::new())),

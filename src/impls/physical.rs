@@ -7,12 +7,14 @@ use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
 
+/// A physical filesystem implementation using the underlying OS file system
 #[derive(Debug)]
 pub struct PhysicalFS {
     root: PathBuf,
 }
 
 impl PhysicalFS {
+    /// Create a new physical filesystem rooted in `root`
     pub fn new(root: PathBuf) -> Self {
         PhysicalFS { root }
     }

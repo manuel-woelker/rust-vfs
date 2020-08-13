@@ -8,24 +8,31 @@ use crate::{FileSystem, VfsError, VfsResult};
 use std::io::{Read, Seek, Write};
 use std::sync::Arc;
 
+/// Trait combining Seek and Read, return value for opening files
 pub trait SeekAndRead: Seek + Read {}
 
 impl<T> SeekAndRead for T where T: Seek + Read {}
 
+/// Type of file
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum VfsFileType {
+    /// A plain file
     File,
+    /// A Directory
     Directory,
 }
 
+/// File metadata information
 #[derive(Debug)]
 pub struct VfsMetadata {
+    /// The type of file
     pub file_type: VfsFileType,
+    /// Length of the file in bytes, 0 for directories
     pub len: u64,
 }
 
 #[derive(Debug)]
-pub struct VFS {
+struct VFS {
     fs: Box<dyn FileSystem>,
 }
 

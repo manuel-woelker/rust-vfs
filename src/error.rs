@@ -12,20 +12,31 @@ pub enum VfsError {
 
     /// The file or directory at the given path could not be found
     #[error("The file or directory `{path}` could not be found")]
-    FileNotFound { path: String },
+    FileNotFound {
+        /// The path of the file not found
+        path: String,
+    },
 
     /// The given path is invalid, e.g. because contains '.' or '..'
     #[error("The path `{path}` is invalid")]
-    InvalidPath { path: String },
+    InvalidPath {
+        /// The invalid path
+        path: String,
+    },
 
     /// Generic error variant
     #[error("FileSystem error: {message}")]
-    Other { message: String },
+    Other {
+        /// The generic error message
+        message: String,
+    },
 
     /// Generic error context, used for adding context to an error (like a path)
     #[error("{context}, cause: {cause}")]
     WithContext {
+        /// The context error message
         context: String,
+        /// The underlying error
         #[source]
         cause: Box<VfsError>,
     },
@@ -44,6 +55,7 @@ impl From<String> for VfsError {
 /// The result type of this crate
 pub type VfsResult<T> = std::result::Result<T, VfsError>;
 
+/// Result extension trait to add context information
 pub(crate) trait VfsResultExt<T> {
     fn with_context<C, F>(self, f: F) -> VfsResult<T>
     where
