@@ -6,7 +6,7 @@ description = "A virtual filesystem for Rust"
 repository = "https://github.com/manuel-woelker/rust-vfs"
 readme = "README.md"
 keywords = ["vfs", "virtual",  "filesystem"]
-license = "Apache-2.0/MIT"
+license = "Apache-2.0"
 edition = "2018"
 
 [badges]
