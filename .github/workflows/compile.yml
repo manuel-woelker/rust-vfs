@@ -1,6 +1,9 @@
-on: push
-
 name: Continuous integration
+
+on: [push, pull_request]
+
+env:
+    CARGO_TERM_COLOR: always
 
 jobs:
     ci:
