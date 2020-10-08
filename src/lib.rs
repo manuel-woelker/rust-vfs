@@ -11,7 +11,7 @@
 //!  * **[`MemoryFS`](impls/memory/struct.MemoryFS.html)** - an ephemeral in-memory implementation (intended for unit tests)
 //!  * **[`AltrootFS`](impls/altroot/struct.AltrootFS.html)** - a file system with its root in a particular directory of another filesystem
 //!  * **[`OverlayFS`](impls/overlay/struct.OverlayFS.html)** - a union file system consisting of a read/writable upper layer and several read-only lower layers
-//!  * **[`EmbeddedFs`](impls/embedded/struct.EmbeddedFs.html)** - a read-only file system embedded in the executable, requires `embedded-fs` feature
+//!  * **[`EmbeddedFS`](impls/embedded/struct.EmbeddedFs.html)** - a read-only file system embedded in the executable, requires `embedded-fs` feature
 //!
 //! # Usage Examples
 //!
@@ -57,7 +57,7 @@ pub mod path;
 pub use error::{VfsError, VfsResult};
 pub use filesystem::FileSystem;
 #[cfg(feature = "embedded-fs")]
-pub use impls::embedded::EmbeddedFs;
+pub use impls::embedded::EmbeddedFS;
 pub use impls::memory::MemoryFS;
 pub use impls::physical::PhysicalFS;
 pub use path::*;

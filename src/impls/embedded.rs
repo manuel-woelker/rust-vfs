@@ -10,7 +10,7 @@ use std::path::Path;
 #[derive(Debug)]
 /// a read-only file system embedded in the executable
 /// see [rust-embed](https://docs.rs/rust-embed/) for how to create a `RustEmbed`
-pub struct EmbeddedFs<T>
+pub struct EmbeddedFS<T>
 where
     T: RustEmbed + Send + Sync + Debug + 'static,
 {
@@ -18,12 +18,12 @@ where
     path_trie: Trie<String, bool>,
 }
 
-impl<T> EmbeddedFs<T>
+impl<T> EmbeddedFS<T>
 where
     T: RustEmbed + Send + Sync + Debug + 'static,
 {
     pub fn new() -> Self {
-        EmbeddedFs {
+        EmbeddedFS {
             p: PhantomData::default(),
             path_trie: T::iter()
                 .map(|p| {
@@ -42,7 +42,7 @@ where
     }
 }
 
-impl<T> FileSystem for EmbeddedFs<T>
+impl<T> FileSystem for EmbeddedFS<T>
 where
     T: RustEmbed + Send + Sync + Debug + 'static,
 {
@@ -156,8 +156,8 @@ mod tests {
     #[folder = "test/test_embedded_directory"]
     struct TestEmbed;
 
-    fn get_test_fs() -> EmbeddedFs<TestEmbed> {
-        EmbeddedFs::new()
+    fn get_test_fs() -> EmbeddedFS<TestEmbed> {
+        EmbeddedFS::new()
     }
 
     #[test]
