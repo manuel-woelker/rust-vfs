@@ -82,6 +82,7 @@ impl Drop for WritableFile {
 }
 
 struct ReadableFile {
+    #[allow(clippy::rc_buffer)] // to allow accessing the same object as writable
     content: Arc<Vec<u8>>,
     position: u64,
 }
@@ -271,6 +272,7 @@ impl MemoryFsImpl {
 
 struct MemoryFile {
     file_type: VfsFileType,
+    #[allow(clippy::rc_buffer)] // to allow accessing the same object as writable
     content: Arc<Vec<u8>>,
 }
 

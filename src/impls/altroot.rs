@@ -22,6 +22,7 @@ impl AltrootFS {
 }
 
 impl AltrootFS {
+    #[allow(clippy::manual_strip)] // strip prefix manually for MSRV 1.32
     fn path(&self, path: &str) -> VfsResult<VfsPath> {
         if path.is_empty() {
             return Ok(self.root.clone());
