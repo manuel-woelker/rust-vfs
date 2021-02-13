@@ -48,7 +48,7 @@
 //!
 
 #![allow(clippy::unknown_clippy_lints)]
-#![allow(clippy::upper-case-acronyms)]
+#![allow(clippy::upper_case_acronyms)]
 
 #[cfg(test)]
 #[macro_use]
