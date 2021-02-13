@@ -62,8 +62,10 @@ impl FileSystem for AltrootFS {
         self.path(path)?.metadata()
     }
 
-    fn exists(&self, path: &str) -> bool {
-        self.path(path).map(|path| path.exists()).unwrap_or(false)
+    fn exists(&self, path: &str) -> VfsResult<bool> {
+        self.path(path)
+            .map(|path| path.exists())
+            .unwrap_or(Ok(false))
     }
 
     fn remove_file(&self, path: &str) -> VfsResult<()> {

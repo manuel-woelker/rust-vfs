@@ -21,7 +21,7 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
     /// Returns the file metadata for the file at this path
     fn metadata(&self, path: &str) -> VfsResult<VfsMetadata>;
     /// Returns true if a file or directory at path exists, false otherwise
-    fn exists(&self, path: &str) -> bool;
+    fn exists(&self, path: &str) -> VfsResult<bool>;
     /// Removes the file at this path
     fn remove_file(&self, path: &str) -> VfsResult<()>;
     /// Removes the directory at this path

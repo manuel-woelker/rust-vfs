@@ -34,19 +34,19 @@ impl OverlayFS {
         if path.is_empty() {
             return Ok(self.layers[0].clone());
         }
-        if self.whiteout_path(path)?.exists() {
+        if self.whiteout_path(path)?.exists()? {
             return Err(VfsError::FileNotFound {
                 path: path.to_string(),
             });
         }
         for layer in &self.layers {
             let layer_path = layer.join(&path[1..])?;
-            if layer_path.exists() {
+            if layer_path.exists()? {
                 return Ok(layer_path);
             }
         }
         let read_path = self.write_layer().join(&path[1..])?;
-        if !read_path.exists() {
+        if !read_path.exists()? {
             return Err(VfsError::FileNotFound {
                 path: path.to_string(),
             });
@@ -73,7 +73,7 @@ impl OverlayFS {
         let separator = path.rfind('/');
         if let Some(index) = separator {
             let parent_path = &path[..index];
-            if self.exists(parent_path) {
+            if self.exists(parent_path)? {
                 self.write_path(parent_path)?.create_dir_all()?;
                 return Ok(());
             }
@@ -87,7 +87,7 @@ impl OverlayFS {
 impl FileSystem for OverlayFS {
     fn read_dir(&self, path: &str) -> VfsResult<Box<dyn Iterator<Item = String>>> {
         let actual_path = if !path.is_empty() { &path[1..] } else { path };
-        if !self.read_path(path)?.exists() {
+        if !self.read_path(path)?.exists()? {
             return Err(VfsError::FileNotFound {
                 path: path.to_string(),
             });
@@ -95,7 +95,7 @@ impl FileSystem for OverlayFS {
         let mut entries = HashSet::<String>::new();
         for layer in &self.layers {
             let layer_path = layer.join(actual_path)?;
-            if layer_path.exists() {
+            if layer_path.exists()? {
                 for path in layer_path.read_dir()? {
                     entries.insert(path.filename());
                 }
@@ -103,7 +103,7 @@ impl FileSystem for OverlayFS {
         }
         // remove whiteout entries that have been removed
         let whiteout_path = self.write_layer().join(&format!(".whiteout{}", path))?;
-        if whiteout_path.exists() {
+        if whiteout_path.exists()? {
             for path in whiteout_path.read_dir()? {
                 let filename = path.filename();
                 if filename.ends_with("_wo") {
@@ -118,7 +118,7 @@ impl FileSystem for OverlayFS {
         self.ensure_has_parent(path)?;
         self.write_path(path)?.create_dir()?;
         let whiteout_path = self.whiteout_path(path)?;
-        if whiteout_path.exists() {
+        if whiteout_path.exists()? {
             whiteout_path.remove_file()?;
         }
         Ok(())
@@ -132,7 +132,7 @@ impl FileSystem for OverlayFS {
         self.ensure_has_parent(path)?;
         let result = self.write_path(path)?.create_file()?;
         let whiteout_path = self.whiteout_path(path)?;
-        if whiteout_path.exists() {
+        if whiteout_path.exists()? {
             whiteout_path.remove_file()?;
         }
         Ok(result)
@@ -140,7 +140,7 @@ impl FileSystem for OverlayFS {
 
     fn append_file(&self, path: &str) -> VfsResult<Box<dyn Write>> {
         let write_path = self.write_path(path)?;
-        if !write_path.exists() {
+        if !write_path.exists()? {
             self.ensure_has_parent(path)?;
             self.read_path(path)?.copy_file(&write_path)?;
         }
@@ -151,20 +151,20 @@ impl FileSystem for OverlayFS {
         self.read_path(path)?.metadata()
     }
 
-    fn exists(&self, path: &str) -> bool {
-        if self.whiteout_path(path).expect("whiteout_path").exists() {
-            return false;
+    fn exists(&self, path: &str) -> VfsResult<bool> {
+        if self.whiteout_path(path).expect("whiteout_path").exists()? {
+            return Ok(false);
         }
         self.read_path(path)
             .map(|path| path.exists())
-            .unwrap_or(false)
+            .unwrap_or(Ok(false))
     }
 
     fn remove_file(&self, path: &str) -> VfsResult<()> {
         // Ensure path exists
         self.read_path(path)?;
         let write_path = self.write_path(path)?;
-        if write_path.exists() {
+        if write_path.exists()? {
             write_path.remove_file()?;
         }
         let whiteout_path = self.whiteout_path(path)?;
@@ -177,7 +177,7 @@ impl FileSystem for OverlayFS {
         // Ensure path exists
         self.read_path(path)?;
         let write_path = self.write_path(path)?;
-        if write_path.exists() {
+        if write_path.exists()? {
             write_path.remove_dir()?;
         }
         let whiteout_path = self.whiteout_path(path)?;
@@ -218,7 +218,7 @@ mod tests {
         lower_path.remove_file()?;
         assert_eq!(&overlay_path.read_to_string()?, "Hello Upper");
         upper_path.remove_file()?;
-        assert!(!overlay_path.exists(), "File should not exist anymore");
+        assert!(!overlay_path.exists()?, "File should not exist anymore");
         Ok(())
     }
 
@@ -254,9 +254,9 @@ mod tests {
     fn create_dir() -> VfsResult<()> {
         let (lower_root, _upper_root, overlay_root) = create_roots();
         lower_root.join("foo")?.create_dir_all()?;
-        assert!(overlay_root.join("foo")?.exists(), "dir should exist");
+        assert!(overlay_root.join("foo")?.exists()?, "dir should exist");
         overlay_root.join("foo/bar")?.create_dir()?;
-        assert!(overlay_root.join("foo/bar")?.exists(), "dir should exist");
+        assert!(overlay_root.join("foo/bar")?.exists()?, "dir should exist");
         Ok(())
     }
 
@@ -264,9 +264,9 @@ mod tests {
     fn create_file() -> VfsResult<()> {
         let (lower_root, _upper_root, overlay_root) = create_roots();
         lower_root.join("foo")?.create_dir_all()?;
-        assert!(overlay_root.join("foo")?.exists(), "dir should exist");
+        assert!(overlay_root.join("foo")?.exists()?, "dir should exist");
         overlay_root.join("foo/bar")?.create_file()?;
-        assert!(overlay_root.join("foo/bar")?.exists(), "file should exist");
+        assert!(overlay_root.join("foo/bar")?.exists()?, "file should exist");
         Ok(())
     }
 
@@ -298,13 +298,13 @@ mod tests {
             .create_file()?
             .write_all(b"Hello Lower\n")?;
         assert!(
-            overlay_root.join("foo/bar.txt")?.exists(),
+            overlay_root.join("foo/bar.txt")?.exists()?,
             "file should exist"
         );
 
         overlay_root.join("foo/bar.txt")?.remove_file()?;
         assert!(
-            !overlay_root.join("foo/bar.txt")?.exists(),
+            !overlay_root.join("foo/bar.txt")?.exists()?,
             "file should not exist anymore"
         );
 
@@ -313,7 +313,7 @@ mod tests {
             .create_file()?
             .write_all(b"Hello Overlay\n")?;
         assert!(
-            overlay_root.join("foo/bar.txt")?.exists(),
+            overlay_root.join("foo/bar.txt")?.exists()?,
             "file should exist"
         );
         assert_eq!(
@@ -328,16 +328,16 @@ mod tests {
         let (lower_root, _upper_root, overlay_root) = create_roots();
         lower_root.join("foo")?.create_dir_all()?;
         lower_root.join("foo/bar")?.create_dir_all()?;
-        assert!(overlay_root.join("foo/bar")?.exists(), "dir should exist");
+        assert!(overlay_root.join("foo/bar")?.exists()?, "dir should exist");
 
         overlay_root.join("foo/bar")?.remove_dir()?;
         assert!(
-            !overlay_root.join("foo/bar")?.exists(),
+            !overlay_root.join("foo/bar")?.exists()?,
             "dir should not exist anymore"
         );
 
         overlay_root.join("foo/bar")?.create_dir()?;
-        assert!(overlay_root.join("foo/bar")?.exists(), "dir should exist");
+        assert!(overlay_root.join("foo/bar")?.exists()?, "dir should exist");
         Ok(())
     }
 

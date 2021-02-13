@@ -150,7 +150,7 @@ impl VfsPath {
                 .map(|it| it + pos)
                 .unwrap_or_else(|| path.len());
             let directory = &path[..end];
-            if !self.fs.fs.exists(directory) {
+            if !self.fs.fs.exists(directory)? {
                 self.fs.fs.create_dir(directory)?;
             }
             if end == path.len() {
@@ -190,7 +190,7 @@ impl VfsPath {
                 .into());
             }
             Some(directory) => {
-                if !directory.exists() {
+                if !directory.exists()? {
                     return Err(format!(
                         "Could not {} at '{}', parent directory does not exist",
                         action, &self.path
@@ -240,7 +240,7 @@ impl VfsPath {
     ///
     /// Returns successfully if directory does not exist
     pub fn remove_dir_all(&self) -> VfsResult<()> {
-        if !self.exists() {
+        if !self.exists()? {
             return Ok(());
         }
         for child in self.read_dir()? {
@@ -263,7 +263,7 @@ impl VfsPath {
     }
 
     /// Returns true if a file or directory exists at this path, false otherwise
-    pub fn exists(&self) -> bool {
+    pub fn exists(&self) -> VfsResult<bool> {
         self.fs.fs.exists(&self.path)
     }
 
@@ -334,7 +334,7 @@ impl VfsPath {
     /// The destination must not exist, but its parent directory must
     pub fn copy_file(&self, destination: &VfsPath) -> VfsResult<()> {
         || -> VfsResult<()> {
-            if destination.exists() {
+            if destination.exists()? {
                 return Err("Destination exists already".to_string().into());
             }
             if Arc::ptr_eq(&self.fs, &destination.fs) {
@@ -365,7 +365,7 @@ impl VfsPath {
     /// The destination must not exist, but its parent directory must
     pub fn move_file(&self, destination: &VfsPath) -> VfsResult<()> {
         || -> VfsResult<()> {
-            if destination.exists() {
+            if destination.exists()? {
                 return Err("Destination exists already".to_string().into());
             }
             if Arc::ptr_eq(&self.fs, &destination.fs) {
@@ -400,7 +400,7 @@ impl VfsPath {
     pub fn copy_dir(&self, destination: &VfsPath) -> VfsResult<u64> {
         let mut files_copied = 0u64;
         || -> VfsResult<()> {
-            if destination.exists() {
+            if destination.exists()? {
                 return Err("Destination exists already".to_string().into());
             }
             destination.create_dir()?;
@@ -432,7 +432,7 @@ impl VfsPath {
     /// The destination must not exist, but its parent directory must
     pub fn move_dir(&self, destination: &VfsPath) -> VfsResult<()> {
         || -> VfsResult<()> {
-            if destination.exists() {
+            if destination.exists()? {
                 return Err("Destination exists already".to_string().into());
             }
             if Arc::ptr_eq(&self.fs, &destination.fs) {

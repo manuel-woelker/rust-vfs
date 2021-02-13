@@ -20,7 +20,7 @@
 //!
 //! # fn main() -> vfs::VfsResult<()> {
 //! let root: VfsPath = PhysicalFS::new(std::env::current_dir().unwrap()).into();
-//! assert!(root.exists());
+//! assert!(root.exists()?);
 //!
 //! let mut content = String::new();
 //! root.join("README.md")?.open_file()?.read_to_string(&mut content)?;
@@ -35,10 +35,10 @@
 //! # fn main() -> vfs::VfsResult<()> {
 //! let root: VfsPath = MemoryFS::new().into();
 //! let path = root.join("test.txt")?;
-//! assert!(!path.exists());
+//! assert!(!path.exists()?);
 //!
 //! path.create_file()?.write_all(b"Hello world")?;
-//! assert!(path.exists());
+//! assert!(path.exists()?);
 //! let mut content = String::new();
 //! path.open_file()?.read_to_string(&mut content)?;
 //! assert_eq!(content, "Hello world");

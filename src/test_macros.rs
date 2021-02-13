@@ -18,7 +18,7 @@ macro_rules! test_vfs {
             }
 
             #[test]
-            fn write_and_read_file() {
+            fn write_and_read_file()  -> VfsResult<()>{
                 let root = create_root();
                 let path = root.join("foobar.txt").unwrap();
                 let _send = &path as &dyn Send;
@@ -33,11 +33,12 @@ macro_rules! test_vfs {
                     file.read_to_string(&mut string).unwrap();
                     assert_eq!(string, "Hello world!");
                 }
-                assert!(path.exists());
-                assert!(!root.join("foo").unwrap().exists());
+                assert!(path.exists()?);
+                assert!(!root.join("foo").unwrap().exists()?);
                 let metadata = path.metadata().unwrap();
                 assert_eq!(metadata.len, 12);
                 assert_eq!(metadata.file_type, VfsFileType::File);
+                Ok(())
             }
 
             #[test]
@@ -66,18 +67,19 @@ macro_rules! test_vfs {
             }
 
             #[test]
-            fn create_dir_all() {
+            fn create_dir_all() -> VfsResult<()>{
                 let root = create_root();
                 let _string = String::new();
                 let path = root.join("foo").unwrap();
                 path.create_dir().unwrap();
                 let path = root.join("foo/bar/baz").unwrap();
                 path.create_dir_all().unwrap();
-                assert!(path.exists());
-                assert!(root.join("foo/bar").unwrap().exists());
+                assert!(path.exists()?);
+                assert!(root.join("foo/bar").unwrap().exists()?);
                 let metadata = path.metadata().unwrap();
                 assert_eq!(metadata.file_type, VfsFileType::Directory);
                 assert_eq!(metadata.len, 0);
+                Ok(())
             }
 
             #[test]
@@ -106,41 +108,45 @@ macro_rules! test_vfs {
             }
 
             #[test]
-            fn remove_file() {
+            fn remove_file() -> VfsResult<()> {
                 let root = create_root();
                 let path = root.join("baz").unwrap();
-                assert!(!path.exists());
+                assert!(!path.exists()?);
                 path.create_file().unwrap();
-                assert!(path.exists());
+                assert!(path.exists()?);
                 path.remove_file().unwrap();
-                assert!(!path.exists());
+                assert!(!path.exists()?);
+                Ok(())
             }
 
             #[test]
-            fn remove_file_nonexisting() {
+            fn remove_file_nonexisting() -> VfsResult<()> {
                 let root = create_root();
                 let path = root.join("baz").unwrap();
-                assert!(!path.exists());
+                assert!(!path.exists()?);
                 assert!(path.remove_file().is_err());
+                Ok(())
             }
 
             #[test]
-            fn remove_dir() {
+            fn remove_dir() -> VfsResult<()>{
                 let root = create_root();
                 let path = root.join("baz").unwrap();
-                assert!(!path.exists());
+                assert!(!path.exists()?);
                 path.create_dir().unwrap();
-                assert!(path.exists());
+                assert!(path.exists()?);
                 path.remove_dir().unwrap();
-                assert!(!path.exists());
+                assert!(!path.exists()?);
+                Ok(())
             }
 
             #[test]
-            fn remove_dir_nonexisting() {
+            fn remove_dir_nonexisting() -> VfsResult<()> {
                 let root = create_root();
                 let path = root.join("baz").unwrap();
-                assert!(!path.exists());
+                assert!(!path.exists()?);
                 assert!(path.remove_dir().is_err());
+                Ok(())
             }
 
             #[test]
@@ -152,23 +158,25 @@ macro_rules! test_vfs {
             }
 
             #[test]
-            fn remove_dir_all() {
+            fn remove_dir_all() -> VfsResult<()>{
                 let root = create_root();
                 let path = root.join("foo").unwrap();
-                assert!(!path.exists());
+                assert!(!path.exists()?);
                 path.join("bar/baz/fizz").unwrap().create_dir_all().unwrap();
                 path.join("bar/buzz").unwrap().create_file().unwrap();
-                assert!(path.exists());
+                assert!(path.exists()?);
                 assert!(path.remove_dir_all().is_ok());
-                assert!(!path.exists());
+                assert!(!path.exists()?);
+                Ok(())
             }
 
             #[test]
-            fn remove_dir_all_nonexisting() {
+            fn remove_dir_all_nonexisting() -> VfsResult<()> {
                 let root = create_root();
                 let path = root.join("baz").unwrap();
-                assert!(!path.exists());
+                assert!(!path.exists()?);
                 assert!(path.remove_dir_all().is_ok());
+                Ok(())
             }
 
             #[test]
@@ -643,7 +651,7 @@ macro_rules! test_vfs {
                 src.create_file()?.write_all(b"Hello World")?;
                 src.move_file(&dest)?;
                 assert_eq!(&dest.read_to_string()?, "Hello World");
-                assert!(!src.exists(), "Source should not exist anymore");
+                assert!(!src.exists()?, "Source should not exist anymore");
                 Ok(())
             }
 
@@ -735,7 +743,7 @@ macro_rules! test_vfs {
                 let dest = root.join("foo2")?;
                 assert_eq!(5, src.copy_dir(&dest)?);
                 assert_eq!(&dest.join("bar/baz.txt")?.read_to_string()?, "Hello World");
-                assert!(&dest.join("bar/biz/fizz/buzz")?.exists(), "directory should exist");
+                assert!(&dest.join("bar/biz/fizz/buzz")?.exists()?, "directory should exist");
                 Ok(())
             }
 
@@ -780,8 +788,8 @@ macro_rules! test_vfs {
                 let dest = root.join("foo2")?;
                 src.move_dir(&dest)?;
                 assert_eq!(&dest.join("bar/baz.txt")?.read_to_string()?, "Hello World");
-                assert!(&dest.join("bar/biz/fizz/buzz")?.exists(), "directory should exist");
-                assert!(!src.exists(), "source directory should not exist");
+                assert!(&dest.join("bar/biz/fizz/buzz")?.exists()?, "directory should exist");
+                assert!(!src.exists()?, "source directory should not exist");
                 Ok(())
             }
 

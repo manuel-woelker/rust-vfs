@@ -74,8 +74,8 @@ impl FileSystem for PhysicalFS {
         })
     }
 
-    fn exists(&self, path: &str) -> bool {
-        self.get_path(path).exists()
+    fn exists(&self, path: &str) -> VfsResult<bool> {
+        Ok(self.get_path(path).exists())
     }
 
     fn remove_file(&self, path: &str) -> VfsResult<()> {

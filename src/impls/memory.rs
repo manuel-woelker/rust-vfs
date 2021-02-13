@@ -35,7 +35,7 @@ impl MemoryFS {
     fn ensure_has_parent(&self, path: &str) -> VfsResult<()> {
         let separator = path.rfind('/');
         if let Some(index) = separator {
-            if self.exists(&path[..index]) {
+            if self.exists(&path[..index])? {
                 return Ok(());
             }
         }
@@ -219,8 +219,8 @@ impl FileSystem for MemoryFS {
         })
     }
 
-    fn exists(&self, path: &str) -> bool {
-        self.handle.read().unwrap().files.contains_key(path)
+    fn exists(&self, path: &str) -> VfsResult<bool> {
+        Ok(self.handle.read().unwrap().files.contains_key(path))
     }
 
     fn remove_file(&self, path: &str) -> VfsResult<()> {
@@ -283,7 +283,7 @@ mod tests {
     test_vfs!(MemoryFS::new());
 
     #[test]
-    fn write_and_read_file() {
+    fn write_and_read_file() -> VfsResult<()> {
         let root = VfsPath::new(MemoryFS::new());
         let path = root.join("foobar.txt").unwrap();
         let _send = &path as &dyn Send;
@@ -298,11 +298,12 @@ mod tests {
             file.read_to_string(&mut string).unwrap();
             assert_eq!(string, "Hello world!");
         }
-        assert!(path.exists());
-        assert!(!root.join("foo").unwrap().exists());
+        assert!(path.exists()?);
+        assert!(!root.join("foo").unwrap().exists()?);
         let metadata = path.metadata().unwrap();
         assert_eq!(metadata.len, 12);
         assert_eq!(metadata.file_type, VfsFileType::File);
+        Ok(())
     }
 
     #[test]
