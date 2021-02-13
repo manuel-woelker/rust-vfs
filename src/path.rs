@@ -75,7 +75,7 @@ impl VfsPath {
         let mut new_components: Vec<&str> = vec![];
         let mut base_path = self.clone();
         for component in path.split('/') {
-            if component == "" {
+            if component.is_empty() {
                 return Err(VfsError::InvalidPath {
                     path: path.to_string(),
                 });
