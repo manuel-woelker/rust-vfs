@@ -24,6 +24,10 @@ Comments and pull-requests welcome!
 
 ## Changelog
 
+### 0.5.0 (2021-02-13)
+
+ * Changed `VfsPath::exists()` to return `VfsResult<bool>` instead of plain `bool` (closes [#17](https://github.com/manuel-woelker/rust-vfs/issues/17))
+ 
 ### 0.4.0 (2020-08-13)
 
  * Added `OverlayFS` union filesystem
