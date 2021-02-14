@@ -85,9 +85,8 @@ pub struct HttpsFSServer<T: FileSystem> {
     port: u16,
     certs: Vec::<rustls::Certificate>,
     private_key: rustls::PrivateKey,
-    file_system: std::sync::Arc<T>,
+    file_system: std::sync::Arc<std::sync::Mutex<T>>,
 }
-
 
 struct WritableFile {
     client: std::sync::Arc<reqwest::blocking::Client>,
@@ -406,7 +405,7 @@ impl<T:FileSystem> HttpsFSServer<T> {
             port,
             certs,
             private_key,
-            file_system : std::sync::Arc::new(file_system),
+            file_system : std::sync::Arc::new(std::sync::Mutex::new(file_system)),
         }
     }
 
@@ -492,7 +491,7 @@ impl<T:FileSystem> HttpsFSServer<T> {
         Ok(())
     }
 
-    async fn https_fs_service(file_system: std::sync::Arc<T>, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
+    async fn https_fs_service(file_system: std::sync::Arc<std::sync::Mutex<T>>, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
         let mut response = Response::new(Body::empty());
         match (req.method(), req.uri().path()) {
             (&Method::POST, "/") => {
@@ -504,7 +503,11 @@ impl<T:FileSystem> HttpsFSServer<T> {
                     // TODO: Add more logging for debug
                     Err(_) => *response.status_mut() = StatusCode::BAD_REQUEST,
                     Ok(value) => {
-                        let res = HttpsFSServer::<T>::handle_command(&value, &*file_system);
+                        let res;
+                        {
+                            let file_system = file_system.lock().unwrap();
+                            res = HttpsFSServer::<T>::handle_command(&value, &*file_system);
+                        }
                         let res = serde_json::to_string(&res);
                         println!("Server response: {:?}", res);
                         match res {
