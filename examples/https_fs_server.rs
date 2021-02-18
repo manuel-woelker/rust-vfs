@@ -1,4 +1,4 @@
-use vfs::{HttpsFSServer, MemoryFS, load_certs, load_private_key};
+use vfs::{load_certs, load_private_key, HttpsFSServer, MemoryFS};
 
 fn main() {
     // create a file system, which the server uses to access the file system
@@ -26,4 +26,3 @@ fn main() {
     // Start the server.
     server.run().unwrap();
 }
-

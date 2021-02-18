@@ -64,10 +64,10 @@ pub use error::{VfsError, VfsResult};
 pub use filesystem::FileSystem;
 #[cfg(feature = "embedded-fs")]
 pub use impls::embedded::EmbeddedFS;
-pub use impls::memory::MemoryFS;
-pub use impls::physical::PhysicalFS;
-pub use impls::https::HttpsFS;
-pub use impls::https::HttpsFSServer;
 pub use impls::https::load_certs;
 pub use impls::https::load_private_key;
+pub use impls::https::HttpsFS;
+pub use impls::https::HttpsFSServer;
+pub use impls::memory::MemoryFS;
+pub use impls::physical::PhysicalFS;
 pub use path::*;
