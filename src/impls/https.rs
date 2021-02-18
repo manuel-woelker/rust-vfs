@@ -53,8 +53,10 @@ use std::fmt::{Debug, Formatter};
 use std::io::{Write, Read, Seek, Error, ErrorKind};
 use std::sync;
 use std::pin::Pin;
+use std::collections::HashMap;
 use core::task::{Poll, Context};
 use hyper::service::{make_service_fn, service_fn};
+use hyper::header::{COOKIE, SET_COOKIE};
 use hyper::{Body, Method, Response, Request, StatusCode, Server};
 use tokio::net::{TcpListener, TcpStream};
 use async_stream::stream;
@@ -64,6 +66,8 @@ use tokio_rustls::TlsAcceptor;
 use rustls::internal::pemfile;
 use reqwest::blocking::Client;
 use serde::{Serialize, Deserialize};
+use rand::prelude::*;
+use chrono::prelude::*;
 
 /// A file system exposed over https
 pub struct HttpsFS {
@@ -86,6 +90,12 @@ pub struct HttpsFSServer<T: FileSystem> {
     certs: Vec::<rustls::Certificate>,
     private_key: rustls::PrivateKey,
     file_system: std::sync::Arc<std::sync::Mutex<T>>,
+    client_data: std::sync::Arc<std::sync::Mutex<HashMap<String, HttpsFSServerClientData>>>,
+}
+
+#[derive(Debug)]
+struct HttpsFSServerClientData {
+    last_use: DateTime<Local>,
 }
 
 struct WritableFile {
@@ -348,7 +358,8 @@ impl HttpsFSBuilder {
 
     pub fn build(self) -> VfsResult<HttpsFS> {
         let mut client = Client::builder()
-                            .https_only(true);
+                            .https_only(true)
+                            .cookie_store(true);
         for cert in self.root_certs {
             client = client.add_root_certificate(cert);
         }
@@ -380,6 +391,14 @@ impl From<serde_json::Error> for VfsError {
     }
 }
 
+impl HttpsFSServerClientData {
+    fn new() -> Self {
+        HttpsFSServerClientData {
+            last_use: Local::now(),
+        }
+    }
+}
+
 impl<T:FileSystem> HttpsFSServer<T> {
     pub fn new(port: u16, certs: Vec::<rustls::Certificate>, private_key: rustls::PrivateKey, file_system: T) -> Self {
         // Initially i tried to store a hyper::server::Server object in HttpsFSServer. 
@@ -406,6 +425,7 @@ impl<T:FileSystem> HttpsFSServer<T> {
             certs,
             private_key,
             file_system : std::sync::Arc::new(std::sync::Mutex::new(file_system)),
+            client_data : std::sync::Arc::new(std::sync::Mutex::new(HashMap::new())),
         }
     }
 
@@ -414,6 +434,7 @@ impl<T:FileSystem> HttpsFSServer<T> {
     pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let addr = format!("127.0.0.1:{}", self.port);
         let fs = self.file_system.clone();
+        let cd = self.client_data.clone();
 
         let mut cfg = rustls::ServerConfig::new(rustls::NoClientAuth::new());
         cfg.set_single_cert(self.certs.clone(), self.private_key.clone()).map_err(|e| Error::new(ErrorKind::Other, format!("{}", e)))?;
@@ -468,12 +489,14 @@ impl<T:FileSystem> HttpsFSServer<T> {
             // factory closure
             move |_| {
                 let fs = fs.clone();
+                let cd = cd.clone();
                 async move { // return a future (instruction book to create or)
                     Ok::<_, Error>(service_fn(
                         // product closure
                         move |request| {
                             let fs = fs.clone();
-                            HttpsFSServer::https_fs_service(fs, request)
+                            let cd = cd.clone();
+                            HttpsFSServer::https_fs_service(fs, cd, request)
                         }
                     ))
                 }
@@ -491,8 +514,12 @@ impl<T:FileSystem> HttpsFSServer<T> {
         Ok(())
     }
 
-    async fn https_fs_service(file_system: std::sync::Arc<std::sync::Mutex<T>>, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
+    async fn https_fs_service(file_system: std::sync::Arc<std::sync::Mutex<T>>, client_data: std::sync::Arc<std::sync::Mutex<HashMap<String, HttpsFSServerClientData>>>, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
         let mut response = Response::new(Body::empty());
+
+        HttpsFSServer::<T>::clean_up_client_data(&client_data);
+        let sess_id = HttpsFSServer::<T>::get_session_id(&client_data, &req, &mut response);
+
         match (req.method(), req.uri().path()) {
             (&Method::POST, "/") => {
                 let body = hyper::body::to_bytes(req.into_body()).await?;
@@ -582,7 +609,7 @@ impl<T:FileSystem> HttpsFSServer<T> {
             Ok(size) => Ok(size),
         }
     }
-    
+
     fn read(cmd: &CommandRead, file_system: &dyn FileSystem) -> Result<(usize, String), String> {
         let file = file_system.open_file(&cmd.path);
         if let Err(e) = file {
@@ -605,6 +632,62 @@ impl<T:FileSystem> HttpsFSServer<T> {
         let data = base64::encode(& mut data.as_mut_slice()[..len]);
 
         Ok((len, data))
+    }
+
+    fn clean_up_client_data(client_data: &std::sync::Arc<std::sync::Mutex<HashMap<String, HttpsFSServerClientData>>>) {
+        let mut client_data = client_data.lock().unwrap();
+        let now = Local::now();
+        let dur = chrono::Duration::minutes(15);
+        let mut dummy = HashMap::new();
+
+        std::mem::swap(&mut *client_data, &mut dummy);
+
+        dummy = dummy.into_iter().filter(|(_, v)| (now - v.last_use) <= dur).collect();
+
+        std::mem::swap(&mut *client_data, &mut dummy);
+    }
+
+    fn get_session_id(client_data: &std::sync::Arc<std::sync::Mutex<HashMap<String, HttpsFSServerClientData>>>, request: &Request<Body>, response: &mut Response<Body>) -> String {
+        let mut sess_id = String::new();
+        let headers = request.headers();
+        if headers.contains_key(COOKIE) {
+            // session is already established
+            let cookie = headers[COOKIE].as_bytes();
+            if cookie.starts_with(b"session=") {
+                sess_id = match cookie.get("session=".len()..) {
+                    None => String::new(),
+                    Some(value) =>  match std::str::from_utf8(value) {
+                        Err(_) => String::new(),
+                        Ok(value) => String::from(value),
+                    }
+                };
+                let mut client_data = client_data.lock().unwrap();
+                match client_data.get_mut(&sess_id) {
+                    // we didn't found the session id in our database,
+                    // therefore we delete the id and a new one will be created.
+                    None => sess_id = String::new(),
+                    Some(value) => value.last_use = Local::now(),
+                };
+            }
+        }
+
+        if sess_id.len() == 0 {
+            let mut client_data = client_data.lock().unwrap();
+            while sess_id.len() == 0 || client_data.contains_key(&sess_id) {
+                let mut sess_id_raw = [0 as u8; 30];
+                let mut rng = thread_rng();
+                for x in &mut sess_id_raw {
+                    *x = rng.gen();
+                }
+                // to ensure, that session id is printable
+                sess_id = base64::encode(sess_id_raw);
+            }
+            let cookie = format!("session={}", sess_id);
+            response.headers_mut().insert(SET_COOKIE, cookie.parse().unwrap());
+            client_data.insert(sess_id.clone(), HttpsFSServerClientData::new());
+        }
+
+        return sess_id;
     }
 }
 
