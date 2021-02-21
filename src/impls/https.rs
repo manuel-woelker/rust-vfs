@@ -69,6 +69,9 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio_rustls::server::TlsStream;
 use tokio_rustls::TlsAcceptor;
 
+mod httpsfserror;
+use httpsfserror::HttpsFSError;
+
 /// A file system exposed over https
 pub struct HttpsFS {
     addr: String,
@@ -319,6 +322,14 @@ impl HttpsFS {
         std::fs::File::open(filename)?.read_to_end(&mut buf)?;
         let cert = reqwest::Certificate::from_pem(&buf)?;
         Ok(cert)
+    }
+
+    fn exec_command(&self, cmd: &Command) -> Result<CommandResponse, HttpsFSError> {
+        let req = serde_json::to_string(&cmd)?;
+        let result = self.client.post(&self.addr).body(req).send()?;
+        let result = result.text()?;
+        let result: CommandResponse = serde_json::from_str(&result)?;
+        Ok(result)
     }
 }
 
@@ -913,10 +924,7 @@ impl FileSystem for HttpsFS {
         let req = Command::ReadDir(CommandReadDir {
             path: String::from(path),
         });
-        let req = serde_json::to_string(&req)?;
-        let result = self.client.post(&self.addr).body(req).send()?;
-        let result = result.text()?;
-        let result: CommandResponse = serde_json::from_str(&result)?;
+        let result = self.exec_command(&req)?;
         let result = match result {
             CommandResponse::ReadDir(value) => value,
             _ => {
@@ -937,10 +945,7 @@ impl FileSystem for HttpsFS {
         let req = Command::CreateDir(CommandCreateDir {
             path: String::from(path),
         });
-        let req = serde_json::to_string(&req)?;
-        let result = self.client.post(&self.addr).body(req).send()?;
-        let result = result.text()?;
-        let result: CommandResponse = serde_json::from_str(&result)?;
+        let result = self.exec_command(&req)?;
         let result = match result {
             CommandResponse::CreateDir(value) => value,
             _ => {
@@ -977,10 +982,7 @@ impl FileSystem for HttpsFS {
         let req = Command::CreateFile(CommandCreateFile {
             path: String::from(path),
         });
-        let req = serde_json::to_string(&req)?;
-        let result = self.client.post(&self.addr).body(req).send()?;
-        let result = result.text()?;
-        let result: CommandResponse = serde_json::from_str(&result)?;
+        let result = self.exec_command(&req)?;
         let result = match result {
             CommandResponse::CreateFile(value) => value,
             _ => {
@@ -992,7 +994,7 @@ impl FileSystem for HttpsFS {
 
         match result {
             CommandResponseCreateFile::Failed => Err(VfsError::Other {
-                message: String::from("Result doesn't match the request!"),
+                message: String::from("Faild to create file!"),
             }),
             CommandResponseCreateFile::Success => Ok(Box::new(WritableFile {
                 client: self.client.clone(),
@@ -1017,10 +1019,7 @@ impl FileSystem for HttpsFS {
         let req = Command::Metadata(CommandMetadata {
             path: String::from(path),
         });
-        let req = serde_json::to_string(&req)?;
-        let result = self.client.post(&self.addr).body(req).send()?;
-        let result = result.text()?;
-        let result: CommandResponse = serde_json::from_str(&result)?;
+        let result = self.exec_command(&req)?;
         match result {
             CommandResponse::Metadata(value) => meta_res_convert_cmd_vfs(value),
             _ => Err(VfsError::Other {
@@ -1037,25 +1036,7 @@ impl FileSystem for HttpsFS {
         let req = Command::Exists(CommandExists {
             path: String::from(path),
         });
-
-        let req = serde_json::to_string(&req);
-        if let Err(e) = req {
-            println!("Error: {:?}", e);
-            return false;
-        }
-        let req = req.unwrap();
-        let result = self.client.post(&self.addr).body(req).send();
-        if let Err(e) = result {
-            println!("Error: {:?}", e);
-            return false;
-        }
-        let result = result.unwrap().text();
-        if let Err(e) = result {
-            println!("Error: {:?}", e);
-            return false;
-        }
-        let result: Result<CommandResponse, serde_json::Error> =
-            serde_json::from_str(&result.unwrap());
+        let result = self.exec_command(&req);
         if let Err(e) = result {
             println!("Error: {:?}", e);
             return false;
@@ -1070,10 +1051,7 @@ impl FileSystem for HttpsFS {
         let req = Command::RemoveFile(CommandRemoveFile {
             path: String::from(path),
         });
-        let req = serde_json::to_string(&req)?;
-        let result = self.client.post(&self.addr).body(req).send()?;
-        let result = result.text()?;
-        let result: CommandResponse = serde_json::from_str(&result)?;
+        let result = self.exec_command(&req)?;
         let result = match result {
             CommandResponse::RemoveFile(value) => value,
             _ => {
@@ -1095,10 +1073,7 @@ impl FileSystem for HttpsFS {
         let req = Command::RemoveDir(CommandRemoveDir {
             path: String::from(path),
         });
-        let req = serde_json::to_string(&req)?;
-        let result = self.client.post(&self.addr).body(req).send()?;
-        let result = result.text()?;
-        let result: CommandResponse = serde_json::from_str(&result)?;
+        let result = self.exec_command(&req)?;
         let result = match result {
             CommandResponse::RemoveDir(value) => value,
             _ => {
