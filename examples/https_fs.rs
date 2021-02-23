@@ -30,7 +30,16 @@ fn main() -> vfs::VfsResult<()> {
         // If the server uses a certificate issued by a official
         // certificate authority, than we don't need to add an additional
         // certificate.
-        .add_root_certificate(cert);
+        .add_root_certificate(cert)
+        // if the server requests a authentification, than this method is called to
+        // get the credentials for the authentification
+        .set_credential_provider(|server_msg| {
+            println!(
+                "Server request authentification with message \"{}\".",
+                server_msg
+            );
+            (String::from("user"), String::from("pass"))
+        });
     let root: VfsPath = builder.build().unwrap().into();
     let root = root.join("example.txt")?;
 

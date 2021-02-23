@@ -24,7 +24,6 @@
 //! For an example see example directory.
 //!
 //! TODO:
-//! - Implement authentication process
 //! - Implement a [CGI](https://en.wikipedia.org/wiki/Common_Gateway_Interface)
 //!   version of the HttpsFSServer.
 //!     * This would allow a user to use any webserver provided by its
@@ -53,7 +52,7 @@ use async_stream::stream;
 use chrono::prelude::*;
 use core::task::{Context, Poll};
 use futures_util::stream::Stream;
-use hyper::header::{COOKIE, SET_COOKIE};
+use hyper::header::{AUTHORIZATION, COOKIE, SET_COOKIE, WWW_AUTHENTICATE};
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Method, Request, Response, Server, StatusCode};
 use rand::prelude::*;
@@ -70,12 +69,16 @@ use tokio_rustls::server::TlsStream;
 use tokio_rustls::TlsAcceptor;
 
 mod httpsfserror;
+use httpsfserror::AuthError;
 use httpsfserror::HttpsFSError;
 
 /// A file system exposed over https
 pub struct HttpsFS {
     addr: String,
     client: std::sync::Arc<reqwest::blocking::Client>,
+    /// Will be called to get login credentials for the authentication process.
+    /// Return value is a tuple: The first part is the user name, the second part the password.
+    credentials: Option<fn(realm: &str) -> (String, String)>,
 }
 
 /// Helper structure for building HttpsFS structs
@@ -83,6 +86,7 @@ pub struct HttpsFSBuilder {
     port: u16,
     domain: String,
     root_certs: Vec<reqwest::Certificate>,
+    credentials: Option<fn(realm: &str) -> (String, String)>,
 }
 
 /// A https server providing a interface for HttpsFS
@@ -92,11 +96,13 @@ pub struct HttpsFSServer<T: FileSystem> {
     private_key: rustls::PrivateKey,
     file_system: std::sync::Arc<std::sync::Mutex<T>>,
     client_data: std::sync::Arc<std::sync::Mutex<HashMap<String, HttpsFSServerClientData>>>,
+    credential_validator: fn(user: &str, password: &str) -> bool,
 }
 
 #[derive(Debug)]
 struct HttpsFSServerClientData {
     last_use: DateTime<Local>,
+    authorized: bool,
 }
 
 struct WritableFile {
@@ -326,10 +332,49 @@ impl HttpsFS {
 
     fn exec_command(&self, cmd: &Command) -> Result<CommandResponse, HttpsFSError> {
         let req = serde_json::to_string(&cmd)?;
-        let result = self.client.post(&self.addr).body(req).send()?;
+        let mut result = self.client.post(&self.addr).body(req).send()?;
+        if result.status() == StatusCode::UNAUTHORIZED {
+            let req = serde_json::to_string(&cmd)?;
+            result = self
+                .authorize(&result, self.client.post(&self.addr).body(req))?
+                .send()?;
+            if result.status() != StatusCode::OK {
+                return Err(HttpsFSError::Auth(AuthError::Failed));
+            }
+        }
         let result = result.text()?;
         let result: CommandResponse = serde_json::from_str(&result)?;
         Ok(result)
+    }
+
+    fn authorize(
+        &self,
+        prev_response: &reqwest::blocking::Response,
+        new_request: reqwest::blocking::RequestBuilder,
+    ) -> Result<reqwest::blocking::RequestBuilder, HttpsFSError> {
+        if self.credentials.is_none() {
+            return Err(HttpsFSError::Auth(AuthError::NoCredentialSource));
+        }
+        let prev_headers = prev_response.headers();
+        let auth_method = prev_headers
+            .get(WWW_AUTHENTICATE)
+            .ok_or(HttpsFSError::Auth(AuthError::NoMethodSpecified))?;
+        let auth_method = String::from(
+            auth_method
+                .to_str()
+                .map_err(|_| HttpsFSError::InvalidHeader(WWW_AUTHENTICATE.to_string()))?,
+        );
+        // TODO: this is a fix hack since we currently only support one method. If we start to
+        // support more than one authentication method, we have to properly parse this header.
+        // Furthermore, currently only the 'PME'-Realm is supported.
+        let start_with = "Basic realm=\"PME\"";
+        if !auth_method.starts_with(start_with) {
+            return Err(HttpsFSError::Auth(AuthError::MethodNotSupported));
+        }
+        let get_cred = self.credentials.unwrap();
+        let (username, password) = get_cred(&"PME");
+        let new_request = new_request.basic_auth(username, Some(password));
+        Ok(new_request)
     }
 }
 
@@ -339,6 +384,7 @@ impl HttpsFSBuilder {
             port: 443,
             domain: String::from(domain),
             root_certs: Vec::new(),
+            credentials: None,
         }
     }
 
@@ -357,7 +403,20 @@ impl HttpsFSBuilder {
         self
     }
 
+    pub fn set_credential_provider(
+        mut self,
+        c_provider: fn(realm: &str) -> (String, String),
+    ) -> Self {
+        self.credentials = Some(c_provider);
+        self
+    }
+
     pub fn build(self) -> VfsResult<HttpsFS> {
+        if self.credentials.is_none() {
+            return Err(VfsError::Other {
+                message: format!("HttpsFSBuilder: No credential provider set."),
+            });
+        }
         let mut client = Client::builder().https_only(true).cookie_store(true);
         for cert in self.root_certs {
             client = client.add_root_certificate(cert);
@@ -367,6 +426,7 @@ impl HttpsFSBuilder {
         Ok(HttpsFS {
             client: std::sync::Arc::new(client),
             addr: format!("https://{}:{}/", self.domain, self.port),
+            credentials: self.credentials,
         })
     }
 }
@@ -399,6 +459,7 @@ impl HttpsFSServerClientData {
     fn new() -> Self {
         HttpsFSServerClientData {
             last_use: Local::now(),
+            authorized: false,
         }
     }
 }
@@ -409,6 +470,7 @@ impl<T: FileSystem> HttpsFSServer<T> {
         certs: Vec<rustls::Certificate>,
         private_key: rustls::PrivateKey,
         file_system: T,
+        credential_validator: fn(user: &str, password: &str) -> bool,
     ) -> Self {
         // Initially i tried to store a hyper::server::Server object in HttpsFSServer.
         // I failed, since this type is a very complicated generic and i could
@@ -435,6 +497,7 @@ impl<T: FileSystem> HttpsFSServer<T> {
             private_key,
             file_system: std::sync::Arc::new(std::sync::Mutex::new(file_system)),
             client_data: std::sync::Arc::new(std::sync::Mutex::new(HashMap::new())),
+            credential_validator,
         }
     }
 
@@ -444,6 +507,7 @@ impl<T: FileSystem> HttpsFSServer<T> {
         let addr = format!("127.0.0.1:{}", self.port);
         let fs = self.file_system.clone();
         let cd = self.client_data.clone();
+        let cv = self.credential_validator.clone();
 
         let mut cfg = rustls::ServerConfig::new(rustls::NoClientAuth::new());
         cfg.set_single_cert(self.certs.clone(), self.private_key.clone())
@@ -507,7 +571,7 @@ impl<T: FileSystem> HttpsFSServer<T> {
                         move |request| {
                             let fs = fs.clone();
                             let cd = cd.clone();
-                            HttpsFSServer::https_fs_service(fs, cd, request)
+                            HttpsFSServer::https_fs_service(fs, cd, cv, request)
                         },
                     ))
                 }
@@ -529,12 +593,32 @@ impl<T: FileSystem> HttpsFSServer<T> {
     async fn https_fs_service(
         file_system: std::sync::Arc<std::sync::Mutex<T>>,
         client_data: std::sync::Arc<std::sync::Mutex<HashMap<String, HttpsFSServerClientData>>>,
+        credential_validator: fn(user: &str, pass: &str) -> bool,
         req: Request<Body>,
     ) -> Result<Response<Body>, hyper::Error> {
+        // TODO: Separate Session, authorization and content handling in different methods.
         let mut response = Response::new(Body::empty());
 
         HttpsFSServer::<T>::clean_up_client_data(&client_data);
         let sess_id = HttpsFSServer::<T>::get_session_id(&client_data, &req, &mut response);
+        let auth_res =
+            HttpsFSServer::<T>::try_auth(&client_data, &sess_id, &credential_validator, &req);
+        match auth_res {
+            Err(()) => {
+                *response.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
+                return Ok(response);
+            }
+            Ok(value) => {
+                if !value {
+                    *response.status_mut() = StatusCode::UNAUTHORIZED;
+                    response.headers_mut().insert(
+                        WWW_AUTHENTICATE,
+                        "Basic realm=\"PME\", charset=\"UTF-8\"".parse().unwrap(),
+                    );
+                    return Ok(response);
+                }
+            }
+        }
 
         match (req.method(), req.uri().path()) {
             (&Method::POST, "/") => {
@@ -728,6 +812,69 @@ impl<T: FileSystem> HttpsFSServer<T> {
 
         return sess_id;
     }
+
+    fn try_auth(
+        client_data: &std::sync::Arc<std::sync::Mutex<HashMap<String, HttpsFSServerClientData>>>,
+        sess_id: &str,
+        credential_validator: &fn(user: &str, pass: &str) -> bool,
+        request: &Request<Body>,
+    ) -> Result<bool, ()> {
+        let mut client_data = client_data.lock().unwrap();
+        let sess_data = client_data.get_mut(sess_id);
+        if let None = sess_data {
+            return Err(());
+        }
+        let sess_data = sess_data.unwrap();
+
+        // try to authenticate client
+        if !sess_data.authorized {
+            let headers = request.headers();
+            let auth = headers.get(AUTHORIZATION);
+            if let None = auth {
+                return Ok(false);
+            }
+            let auth = auth.unwrap().to_str();
+            if let Err(_) = auth {
+                return Ok(false);
+            }
+            let auth = auth.unwrap();
+            let starts = "Basic ";
+            if !auth.starts_with(starts) {
+                return Ok(false);
+            }
+            let auth = base64::decode(&auth[starts.len()..]);
+            if let Err(_) = auth {
+                return Ok(false);
+            }
+            let auth = auth.unwrap();
+            let auth = String::from_utf8(auth);
+            if let Err(_) = auth {
+                return Ok(false);
+            }
+            let auth = auth.unwrap();
+            let mut auth_it = auth.split(":");
+            let username = auth_it.next();
+            if let None = username {
+                return Ok(false);
+            }
+            let username = username.unwrap();
+            let pass = auth_it.next();
+            if let None = pass {
+                return Ok(false);
+            }
+            let pass = pass.unwrap();
+            if credential_validator(username, pass) {
+                sess_data.authorized = true;
+            }
+        }
+
+        // if not authenticated, than inform client about it.
+        if sess_data.authorized {
+            return Ok(true);
+        }
+
+        return Ok(false);
+    }
 }
 
 /// Load public certificate from file
@@ -903,6 +1050,7 @@ impl Seek for ReadableFile {
                 let fs = HttpsFS {
                     addr: self.addr.clone(),
                     client: self.client.clone(),
+                    credentials: None,
                 };
                 let meta = fs.metadata(&self.file_name);
                 if let Err(e) = meta {
@@ -1038,7 +1186,7 @@ impl FileSystem for HttpsFS {
         });
         let result = self.exec_command(&req);
         if let Err(e) = result {
-            println!("Error: {:?}", e);
+            println!("Error: {}", e);
             return false;
         }
         match result.unwrap() {
@@ -1124,7 +1272,10 @@ mod tests {
             let fs = MemoryFS::new();
             let cert = load_certs("examples/cert/cert.crt").unwrap();
             let private_key = load_private_key("examples/cert/private-key.key").unwrap();
-            let mut server = HttpsFSServer::new(server_port, cert, private_key, fs);
+            let credential_validator =
+                |username: &str, password: &str| username == "user" && password == "pass";
+            let mut server =
+                HttpsFSServer::new(server_port, cert, private_key, fs, credential_validator);
             let result = server.run();
             if let Err(e) = result {
                 println!("WARNING: {:?}", e);
@@ -1142,6 +1293,7 @@ mod tests {
         HttpsFS::builder("localhost")
             .set_port(server_port)
             .add_root_certificate(cert)
+            .set_credential_provider(|_| (String::from("user"), String::from("pass")))
             .build()
             .unwrap()
     });
