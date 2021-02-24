@@ -44,7 +44,7 @@ fn main() -> vfs::VfsResult<()> {
     let root = root.join("example.txt")?;
 
     // make sure that file exists
-    if !root.exists() {
+    if !root.exists()? {
         root.create_file()?;
     }
 

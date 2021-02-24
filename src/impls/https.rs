@@ -32,7 +32,6 @@
 //!       perceived as a liability.
 //! - Write a HttpsFS version, which can be compiled to WebAssembly
 //! - Consider to provide an non-blocking version of HttpsFS
-//! - Change result of FileSystem::exists() from bool to VfsResult<bool>
 //! - Do version check after connecting to a HttpsFSServer
 //! - Do not expose reqwest::Certificate and rustls::Certificate via the API
 //! - Look for some unwrap(), which can be removed.
@@ -185,7 +184,7 @@ struct CommandRemoveDir {
 
 #[derive(Debug, Deserialize, Serialize)]
 enum CommandResponse {
-    Exists(bool),
+    Exists(Result<bool, String>),
     Metadata(Result<CmdMetadata, String>),
     CreateFile(CommandResponseCreateFile),
     RemoveFile(Result<(), String>),
@@ -654,7 +653,13 @@ impl<T: FileSystem> HttpsFSServer<T> {
 
     fn handle_command(command: &Command, file_system: &dyn FileSystem) -> CommandResponse {
         match command {
-            Command::Exists(param) => CommandResponse::Exists(file_system.exists(&param.path)),
+            Command::Exists(param) => CommandResponse::Exists({
+                let result = file_system.exists(&param.path);
+                match result {
+                    Ok(val) => Ok(val),
+                    Err(e) => Err(format!("{:?}", e)),
+                }
+            }),
             Command::Metadata(param) => CommandResponse::Metadata(meta_res_convert_vfs_cmd(
                 file_system.metadata(&param.path),
             )),
@@ -691,7 +696,12 @@ impl<T: FileSystem> HttpsFSServer<T> {
     }
 
     fn write(cmd: &CommandWrite, file_system: &dyn FileSystem) -> Result<usize, String> {
-        if !file_system.exists(&cmd.path) {
+        let exist = file_system.exists(&cmd.path);
+        if let Err(e) = exist {
+            return Err(format!("{:?}", e));
+        }
+        let exist = exist.unwrap();
+        if !exist {
             println!("WARN: Tried to write to non existing file.");
             return Err(String::from("File does not exists!"));
         }
@@ -1112,7 +1122,7 @@ impl FileSystem for HttpsFS {
     }
 
     fn open_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndRead>> {
-        if !self.exists(path) {
+        if !self.exists(path)? {
             return Err(VfsError::FileNotFound {
                 path: path.to_string(),
             })?;
@@ -1176,7 +1186,7 @@ impl FileSystem for HttpsFS {
         }
     }
 
-    fn exists(&self, path: &str) -> bool {
+    fn exists(&self, path: &str) -> VfsResult<bool> {
         // TODO: Add more logging
         // TODO: try to change return type to VfsResult<bool>
         //       At the moment 'false' does not mean, that the file either does not exist
@@ -1184,14 +1194,20 @@ impl FileSystem for HttpsFS {
         let req = Command::Exists(CommandExists {
             path: String::from(path),
         });
-        let result = self.exec_command(&req);
-        if let Err(e) = result {
-            println!("Error: {}", e);
-            return false;
-        }
-        match result.unwrap() {
+        let result = self.exec_command(&req)?;
+        let result = match result {
             CommandResponse::Exists(value) => value,
-            _ => false,
+            _ => {
+                return Err(VfsError::Other {
+                    message: String::from("Result doesn't match the request!"),
+                });
+            }
+        };
+        match result {
+            Err(e) => Err(VfsError::Other {
+                message: format!("{:?}", e),
+            }),
+            Ok(val) => Ok(val),
         }
     }
 
