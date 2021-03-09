@@ -36,8 +36,6 @@
 //! - Do not expose reqwest::Certificate and rustls::Certificate via the API
 //! - Look for some unwrap(), which can be removed.
 //! - Can we add Deserialize and Serialize to VfsResult/VfsMetadata.
-//! - Due to the serialization and deserialization all VfsErrors are converted to
-//!   VfsError::Other
 //!
 //! Potential issues:
 //! - The FileSystem trait works with the traits Read and Write, which assumes
@@ -63,6 +61,7 @@ use std::fmt::{Debug, Formatter};
 use std::io::{Error, ErrorKind, Read, Seek, Write};
 use std::pin::Pin;
 use std::sync;
+use thiserror::Error;
 use tokio::net::{TcpListener, TcpStream};
 use tokio_rustls::server::TlsStream;
 use tokio_rustls::TlsAcceptor;
@@ -184,15 +183,15 @@ struct CommandRemoveDir {
 
 #[derive(Debug, Deserialize, Serialize)]
 enum CommandResponse {
-    Exists(Result<bool, String>),
-    Metadata(Result<CmdMetadata, String>),
+    Exists(Result<bool, CommandResponseError>),
+    Metadata(Result<CmdMetadata, CommandResponseError>),
     CreateFile(CommandResponseCreateFile),
-    RemoveFile(Result<(), String>),
-    Write(Result<usize, String>),
-    Read(Result<(usize, String), String>),
+    RemoveFile(Result<(), CommandResponseError>),
+    Write(Result<usize, CommandResponseError>),
+    Read(Result<(usize, String), CommandResponseError>),
     CreateDir(CommandResponseCreateDir),
     ReadDir(CommandResponseReadDir),
-    RemoveDir(Result<(), String>),
+    RemoveDir(Result<(), CommandResponseError>),
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -212,6 +211,48 @@ struct CommandResponseReadDir {
     result: Result<Vec<String>, String>,
 }
 
+#[derive(Error, Debug, Deserialize, Serialize)]
+pub enum CommandResponseError {
+    /// A generic IO error
+    #[error("IO error: {0}")]
+    IoError(String),
+
+    /// The file or directory at the given path could not be found
+    #[error("The file or directory `{path}` could not be found")]
+    FileNotFound {
+        /// The path of the file not found
+        path: String,
+    },
+
+    /// The given path is invalid, e.g. because contains '.' or '..'
+    #[error("The path `{path}` is invalid")]
+    InvalidPath {
+        /// The invalid path
+        path: String,
+    },
+
+    /// Generic error variant
+    #[error("FileSystem error: {message}")]
+    Other {
+        /// The generic error message
+        message: String,
+    },
+
+    /// Generic error context, used for adding context to an error (like a path)
+    #[error("{context}, cause: {cause}")]
+    WithContext {
+        /// The context error message
+        context: String,
+        /// The underlying error
+        #[source]
+        cause: Box<CommandResponseError>,
+    },
+
+    /// Functionality not supported by this filesystem
+    #[error("Functionality not supported by this filesystem")]
+    NotSupported,
+}
+
 // TODO: Should we add Deserialize and Serialize to VfsResult/VfsMetadata
 #[derive(Debug, Deserialize, Serialize)]
 struct CmdMetadata {
@@ -223,6 +264,44 @@ struct CmdMetadata {
 enum CmdFileType {
     File,
     Directory,
+}
+
+impl From<std::io::Error> for CommandResponseError {
+    fn from(error: std::io::Error) -> Self {
+        CommandResponseError::IoError(format!("{}", error))
+    }
+}
+
+impl From<VfsError> for CommandResponseError {
+    fn from(error: VfsError) -> Self {
+        match error {
+            VfsError::IoError(io) => CommandResponseError::IoError(io.to_string()),
+            VfsError::FileNotFound { path } => CommandResponseError::FileNotFound { path },
+            VfsError::InvalidPath { path } => CommandResponseError::InvalidPath { path },
+            VfsError::Other { message } => CommandResponseError::Other { message },
+            VfsError::WithContext { context, cause } => CommandResponseError::WithContext {
+                context,
+                cause: Box::new(CommandResponseError::from(*cause)),
+            },
+            VfsError::NotSupported => CommandResponseError::NotSupported,
+        }
+    }
+}
+
+impl From<CommandResponseError> for VfsError {
+    fn from(error: CommandResponseError) -> Self {
+        match error {
+            CommandResponseError::IoError(io) => VfsError::Other { message: io },
+            CommandResponseError::FileNotFound { path } => VfsError::FileNotFound { path },
+            CommandResponseError::InvalidPath { path } => VfsError::InvalidPath { path },
+            CommandResponseError::Other { message } => VfsError::Other { message },
+            CommandResponseError::WithContext { context, cause } => VfsError::WithContext {
+                context,
+                cause: Box::new(VfsError::from(*cause)),
+            },
+            CommandResponseError::NotSupported => VfsError::NotSupported,
+        }
+    }
 }
 
 impl From<VfsMetadata> for CmdMetadata {
@@ -261,16 +340,20 @@ impl From<CmdFileType> for VfsFileType {
     }
 }
 
-fn meta_res_convert_vfs_cmd(result: VfsResult<VfsMetadata>) -> Result<CmdMetadata, String> {
+fn meta_res_convert_vfs_cmd(
+    result: VfsResult<VfsMetadata>,
+) -> Result<CmdMetadata, CommandResponseError> {
     match result {
-        Err(e) => Err(format!("{:?}", e)),
+        Err(e) => Err(CommandResponseError::from(e)),
         Ok(meta) => Ok(CmdMetadata::from(meta)),
     }
 }
 
-fn meta_res_convert_cmd_vfs(result: Result<CmdMetadata, String>) -> VfsResult<VfsMetadata> {
+fn meta_res_convert_cmd_vfs(
+    result: Result<CmdMetadata, CommandResponseError>,
+) -> VfsResult<VfsMetadata> {
     match result {
-        Err(e) => Err(VfsError::Other { message: e }),
+        Err(e) => Err(VfsError::from(e)),
         Ok(meta) => Ok(VfsMetadata::from(meta)),
     }
 }
@@ -654,11 +737,9 @@ impl<T: FileSystem> HttpsFSServer<T> {
     fn handle_command(command: &Command, file_system: &dyn FileSystem) -> CommandResponse {
         match command {
             Command::Exists(param) => CommandResponse::Exists({
-                let result = file_system.exists(&param.path);
-                match result {
-                    Ok(val) => Ok(val),
-                    Err(e) => Err(format!("{:?}", e)),
-                }
+                file_system
+                    .exists(&param.path)
+                    .map_err(|e| CommandResponseError::from(e))
             }),
             Command::Metadata(param) => CommandResponse::Metadata(meta_res_convert_vfs_cmd(
                 file_system.metadata(&param.path),
@@ -667,11 +748,9 @@ impl<T: FileSystem> HttpsFSServer<T> {
                 CommandResponseCreateFile::from(file_system.create_file(&param.path)),
             ),
             Command::RemoveFile(param) => CommandResponse::RemoveFile({
-                let result = file_system.remove_file(&param.path);
-                match result {
-                    Ok(_) => Ok(()),
-                    Err(e) => Err(format!("{:?}", e)),
-                }
+                file_system
+                    .remove_file(&param.path)
+                    .map_err(|e| CommandResponseError::from(e))
             }),
             Command::Write(param) => {
                 CommandResponse::Write(HttpsFSServer::<T>::write(&param, file_system))
@@ -685,72 +764,43 @@ impl<T: FileSystem> HttpsFSServer<T> {
             Command::ReadDir(param) => CommandResponse::ReadDir(CommandResponseReadDir::from(
                 file_system.read_dir(&param.path),
             )),
-            Command::RemoveDir(param) => CommandResponse::RemoveDir({
-                let result = file_system.remove_dir(&param.path);
-                match result {
-                    Ok(_) => Ok(()),
-                    Err(e) => Err(format!("{:?}", e)),
-                }
-            }),
+            Command::RemoveDir(param) => CommandResponse::RemoveDir(
+                file_system
+                    .remove_dir(&param.path)
+                    .map_err(|e| CommandResponseError::from(e)),
+            ),
         }
     }
 
-    fn write(cmd: &CommandWrite, file_system: &dyn FileSystem) -> Result<usize, String> {
-        let exist = file_system.exists(&cmd.path);
-        if let Err(e) = exist {
-            return Err(format!("{:?}", e));
-        }
-        let exist = exist.unwrap();
-        if !exist {
-            println!("WARN: Tried to write to non existing file.");
-            return Err(String::from("File does not exists!"));
-        }
-        let meta = file_system.metadata(&cmd.path);
-        if let Err(e) = meta {
-            return Err(format!("{:?}", e));
-        }
-        let meta = meta.unwrap();
-        if meta.len != cmd.pos {
-            println!("WARN: We only support appending to files.");
-            return Err(String::from("We only support appending to files!"));
-        }
-        let file = file_system.append_file(&cmd.path);
-        if let Err(e) = file {
-            return Err(format!("{:?}", e));
-        }
-        let mut file = file.unwrap();
+    fn write(
+        cmd: &CommandWrite,
+        file_system: &dyn FileSystem,
+    ) -> Result<usize, CommandResponseError> {
+        let mut file = file_system.append_file(&cmd.path)?;
         let data = base64::decode(&cmd.data);
         if let Err(e) = data {
-            return Err(format!("Faild to decode data: {:?}", e));
+            return Err(CommandResponseError::Other {
+                message: format!("Faild to decode data: {:?}", e),
+            });
         }
         let data = data.unwrap();
-        let res = file.write(&data);
-
-        match res {
-            Err(e) => return Err(format!("{:?}", e)),
-            Ok(size) => Ok(size),
-        }
+        Ok(file.write(&data)?)
     }
 
-    fn read(cmd: &CommandRead, file_system: &dyn FileSystem) -> Result<(usize, String), String> {
-        let file = file_system.open_file(&cmd.path);
-        if let Err(e) = file {
-            return Err(format!("{:?}", e));
-        }
-        let mut file = file.unwrap();
+    fn read(
+        cmd: &CommandRead,
+        file_system: &dyn FileSystem,
+    ) -> Result<(usize, String), CommandResponseError> {
+        let mut file = file_system.open_file(&cmd.path)?;
 
         let mut data: Vec<u8> = vec![0; cmd.len as usize];
 
         let seek_res = file.seek(std::io::SeekFrom::Start(cmd.pos));
         if let Err(e) = seek_res {
-            return Err(format!("{:?}", e));
+            return Err(CommandResponseError::IoError(format!("{:?}", e)));
         }
 
-        let result = file.read(data.as_mut_slice());
-        if let Err(e) = result {
-            return Err(format!("{:?}", e));
-        }
-        let len = result.unwrap();
+        let len = file.read(data.as_mut_slice())?;
         let data = base64::encode(&mut data.as_mut_slice()[..len]);
 
         Ok((len, data))

@@ -3,6 +3,45 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum HttpsFSError {
+    /// A generic IO error
+    #[error("IO error: {0}")]
+    IoError(#[from] std::io::Error),
+
+    /// The file or directory at the given path could not be found
+    #[error("The file or directory `{path}` could not be found")]
+    FileNotFound {
+        /// The path of the file not found
+        path: String,
+    },
+
+    /// The given path is invalid, e.g. because contains '.' or '..'
+    #[error("The path `{path}` is invalid")]
+    InvalidPath {
+        /// The invalid path
+        path: String,
+    },
+
+    /// Generic error variant
+    #[error("FileSystem error: {message}")]
+    Other {
+        /// The generic error message
+        message: String,
+    },
+
+    /// Generic error context, used for adding context to an error (like a path)
+    #[error("{context}, cause: {cause}")]
+    WithContext {
+        /// The context error message
+        context: String,
+        /// The underlying error
+        #[source]
+        cause: Box<HttpsFSError>,
+    },
+
+    /// Functionality not supported by this filesystem
+    #[error("Functionality not supported by this filesystem")]
+    NotSupported,
+
     #[error("Serialization/Deserialization error: {0}")]
     SerDe(serde_json::Error),
 
@@ -55,10 +94,45 @@ impl From<HttpsFSError> for VfsError {
             HttpsFSError::InvalidHeader(_) => VfsError::Other {
                 message: format!("{}", error),
             },
+            HttpsFSError::IoError(io) => {
+                return VfsError::IoError(io);
+            }
+            HttpsFSError::FileNotFound { path } => {
+                return VfsError::FileNotFound { path };
+            }
+            HttpsFSError::InvalidPath { path } => {
+                return VfsError::InvalidPath { path };
+            }
+            HttpsFSError::Other { message } => {
+                return VfsError::Other { message };
+            }
+            HttpsFSError::WithContext { context, cause } => {
+                return VfsError::WithContext {
+                    context,
+                    cause: Box::new(VfsError::from(*cause)),
+                };
+            }
+            HttpsFSError::NotSupported => return VfsError::NotSupported,
         });
         VfsError::WithContext {
             context: String::from("HttpsFS"),
-            cause: cause,
+            cause,
+        }
+    }
+}
+
+impl From<VfsError> for HttpsFSError {
+    fn from(error: VfsError) -> Self {
+        match error {
+            VfsError::IoError(io) => HttpsFSError::IoError(io),
+            VfsError::FileNotFound { path } => HttpsFSError::FileNotFound { path },
+            VfsError::InvalidPath { path } => HttpsFSError::InvalidPath { path },
+            VfsError::Other { message } => HttpsFSError::Other { message },
+            VfsError::WithContext { context, cause } => HttpsFSError::WithContext {
+                context,
+                cause: Box::new(HttpsFSError::from(*cause)),
+            },
+            VfsError::NotSupported => HttpsFSError::NotSupported,
         }
     }
 }
