@@ -132,8 +132,8 @@ where
         }
     }
 
-    fn exists(&self, path: &str) -> bool {
-        self.path_trie.get(path).is_some()
+    fn exists(&self, path: &str) -> VfsResult<bool> {
+        Ok(self.path_trie.get(path).is_some())
     }
 
     fn remove_file(&self, _path: &str) -> VfsResult<()> {
@@ -336,19 +336,19 @@ mod tests {
     #[test]
     fn exists() {
         let fs = get_test_fs();
-        assert!(fs.exists("/"));
-        assert!(fs.exists("/a"));
-        assert!(fs.exists("/a/d.txt"));
-        assert!(fs.exists("/a.txt.dir"));
-        assert!(fs.exists("/a.txt.dir/g.txt"));
-        assert!(fs.exists("/c"));
-        assert!(fs.exists("/c/e.txt"));
-        assert!(fs.exists("/a.txt"));
-        assert!(fs.exists("/b.txt"));
+        assert!(fs.exists("/").unwrap());
+        assert!(fs.exists("/a").unwrap());
+        assert!(fs.exists("/a/d.txt").unwrap());
+        assert!(fs.exists("/a.txt.dir").unwrap());
+        assert!(fs.exists("/a.txt.dir/g.txt").unwrap());
+        assert!(fs.exists("/c").unwrap());
+        assert!(fs.exists("/c/e.txt").unwrap());
+        assert!(fs.exists("/a.txt").unwrap());
+        assert!(fs.exists("/b.txt").unwrap());
 
-        assert!(!fs.exists("/abc"));
-        assert!(!fs.exists("/a.txt."));
-        assert!(!fs.exists(""));
+        assert!(!fs.exists("/abc").unwrap());
+        assert!(!fs.exists("/a.txt.").unwrap());
+        assert!(!fs.exists("").unwrap());
     }
 
     #[test]
@@ -373,7 +373,7 @@ mod tests {
     fn integration() {
         let root: VfsPath = get_test_fs().into();
         let a_file = root.join("a.txt").unwrap();
-        assert!(a_file.exists());
+        assert!(a_file.exists().unwrap());
         let mut text = String::new();
         a_file
             .open_file()
@@ -394,7 +394,7 @@ mod tests {
             .unwrap();
         assert_eq!(text, String::from("d"));
 
-        assert!(root.join("a.txt.dir").unwrap().exists());
-        assert!(!root.join("g").unwrap().exists());
+        assert!(root.join("a.txt.dir").unwrap().exists().unwrap());
+        assert!(!root.join("g").unwrap().exists().unwrap());
     }
 }
