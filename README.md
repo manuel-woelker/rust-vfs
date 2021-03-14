@@ -24,6 +24,13 @@ Comments and pull-requests welcome!
 
 ## Changelog
 
+### 0.5.1 (2021-02-13)
+
+* Exported `test_vfs` macro via the feature flag `export-test-macros` to allow downstream implementations to verify 
+  expected behaviour
+* The MSRV is now 1.40 due to requirements in upstream crates
+* The embedded implementation was broken by the 0.5.0 API changes, and is now fixed
+
 ### 0.5.0 (2021-02-13)
 
  * Changed `VfsPath::exists()` to return `VfsResult<bool>` instead of plain `bool` (closes [#17](https://github.com/manuel-woelker/rust-vfs/issues/17))
