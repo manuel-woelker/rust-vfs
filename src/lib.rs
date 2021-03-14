@@ -50,7 +50,7 @@
 #![allow(clippy::unknown_clippy_lints)]
 #![allow(clippy::upper_case_acronyms)]
 
-#[cfg(test)]
+#[cfg(any(test, feature = "export-test-macros"))]
 #[macro_use]
 pub mod test_macros;
 
