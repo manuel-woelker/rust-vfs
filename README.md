@@ -2,7 +2,7 @@
 
 [![Crate](https://img.shields.io/crates/v/vfs.svg)](https://crates.io/crates/vfs)
 [![API](https://docs.rs/vfs/badge.svg)](https://docs.rs/vfs)
-![Minimum rustc version](https://img.shields.io/badge/rustc-1.32.0+-green.svg)
+![Minimum rustc version](https://img.shields.io/badge/rustc-1.40.0+-green.svg)
 [![Actions Status](https://github.com/manuel-woelker/rust-vfs/workflows/Continuous%20integration/badge.svg)](https://github.com/manuel-woelker/rust-vfs/actions?query=workflow%3A%22Continuous+integration%22)
 [![Build Status](https://travis-ci.org/manuel-woelker/rust-vfs.svg?branch=master)](https://travis-ci.org/manuel-woelker/rust-vfs)
 
@@ -18,7 +18,7 @@ This crate currently has the following implementations:
  * **OverlayFS** - an overlay file system combining two filesystems, an upper layer with read/write access and a lower layer with only read access
  * **EmbeddedFS** - a read-only file system embedded in the executable, requires `embedded-fs` feature
  
-The minimum supported Rust version is 1.32.0.
+The minimum supported Rust version is 1.40.0.
  
 Comments and pull-requests welcome!
 
