@@ -336,7 +336,6 @@ mod tests {
         let root = VfsPath::new(MemoryFS::new());
         let path = root.join("foo").unwrap();
         let result = path.remove_dir();
-        assert_eq!(format!("{:?}", result), "Err(WithContext { context: \"Could not remove directory \\'/foo\\'\", cause: FileNotFound { path: \"/foo\" } })");
         assert_eq!(format!("{}", result.unwrap_err()), "Could not remove directory '/foo', cause: The file or directory `/foo` could not be found");
     }
 
@@ -348,7 +347,6 @@ mod tests {
         match result {
             Ok(_) => panic!("Error expected"),
             Err(err) => {
-                assert_eq!(format!("{:?}", err), "WithContext { context: \"Could not read directory \\'/foo\\'\", cause: FileNotFound { path: \"/foo\" } }");
                 assert_eq!(format!("{}", err), "Could not read directory '/foo', cause: The file or directory `/foo` could not be found");
             }
         }
