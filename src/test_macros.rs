@@ -825,6 +825,35 @@ macro_rules! test_vfs {
                Ok(())
             }
 
+            #[test]
+            fn is_file_is_dir() -> VfsResult<()> {
+                let root = create_root();
+                let src = root.join("foo")?;
+
+                assert!(!root.is_file()?);
+                assert!(root.is_dir()?);
+
+                assert!(!src.is_file()?);
+                assert!(!src.is_dir()?);
+
+                src.create_dir_all()?;
+                assert!(!src.is_file()?);
+                assert!(src.is_dir()?);
+
+                src.remove_dir()?;
+                assert!(!src.is_file()?);
+                assert!(!src.is_dir()?);
+
+                src.create_file()?;
+                assert!(src.is_file()?);
+                assert!(!src.is_dir()?);
+
+                src.remove_file()?;
+                assert!(!src.is_file()?);
+                assert!(!src.is_dir()?);
+               Ok(())
+            }
+
         }
     };
 }

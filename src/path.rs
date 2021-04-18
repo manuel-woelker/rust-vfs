@@ -427,6 +427,28 @@ impl VfsPath {
         Ok(files_copied)
     }
 
+    /// Returns `true` if the path exists and is pointing at a regular file, otherwise returns `false`.
+    ///
+    /// Note that this call may fail if the file's existence cannot be determined or the metadata can not be retrieved
+    pub fn is_file(&self) -> VfsResult<bool> {
+        if !self.exists()? {
+            return Ok(false);
+        }
+        let metadata = self.metadata()?;
+        Ok(metadata.file_type == VfsFileType::File)
+    }
+
+    /// Returns `true` if the path exists and is pointing at a directory, otherwise returns `false`.
+    ///
+    /// Note that this call may fail if the directory's existence cannot be determined or the metadata can not be retrieved
+    pub fn is_dir(&self) -> VfsResult<bool> {
+        if !self.exists()? {
+            return Ok(false);
+        }
+        let metadata = self.metadata()?;
+        Ok(metadata.file_type == VfsFileType::Directory)
+    }
+
     /// Moves a directory to a new destination, including subdirectories and files
     ///
     /// The destination must not exist, but its parent directory must
