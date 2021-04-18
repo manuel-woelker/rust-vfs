@@ -47,7 +47,7 @@
 //! ```
 //!
 
-#![allow(clippy::unknown_clippy_lints)]
+#![allow(unknown_lints)]
 #![allow(clippy::upper_case_acronyms)]
 
 #[cfg(any(test, feature = "export-test-macros"))]

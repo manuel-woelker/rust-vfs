@@ -1,5 +1,10 @@
-#!/bin/bash
-# https://eugene-babichenko.github.io/blog/2018/11/08/rustfmt-git-hook/
+#!/bin/sh
 
-cargo fmt
-git add --update
+set -e
+
+echo '+cargo fmt'
+cargo fmt --all
+echo '+cargo test'
+cargo test
+echo '+cargo clippy -- -D warnings'
+cargo clippy -- -D warnings
