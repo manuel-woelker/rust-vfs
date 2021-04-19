@@ -12,6 +12,7 @@
 //!  * **[`AltrootFS`](impls/altroot/struct.AltrootFS.html)** - a file system with its root in a particular directory of another filesystem
 //!  * **[`OverlayFS`](impls/overlay/struct.OverlayFS.html)** - a union file system consisting of a read/writable upper layer and several read-only lower layers
 //!  * **[`EmbeddedFS`](impls/embedded/struct.EmbeddedFs.html)** - a read-only file system embedded in the executable, requires `embedded-fs` feature
+//!  * **[`HttpsFS`](impls/https/struct.HttpsFS.html)** - a file system exposed over https
 //!
 //! # Usage Examples
 //!
@@ -63,6 +64,10 @@ pub use error::{VfsError, VfsResult};
 pub use filesystem::FileSystem;
 #[cfg(feature = "embedded-fs")]
 pub use impls::embedded::EmbeddedFS;
+pub use impls::https::load_certs;
+pub use impls::https::load_private_key;
+pub use impls::https::HttpsFS;
+pub use impls::https::HttpsFSServer;
 pub use impls::memory::MemoryFS;
 pub use impls::physical::PhysicalFS;
 pub use path::*;
