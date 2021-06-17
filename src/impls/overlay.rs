@@ -26,6 +26,11 @@ impl OverlayFS {
         }
     }
 
+    /// Get a layer by its position in new()
+    pub fn layer(&self, index: usize) -> Option<&VfsPath> {
+        self.layers.get(index)
+    }
+
     fn write_layer(&self) -> &VfsPath {
         &self.layers[0]
     }
