@@ -19,6 +19,7 @@ radix_trie = { version = "0.1", optional = true }
 
 [dev-dependencies]
 uuid = { version = "=0.8.1", features = ["v4"] }
+camino = "1.0.5"
 
 [features]
 embedded-fs = ["rust-embed", "radix_trie"]

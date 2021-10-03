@@ -68,6 +68,17 @@ macro_rules! test_vfs {
             }
 
             #[test]
+            fn create_dir_with_camino() {
+                let root = create_root();
+                let _string = String::new();
+                let path = root.join(camino::Utf8Path::new("foo")).unwrap();
+                path.create_dir().unwrap();
+                let metadata = path.metadata().unwrap();
+                assert_eq!(metadata.file_type, VfsFileType::Directory);
+                assert_eq!(metadata.len, 0);
+            }
+
+            #[test]
             fn create_dir_all() -> VfsResult<()>{
                 let root = create_root();
                 let _string = String::new();

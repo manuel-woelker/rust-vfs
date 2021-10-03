@@ -68,7 +68,11 @@ impl VfsPath {
     }
 
     /// Appends a path segment to this path, returning the result
-    pub fn join(&self, path: &str) -> VfsResult<Self> {
+    pub fn join(&self, path: impl AsRef<str>) -> VfsResult<Self> {
+        self.join_internal(path.as_ref())
+    }
+    /// Appends a path segment to this path, returning the result
+    fn join_internal(&self, path: &str) -> VfsResult<Self> {
         if path.is_empty() {
             return Ok(self.clone());
         }
@@ -107,7 +111,6 @@ impl VfsPath {
             fs: self.fs.clone(),
         })
     }
-
     /// Iterates over all entries of this directory path
     pub fn read_dir(&self) -> VfsResult<Box<dyn Iterator<Item = VfsPath>>> {
         let parent = self.path.clone();

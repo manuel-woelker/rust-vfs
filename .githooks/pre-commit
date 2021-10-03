@@ -6,5 +6,5 @@ echo '+cargo fmt'
 cargo fmt --all
 echo '+cargo test'
 cargo test
-echo '+cargo clippy -- -D warnings'
-cargo clippy -- -D warnings
+#echo '+cargo clippy -- -D warnings'
+#cargo clippy -- -D warnings
