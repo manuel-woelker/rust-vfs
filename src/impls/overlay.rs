@@ -1,9 +1,9 @@
 //! An overlay file system combining two filesystems, an upper layer with read/write access and a lower layer with only read access
 
+use crate::error::VfsResultExt;
 use crate::{FileSystem, SeekAndRead, VfsError, VfsMetadata, VfsPath, VfsResult};
 use std::collections::HashSet;
 use std::io::Write;
-use crate::error::VfsResultExt;
 
 /// An overlay file system combining several filesystems into one, an upper layer with read/write access and lower layers with only read access
 ///
@@ -153,7 +153,11 @@ impl FileSystem for OverlayFS {
     }
 
     fn exists(&self, path: &str) -> VfsResult<bool> {
-        if self.whiteout_path(path).with_context(|| "whiteout_path")?.exists()? {
+        if self
+            .whiteout_path(path)
+            .with_context(|| "whiteout_path")?
+            .exists()?
+        {
             return Ok(false);
         }
         self.read_path(path)
