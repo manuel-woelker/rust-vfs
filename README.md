@@ -24,6 +24,11 @@ Comments and pull-requests welcome!
 
 ## Changelog
 
+### 0.5.2 (2022-02-07)
+
+* Removed potential panic in `OverlayFS` (#23)
+* `VfsPath::join()` now takes AsRef<str> instead of &str to improve ergonomics with crates like camino
+
 ### 0.5.1 (2021-02-13)
 
 * Exported `test_vfs` macro via the feature flag `export-test-macros` to allow downstream implementations to verify 
