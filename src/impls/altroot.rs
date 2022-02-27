@@ -120,4 +120,10 @@ mod tests_physical {
         altroot_path.create_dir().unwrap();
         AltrootFS::new(altroot_path)
     });
+
+    test_vfs_readonly!({
+        let physical_root: VfsPath = PhysicalFS::new("test").into();
+        let altroot_path = physical_root.join("test_directory").unwrap();
+        AltrootFS::new(altroot_path)
+    });
 }

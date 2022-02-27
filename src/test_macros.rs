@@ -1,6 +1,7 @@
+/// Run basic read/write vfs test to check for conformance
+/// If an Filesystem implementation is read-only use [test_vfs_readonly!] instead
 #[macro_export]
 macro_rules! test_vfs {
-    // Run basic vfs test to check for conformance
     ($root:expr) => {
         #[cfg(test)]
         mod vfs_tests {
@@ -865,6 +866,406 @@ macro_rules! test_vfs {
                Ok(())
             }
 
+        }
+    };
+}
+
+/// Run readonly vfs test to check for conformance
+#[macro_export]
+macro_rules! test_vfs_readonly {
+    ($root:expr) => {
+        #[cfg(test)]
+        mod vfs_tests_readonly {
+            use super::*;
+            use $crate::VfsFileType;
+            use $crate::VfsPath;
+            use $crate::VfsResult;
+
+            fn create_root() -> VfsPath {
+                $root.into()
+            }
+
+            #[test]
+            fn vfs_can_be_created() {
+                create_root();
+            }
+
+            #[test]
+            fn read_file() -> VfsResult<()> {
+                let root = create_root();
+                let path = root.join("a.txt").unwrap();
+                {
+                    let mut file = path.open_file().unwrap();
+                    let mut string: String = String::new();
+                    file.read_to_string(&mut string).unwrap();
+                    assert_eq!(string, "a");
+                }
+                assert!(path.exists()?);
+                let metadata = path.metadata()?;
+                assert_eq!(metadata.len, 1);
+                assert_eq!(metadata.file_type, VfsFileType::File);
+                Ok(())
+            }
+
+            #[test]
+            fn read_dir() {
+                let root = create_root();
+                let mut files: Vec<_> = root
+                    .read_dir()
+                    .unwrap()
+                    .map(|path| path.as_str().to_string())
+                    .collect();
+                files.sort();
+                assert_eq!(
+                    files,
+                    vec!["/a", "/a.txt", "/a.txt.dir", "/b.txt", "/c"]
+                        .into_iter()
+                        .map(String::from)
+                        .collect::<Vec<_>>()
+                );
+
+                let mut files: Vec<_> = root
+                    .join("a")
+                    .unwrap()
+                    .read_dir()
+                    .unwrap()
+                    .map(|path| path.as_str().to_string())
+                    .collect();
+                files.sort();
+                assert_eq!(files, vec!["/a/d.txt".to_string(), "/a/x".to_string()]);
+            }
+
+            #[test]
+            fn filename() {
+                let root = create_root();
+                assert_eq!(root.filename(), "");
+                assert_eq!(
+                    root.join("name.foo.bar").unwrap().filename(),
+                    "name.foo.bar"
+                );
+                assert_eq!(
+                    root.join("fizz.buzz/name.foo.bar").unwrap().filename(),
+                    "name.foo.bar"
+                );
+                assert_eq!(
+                    root.join("fizz.buzz/.name.foo.bar").unwrap().filename(),
+                    ".name.foo.bar"
+                );
+                assert_eq!(root.join("fizz.buzz/foo.").unwrap().filename(), "foo.");
+            }
+
+            #[test]
+            fn extension() {
+                let root = create_root();
+                assert_eq!(root.extension(), None, "root");
+                assert_eq!(root.join("name").unwrap().extension(), None, "name");
+                assert_eq!(
+                    root.join("name.bar").unwrap().extension(),
+                    Some("bar".to_string()),
+                    "name.bar"
+                );
+                assert_eq!(
+                    root.join("name.").unwrap().extension(),
+                    Some("".to_string()),
+                    "name."
+                );
+                assert_eq!(root.join(".name").unwrap().extension(), None, ".name");
+                assert_eq!(
+                    root.join(".name.bar").unwrap().extension(),
+                    Some("bar".to_string()),
+                    ".name.bar"
+                );
+                assert_eq!(
+                    root.join(".name.").unwrap().extension(),
+                    Some("".to_string()),
+                    ".name."
+                );
+                assert_eq!(
+                    root.join("name.foo.bar").unwrap().extension(),
+                    Some("bar".to_string())
+                );
+                assert_eq!(
+                    root.join("fizz.buzz/name.foo.bar").unwrap().extension(),
+                    Some("bar".to_string())
+                );
+                assert_eq!(
+                    root.join("fizz.buzz/.name.foo.bar").unwrap().extension(),
+                    Some("bar".to_string())
+                );
+                assert_eq!(
+                    root.join("fizz.buzz/foo.").unwrap().extension(),
+                    Some("".to_string())
+                );
+            }
+
+            #[test]
+            fn parent() {
+                let root = create_root();
+                assert_eq!(root.parent(), None, "root");
+                assert_eq!(
+                    root.join("foo").unwrap().parent(),
+                    Some(root.clone()),
+                    "foo"
+                );
+                assert_eq!(
+                    root.join("foo/bar").unwrap().parent(),
+                    Some(root.join("foo").unwrap()),
+                    "foo/bar"
+                );
+                assert_eq!(
+                    root.join("foo/bar/baz").unwrap().parent(),
+                    Some(root.join("foo/bar").unwrap()),
+                    "foo/bar/baz"
+                );
+            }
+
+            #[test]
+            fn eq() {
+                let root = create_root();
+
+                assert_eq!(root, root);
+                assert_eq!(root.join("foo").unwrap(), root.join("foo").unwrap());
+                assert_eq!(
+                    root.join("foo").unwrap(),
+                    root.join("foo/bar").unwrap().parent().unwrap()
+                );
+                assert_eq!(root, root.join("foo").unwrap().parent().unwrap());
+
+                assert_ne!(root, root.join("foo").unwrap());
+                assert_ne!(root.join("bar").unwrap(), root.join("foo").unwrap());
+
+                let root2 = create_root();
+                assert_ne!(root, root2);
+                assert_ne!(root.join("foo").unwrap(), root2.join("foo").unwrap());
+            }
+
+            #[test]
+            fn join() {
+                let root = create_root();
+                assert_eq!(root.join("").unwrap().as_str(), "");
+                assert_eq!(root.join("foo").unwrap().join("").unwrap().as_str(), "/foo");
+                assert_eq!(root.join("foo").unwrap().as_str(), "/foo");
+                assert_eq!(root.join("foo/bar").unwrap().as_str(), "/foo/bar");
+                assert_eq!(root.join("foo/bar/baz").unwrap().as_str(), "/foo/bar/baz");
+                assert_eq!(
+                    root.join("foo").unwrap().join("bar").unwrap().as_str(),
+                    "/foo/bar"
+                );
+                assert_eq!(root.join(".foo").unwrap().as_str(), "/.foo");
+                assert_eq!(root.join("..foo").unwrap().as_str(), "/..foo");
+                assert_eq!(root.join("foo.").unwrap().as_str(), "/foo.");
+                assert_eq!(root.join("foo..").unwrap().as_str(), "/foo..");
+
+                assert_eq!(root.join(".").unwrap().as_str(), "");
+                assert_eq!(root.join("./foo").unwrap().as_str(), "/foo");
+                assert_eq!(root.join("foo/.").unwrap().as_str(), "/foo");
+
+                assert_eq!(root.join("foo/..").unwrap().as_str(), "");
+                assert_eq!(root.join("foo").unwrap().join("..").unwrap().as_str(), "");
+                assert_eq!(
+                    root.join("foo/bar").unwrap().join("..").unwrap().as_str(),
+                    "/foo"
+                );
+                assert_eq!(
+                    root.join("foo/bar")
+                        .unwrap()
+                        .join("../baz")
+                        .unwrap()
+                        .as_str(),
+                    "/foo/baz"
+                );
+                assert_eq!(root.join("foo/bar/../..").unwrap().as_str(), "");
+                assert_eq!(root.join("foo/bar/../..").unwrap().as_str(), "");
+                assert_eq!(root.join("foo/bar/baz/../..").unwrap().as_str(), "/foo");
+                assert_eq!(
+                    root.join("foo/bar")
+                        .unwrap()
+                        .join("baz/../..")
+                        .unwrap()
+                        .as_str(),
+                    "/foo"
+                );
+                assert_eq!(
+                    root.join("foo/bar")
+                        .unwrap()
+                        .join("baz/../../fizz")
+                        .unwrap()
+                        .as_str(),
+                    "/foo/fizz"
+                );
+                assert_eq!(
+                    root.join("foo/bar")
+                        .unwrap()
+                        .join("baz/../../fizz/..")
+                        .unwrap()
+                        .as_str(),
+                    "/foo"
+                );
+
+                assert_eq!(
+                    root.join("..").unwrap_err().to_string(),
+                    "The path `..` is invalid".to_string(),
+                    ".."
+                );
+                assert_eq!(
+                    root.join("../foo").unwrap_err().to_string(),
+                    "The path `../foo` is invalid".to_string(),
+                    "../foo"
+                );
+                assert_eq!(
+                    root.join("foo/../..").unwrap_err().to_string(),
+                    "The path `foo/../..` is invalid".to_string(),
+                    "foo/../.."
+                );
+                assert_eq!(
+                    root.join("foo")
+                        .unwrap()
+                        .join("../..")
+                        .unwrap_err()
+                        .to_string(),
+                    "The path `../..` is invalid".to_string(),
+                    "foo+../.."
+                );
+
+                assert_eq!(
+                    root.join("/").unwrap_err().to_string(),
+                    "The path `/` is invalid".to_string(),
+                    "/"
+                );
+                assert_eq!(
+                    root.join("foo/").unwrap_err().to_string(),
+                    "The path `foo/` is invalid".to_string(),
+                    "foo/"
+                );
+            }
+
+            #[test]
+            fn walk_dir_root() -> VfsResult<()> {
+                let root = create_root();
+
+                assert_entries(
+                    &root,
+                    vec![
+                        "/a",
+                        "/a.txt",
+                        "/a.txt.dir",
+                        "/a.txt.dir/g.txt",
+                        "/a/d.txt",
+                        "/a/x",
+                        "/a/x/y",
+                        "/a/x/y/z",
+                        "/b.txt",
+                        "/c",
+                        "/c/e.txt",
+                    ],
+                )
+            }
+
+            #[test]
+            fn walk_dir_folder() -> VfsResult<()> {
+                let root = create_root();
+
+                assert_entries(
+                    &root.join("a")?,
+                    vec!["/a/d.txt", "/a/x", "/a/x/y", "/a/x/y/z"],
+                )
+            }
+
+            #[test]
+            fn walk_dir_nested() -> VfsResult<()> {
+                let root = create_root();
+
+                assert_entries(&root.join("a/x/y")?, vec!["/a/x/y/z"])
+            }
+
+            fn assert_entries(path: &VfsPath, expected: Vec<&str>) -> VfsResult<()> {
+                let entries: Vec<VfsPath> = path.walk_dir()?.map(|path| path.unwrap()).collect();
+                let mut paths = entries.iter().map(|x| x.as_str()).collect::<Vec<&str>>();
+                paths.sort();
+                assert_eq!(paths, expected);
+                Ok(())
+            }
+
+            #[test]
+            fn walk_dir_missing_path() -> VfsResult<()> {
+                let root = create_root();
+                let error_message = root
+                    .join("foo")?
+                    .walk_dir()
+                    .expect_err("walk_dir")
+                    .to_string();
+                assert!(
+                    error_message.starts_with("Could not read directory '/foo'"),
+                    "Actual message: {}",
+                    error_message
+                );
+                Ok(())
+            }
+
+            #[test]
+            fn read_as_string() -> VfsResult<()> {
+                let root = create_root();
+                let path = root.join("a.txt")?;
+                assert_eq!(path.read_to_string()?, "a");
+                Ok(())
+            }
+
+            #[test]
+            fn read_as_string_missing() -> VfsResult<()> {
+                let root = create_root();
+                let error_message = root
+                    .join("foobar.txt")?
+                    .read_to_string()
+                    .expect_err("read_to_string")
+                    .to_string();
+                assert!(
+                    error_message.starts_with("Could not get metadata for '/foobar.txt'"),
+                    "Actual message: {}",
+                    error_message
+                );
+                Ok(())
+            }
+
+            #[test]
+            fn read_as_string_directory() -> VfsResult<()> {
+                let root = create_root();
+                let error_message = root
+                    .join("a")?
+                    .read_to_string()
+                    .expect_err("read_to_string")
+                    .to_string();
+                assert!(
+                    error_message.starts_with(
+                        "FileSystem error: Could not read '/a' because it is a directory"
+                    ),
+                    "Actual message: {}",
+                    error_message
+                );
+                Ok(())
+            }
+
+            #[test]
+            fn is_file_is_dir() -> VfsResult<()> {
+                let root = create_root();
+
+                assert!(!root.is_file()?);
+                assert!(root.is_dir()?);
+
+                let missing = root.join("foo")?;
+
+                assert!(!missing.is_file()?);
+                assert!(!missing.is_dir()?);
+
+                let a = root.join("a")?;
+                assert!(!a.is_file()?);
+                assert!(a.is_dir()?);
+
+                let atxt = root.join("a.txt")?;
+                assert!(atxt.is_file()?);
+                assert!(!atxt.is_dir()?);
+
+                Ok(())
+            }
         }
     };
 }

@@ -1,11 +1,20 @@
-use crate::{FileSystem, SeekAndRead, VfsError, VfsFileType, VfsMetadata, VfsResult};
-use radix_trie::{SubTrie, Trie, TrieCommon};
-use rust_embed::RustEmbed;
+use std::borrow::Cow;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::io::{Cursor, Write};
-use std::iter;
 use std::marker::PhantomData;
-use std::path::Path;
+
+use rust_embed::RustEmbed;
+
+use crate::{FileSystem, SeekAndRead, VfsError, VfsFileType, VfsMetadata, VfsResult};
+
+type EmbeddedPath = Cow<'static, str>;
+
+#[derive(Debug)]
+struct EmbeddedFileInfo {
+    name: EmbeddedPath,
+    file_type: VfsFileType,
+}
 
 #[derive(Debug)]
 /// a read-only file system embedded in the executable
@@ -15,7 +24,8 @@ where
     T: RustEmbed + Send + Sync + Debug + 'static,
 {
     p: PhantomData<T>,
-    path_trie: Trie<String, bool>,
+    directory_map: HashMap<EmbeddedPath, HashSet<EmbeddedPath>>,
+    files: HashMap<EmbeddedPath, u64>,
 }
 
 impl<T> EmbeddedFS<T>
@@ -23,22 +33,38 @@ where
     T: RustEmbed + Send + Sync + Debug + 'static,
 {
     pub fn new() -> Self {
+        let mut directory_map: HashMap<EmbeddedPath, HashSet<EmbeddedPath>> = Default::default();
+        let mut files: HashMap<EmbeddedPath, u64> = Default::default();
+        for file in T::iter() {
+            let mut path = file.clone();
+            files.insert(
+                file.clone(),
+                T::get(&path).expect("Path should exist").len() as u64,
+            );
+            while let Some((prefix, suffix)) = rsplit_once_cow(&path, "/") {
+                let children = directory_map.entry(prefix.clone()).or_default();
+                children.insert(suffix);
+                path = prefix;
+            }
+            let children = directory_map.entry("".into()).or_default();
+            children.insert(path);
+        }
         EmbeddedFS {
             p: PhantomData::default(),
-            path_trie: T::iter()
-                .map(|p| {
-                    Path::new(p.as_ref())
-                        .ancestors()
-                        .map(Path::to_str)
-                        .map(Option::unwrap)
-                        .map(|p| format!("/{}", p))
-                        .zip(iter::once(true).chain(iter::repeat(false)))
-                        .collect::<Vec<_>>()
-                        .into_iter()
-                })
-                .flatten()
-                .collect(),
+            directory_map,
+            files,
         }
+    }
+}
+
+fn rsplit_once_cow(input: &EmbeddedPath, delimiter: &str) -> Option<(EmbeddedPath, EmbeddedPath)> {
+    match input {
+        EmbeddedPath::Borrowed(s) => s
+            .rsplit_once(delimiter)
+            .map(|(a, b)| (Cow::Borrowed(a), Cow::Borrowed(b))),
+        EmbeddedPath::Owned(s) => s
+            .rsplit_once(delimiter)
+            .map(|(a, b)| (Cow::Owned(a.to_string()), Cow::Owned(b.to_string()))),
     }
 }
 
@@ -47,50 +73,22 @@ where
     T: RustEmbed + Send + Sync + Debug + 'static,
 {
     fn read_dir(&self, path: &str) -> VfsResult<Box<dyn Iterator<Item = String>>> {
-        match self.path_trie.get(path) {
-            None => {
-                return Err(VfsError::FileNotFound {
-                    path: path.to_string(),
-                });
-            }
-            Some(&true) => {
+        let normalized_path = normalize_path(path)?;
+        if let Some(children) = self.directory_map.get(normalized_path) {
+            return Ok(Box::new(
+                children.clone().into_iter().map(|path| path.into_owned()),
+            ));
+        } else {
+            if self.files.contains_key(normalized_path) {
+                // Actually a file
                 return Err(VfsError::Other {
                     message: format!("{} is not a directory", path),
                 });
             }
-            Some(&false) => (),
+            return Err(VfsError::FileNotFound {
+                path: path.to_string(),
+            });
         }
-
-        fn child_elements<'a>(
-            d: &'a Path,
-            t: SubTrie<'a, String, bool>,
-        ) -> Box<dyn Iterator<Item = String> + 'a> {
-            let children = t.children().flat_map(move |c| child_elements(d, c));
-
-            if let Some(k) = t.key() {
-                match Path::new(k).parent() {
-                    None => Box::new(children),
-                    Some(p) if p == d => Box::new(iter::once(k.clone()).chain(children)),
-                    Some(_) => Box::new(iter::empty()),
-                }
-            } else {
-                Box::new(children)
-            }
-        }
-
-        let sub_trie: SubTrie<String, bool> = match self.path_trie.subtrie(path) {
-            None => return Ok(Box::new(iter::empty())),
-            Some(trie) => trie,
-        };
-        let d = Path::new(path);
-
-        Ok(Box::new(
-            sub_trie
-                .children()
-                .flat_map(|t| child_elements(d, t))
-                .collect::<Vec<_>>()
-                .into_iter(),
-        ))
     }
 
     fn create_dir(&self, _path: &str) -> VfsResult<()> {
@@ -117,23 +115,37 @@ where
     }
 
     fn metadata(&self, path: &str) -> VfsResult<VfsMetadata> {
-        match self.path_trie.get(path) {
-            None => Err(VfsError::FileNotFound {
-                path: path.to_string(),
-            }),
-            Some(&false) => Ok(VfsMetadata {
+        let normalized_path = normalize_path(path)?;
+        if let Some(len) = self.files.get(normalized_path) {
+            return Ok(VfsMetadata {
+                file_type: VfsFileType::File,
+                len: *len,
+            });
+        }
+        if self.directory_map.contains_key(normalized_path) {
+            return Ok(VfsMetadata {
                 file_type: VfsFileType::Directory,
                 len: 0,
-            }),
-            Some(&true) => Ok(VfsMetadata {
-                file_type: VfsFileType::File,
-                len: T::get(path.split_at(1).1).unwrap().len() as u64,
-            }),
+            });
         }
+        return Err(VfsError::FileNotFound {
+            path: path.to_string(),
+        });
     }
 
     fn exists(&self, path: &str) -> VfsResult<bool> {
-        Ok(self.path_trie.get(path).is_some())
+        let path = normalize_path(path)?;
+        if self.files.contains_key(path) {
+            return Ok(true);
+        }
+        if self.directory_map.contains_key(path) {
+            return Ok(true);
+        }
+        if path == "" {
+            // Root always exists
+            return Ok(true);
+        }
+        return Ok(false);
     }
 
     fn remove_file(&self, _path: &str) -> VfsResult<()> {
@@ -145,55 +157,52 @@ where
     }
 }
 
+fn normalize_path(path: &str) -> VfsResult<&str> {
+    if path.len() == 0 {
+        return Ok("");
+    }
+    let path = &path[1..];
+    Ok(path)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{FileSystem, VfsError, VfsFileType, VfsPath};
     use std::collections::HashSet;
     use std::io::Read;
 
+    use crate::{FileSystem, VfsError, VfsFileType, VfsPath};
+
+    use super::*;
+
     #[derive(RustEmbed, Debug)]
-    #[folder = "test/test_embedded_directory"]
+    #[folder = "test/test_directory"]
     struct TestEmbed;
 
     fn get_test_fs() -> EmbeddedFS<TestEmbed> {
         EmbeddedFS::new()
     }
 
-    #[test]
-    fn new() {
-        let fs = get_test_fs();
-        assert_eq!(fs.path_trie.get(""), None);
-        assert_eq!(fs.path_trie.get("/"), Some(&false));
-        assert_eq!(fs.path_trie.get("/a.txt"), Some(&true));
-        assert_eq!(fs.path_trie.get("/b.txt"), Some(&true));
-        assert_eq!(fs.path_trie.get("/a"), Some(&false));
-        assert_eq!(fs.path_trie.get("/a/d.txt"), Some(&true));
-        assert_eq!(fs.path_trie.get("/c"), Some(&false));
-        assert_eq!(fs.path_trie.get("/c/e.txt"), Some(&true));
-        assert_eq!(fs.path_trie.get("/c/f"), None);
-    }
-
+    test_vfs_readonly!({ get_test_fs() });
     #[test]
     fn read_dir_lists_directory() {
         let fs = get_test_fs();
         assert_eq!(
             fs.read_dir("/").unwrap().collect::<HashSet<_>>(),
-            vec!["/a", "/a.txt.dir", "/c", "/a.txt", "/b.txt"]
+            vec!["a", "a.txt.dir", "c", "a.txt", "b.txt"]
                 .into_iter()
                 .map(String::from)
                 .collect::<HashSet<_>>()
         );
         assert_eq!(
             fs.read_dir("/a").unwrap().collect::<HashSet<_>>(),
-            vec!["/a/d.txt"]
+            vec!["d.txt", "x"]
                 .into_iter()
                 .map(String::from)
                 .collect::<HashSet<_>>()
         );
         assert_eq!(
             fs.read_dir("/a.txt.dir").unwrap().collect::<HashSet<_>>(),
-            vec!["/a.txt.dir/g.txt"]
+            vec!["g.txt"]
                 .into_iter()
                 .map(String::from)
                 .collect::<HashSet<_>>()
@@ -221,11 +230,11 @@ mod tests {
     fn read_dir_on_file_err() {
         let fs = get_test_fs();
         assert!(match fs.read_dir("/a.txt") {
-            Err(VfsError::Other { message }) => message.as_str() == "/a.txt is not a directory",
+            Err(VfsError::Other { message }) => &message == "/a.txt is not a directory",
             _ => false,
         });
         assert!(match fs.read_dir("/a/d.txt") {
-            Err(VfsError::Other { message }) => message.as_str() == "/a/d.txt is not a directory",
+            Err(VfsError::Other { message }) => &message == "/a/d.txt is not a directory",
             _ => false,
         });
     }
@@ -315,6 +324,11 @@ mod tests {
         assert_eq!(root.len, 0);
         assert_eq!(root.file_type, VfsFileType::Directory);
 
+        // The empty path is treated as root
+        let root = fs.metadata("").unwrap();
+        assert_eq!(root.len, 0);
+        assert_eq!(root.file_type, VfsFileType::Directory);
+
         let a = fs.metadata("/a").unwrap();
         assert_eq!(a.len, 0);
         assert_eq!(a.file_type, VfsFileType::Directory);
@@ -323,10 +337,6 @@ mod tests {
     #[test]
     fn metadata_not_found() {
         let fs = get_test_fs();
-        assert!(match fs.metadata("") {
-            Err(VfsError::FileNotFound { path }) => path.as_str() == "",
-            _ => false,
-        });
         assert!(match fs.metadata("/abc.txt") {
             Err(VfsError::FileNotFound { path }) => path.as_str() == "/abc.txt",
             _ => false,
@@ -336,7 +346,7 @@ mod tests {
     #[test]
     fn exists() {
         let fs = get_test_fs();
-        assert!(fs.exists("/").unwrap());
+        assert!(fs.exists("").unwrap());
         assert!(fs.exists("/a").unwrap());
         assert!(fs.exists("/a/d.txt").unwrap());
         assert!(fs.exists("/a.txt.dir").unwrap());
@@ -348,7 +358,6 @@ mod tests {
 
         assert!(!fs.exists("/abc").unwrap());
         assert!(!fs.exists("/a.txt.").unwrap());
-        assert!(!fs.exists("").unwrap());
     }
 
     #[test]

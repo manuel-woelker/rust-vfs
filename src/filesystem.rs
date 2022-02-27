@@ -4,13 +4,19 @@ use crate::{SeekAndRead, VfsError, VfsMetadata, VfsPath, VfsResult};
 use std::fmt::Debug;
 use std::io::Write;
 
-/// File system implementations mus implement this trait
+/// File system implementations must implement this trait
+/// All path parameters are absolute, without a starting '/'.
+/// The character '/' is used to delimit directories on all platforms.
+/// Path components may be any UTF-8 string, except "/", "." and ".."
+///
+/// Please use the test_macros [test_macros::test_vfs!] and [test_macros::test_vfs_readonly!]
 pub trait FileSystem: Debug + Sync + Send + 'static {
-    /// Iterates over all entries of this directory path
+    /// Iterates over all direct children of this directory path
+    /// NOTE: the returned String items denote the local bare filenames, i.e. they should not contain "/" anywhere
     fn read_dir(&self, path: &str) -> VfsResult<Box<dyn Iterator<Item = String>>>;
     /// Creates the directory at this path
     ///
-    /// Note that the parent directory must exist.
+    /// Note that the parent directory must already exist.
     fn create_dir(&self, path: &str) -> VfsResult<()>;
     /// Opens the file at this path for reading
     fn open_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndRead>>;

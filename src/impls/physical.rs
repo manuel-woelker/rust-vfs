@@ -5,7 +5,7 @@ use crate::{SeekAndRead, VfsFileType};
 use crate::{VfsError, VfsResult};
 use std::fs::{File, OpenOptions};
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// A physical filesystem implementation using the underlying OS file system
 #[derive(Debug)]
@@ -15,8 +15,10 @@ pub struct PhysicalFS {
 
 impl PhysicalFS {
     /// Create a new physical filesystem rooted in `root`
-    pub fn new(root: PathBuf) -> Self {
-        PhysicalFS { root }
+    pub fn new<T: AsRef<Path>>(root: T) -> Self {
+        PhysicalFS {
+            root: root.as_ref().to_path_buf(),
+        }
     }
 
     fn get_path(&self, mut path: &str) -> PathBuf {
@@ -121,6 +123,7 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         PhysicalFS::new(dir)
     });
+    test_vfs_readonly!({ PhysicalFS::new("test/test_directory") });
 
     fn create_root() -> VfsPath {
         PhysicalFS::new(std::env::current_dir().unwrap()).into()
