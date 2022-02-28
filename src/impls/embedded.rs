@@ -58,13 +58,17 @@ where
 }
 
 fn rsplit_once_cow(input: &EmbeddedPath, delimiter: &str) -> Option<(EmbeddedPath, EmbeddedPath)> {
-    match input {
-        EmbeddedPath::Borrowed(s) => s
-            .rsplit_once(delimiter)
-            .map(|(a, b)| (Cow::Borrowed(a), Cow::Borrowed(b))),
+    let mut result: Vec<_> = match input {
+        EmbeddedPath::Borrowed(s) => s.rsplitn(2, delimiter).map(|a| Cow::Borrowed(a)).collect(),
         EmbeddedPath::Owned(s) => s
-            .rsplit_once(delimiter)
-            .map(|(a, b)| (Cow::Owned(a.to_string()), Cow::Owned(b.to_string()))),
+            .rsplitn(2, delimiter)
+            .map(|a| Cow::Owned(a.to_string()))
+            .collect(),
+    };
+    if result.len() == 2 {
+        Some((result.remove(1), result.remove(0)))
+    } else {
+        None
     }
 }
 
