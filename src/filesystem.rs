@@ -5,7 +5,8 @@ use std::fmt::Debug;
 use std::io::Write;
 
 /// File system implementations must implement this trait
-/// All path parameters are absolute, without a starting '/'.
+/// All path parameters are absolute, starting with '/', except for the root directory
+/// which is simply the empty string (i.e. "")
 /// The character '/' is used to delimit directories on all platforms.
 /// Path components may be any UTF-8 string, except "/", "." and ".."
 ///
