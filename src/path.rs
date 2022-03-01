@@ -98,7 +98,7 @@ impl VfsPath {
                     });
                 }
             } else {
-                new_components.push(&component);
+                new_components.push(component);
             }
         }
         let mut path = base_path.path;

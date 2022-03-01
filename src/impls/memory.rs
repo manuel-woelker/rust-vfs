@@ -125,6 +125,7 @@ impl FileSystem for MemoryFS {
         let prefix = format!("{}/", path);
         let handle = self.handle.read().unwrap();
         let mut found_directory = false;
+        #[allow(clippy::needless_collect)] // need collect to satisfy lifetime requirements
         let entries: Vec<_> = handle
             .files
             .iter()

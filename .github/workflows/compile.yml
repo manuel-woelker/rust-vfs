@@ -42,8 +42,8 @@ jobs:
                   command: fmt
                   args: --all -- --check
 
-#            - uses: actions-rs/cargo@v1
-#              if: matrix.rust != '1.40.0' # Currently broken by https://github.com/rust-lang/rust-clippy/issues/3874
-#              with:
-#                  command: clippy
-#                  args: -- -D warnings -A renamed-and-removed-lints
+            - uses: actions-rs/cargo@v1
+              if: matrix.rust == 'stable' # only perform format check on stable
+              with:
+                  command: clippy
+                  args: -- -D warnings -A renamed-and-removed-lints
