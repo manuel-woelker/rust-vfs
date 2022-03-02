@@ -26,13 +26,14 @@ Comments and pull-requests welcome!
 
 ### 0.6.0 (2022-03-02)
 
-* Fixed path inconsistency issues in `EmbeddedFS` (closes #24)
+* Fixed path inconsistency issues in `EmbeddedFS` (closes [#24](https://github.com/manuel-woelker/rust-vfs/issues/24))
 * Added the test macro `test_vfs_readonly!` which allows verifying read-only filesystem implementations
-* Removed dependency on `thiserror` crate to improve compile times (closes #25)
+* Removed dependency on `thiserror` crate to improve compile times
+(closes [#25](https://github.com/manuel-woelker/rust-vfs/issues/25))
 
 ### 0.5.2 (2022-02-07)
 
-* Removed potential panic in `OverlayFS` (closes #23)
+* Removed potential panic in `OverlayFS` (closes [#23](https://github.com/manuel-woelker/rust-vfs/issues/23))
 * `VfsPath::join()` now takes AsRef<str> instead of &str to improve ergonomics with crates like camino
 
 ### 0.5.1 (2021-02-13)
@@ -45,7 +46,8 @@ Comments and pull-requests welcome!
 ### 0.5.0 (2021-02-13)
 
 * Added `EmbeddedFS` for using filesystems embeded in the binary using
-[rust-embed](https://github.com/pyros2097/rust-embed) (PR #12 - thanks @ahouts)
+[rust-embed](https://github.com/pyros2097/rust-embed)
+(PR [#12](https://github.com/manuel-woelker/rust-vfs/issues/12) - thanks [@ahouts](https://github.com/ahouts))
 * Changed `VfsPath::exists()` to return `VfsResult<bool>` instead of plain `bool` (closes [#17](https://github.com/manuel-woelker/rust-vfs/issues/17))
  
 ### 0.4.0 (2020-08-13)
