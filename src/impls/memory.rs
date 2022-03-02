@@ -70,7 +70,7 @@ impl Write for WritableFile {
 impl Drop for WritableFile {
     fn drop(&mut self) {
         let mut content = vec![];
-        swap(&mut content, &mut self.content.get_mut());
+        swap(&mut content, self.content.get_mut());
         self.fs.write().unwrap().files.insert(
             self.destination.clone(),
             MemoryFile {
