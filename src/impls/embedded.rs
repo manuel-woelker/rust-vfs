@@ -11,12 +11,6 @@ use crate::{FileSystem, SeekAndRead, VfsError, VfsFileType, VfsMetadata, VfsResu
 type EmbeddedPath = Cow<'static, str>;
 
 #[derive(Debug)]
-struct EmbeddedFileInfo {
-    name: EmbeddedPath,
-    file_type: VfsFileType,
-}
-
-#[derive(Debug)]
 /// a read-only file system embedded in the executable
 /// see [rust-embed](https://docs.rs/rust-embed/) for how to create a `RustEmbed`
 pub struct EmbeddedFS<T>
