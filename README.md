@@ -24,6 +24,12 @@ Comments and pull-requests welcome!
 
 ## Changelog
 
+### 0.6.1 (2022-03-06)
+
+* Added `VfsPath::root()` method to access the root path of a virtual filesystem
+  (closes [#26](https://github.com/manuel-woelker/rust-vfs/issues/26))
+* Added doctests to `VfsPath` docs to provide usage examples
+
 ### 0.6.0 (2022-03-02)
 
 * Fixed path inconsistency issues in `EmbeddedFS` (closes [#24](https://github.com/manuel-woelker/rust-vfs/issues/24))
