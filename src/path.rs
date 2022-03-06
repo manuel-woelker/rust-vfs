@@ -142,6 +142,23 @@ impl VfsPath {
         })
     }
 
+    /// Returns the root path of this filesystem
+    ///
+    /// ```
+    /// # use vfs::{MemoryFS, VfsError, VfsFileType, VfsPath};
+    /// let path = VfsPath::new(MemoryFS::new());
+    /// let directory = path.join("foo/bar")?;
+    ///
+    /// assert_eq!(directory.root(), path);
+    /// # Ok::<(), VfsError>(())
+    /// ```
+    pub fn root(&self) -> VfsPath {
+        VfsPath {
+            path: "".to_string(),
+            fs: self.fs.clone(),
+        }
+    }
+
     /// Creates the directory at this path
     ///
     /// Note that the parent directory must exist.

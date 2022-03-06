@@ -1020,6 +1020,13 @@ macro_rules! test_vfs_readonly {
             }
 
             #[test]
+            fn root() {
+                let root = create_root();
+                assert_eq!(root, root.root());
+                assert_eq!(root.join("foo/bar").unwrap().root(), root.root());
+            }
+
+            #[test]
             fn eq() {
                 let root = create_root();
 
