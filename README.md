@@ -24,6 +24,11 @@ Comments and pull-requests welcome!
 
 ## Changelog
 
+### 0.6.2 (2022-03-07)
+
+* Activate `embedded-fs` feature when building on docs.rs to ensure that it actually shows up there
+  ([#28](https://github.com/manuel-woelker/rust-vfs/issues/28) - thanks [@Absolucy](https://github.com/Absolucy))
+
 ### 0.6.1 (2022-03-06)
 
 * Added `VfsPath::root()` method to access the root path of a virtual filesystem
