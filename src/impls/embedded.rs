@@ -33,7 +33,7 @@ where
             let mut path = file.clone();
             files.insert(
                 file.clone(),
-                T::get(&path).expect("Path should exist").len() as u64,
+                T::get(&path).expect("Path should exist").data.len() as u64,
             );
             while let Some((prefix, suffix)) = rsplit_once_cow(&path, "/") {
                 let children = directory_map.entry(prefix.clone()).or_default();
@@ -100,7 +100,7 @@ where
                     path: path.to_string(),
                 });
             }
-            Some(data) => Ok(Box::new(Cursor::new(data))),
+            Some(file) => Ok(Box::new(Cursor::new(file.data))),
         }
     }
 
