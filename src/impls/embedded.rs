@@ -51,9 +51,18 @@ where
     }
 }
 
+impl<T> Default for EmbeddedFS<T>
+where
+    T: RustEmbed + Send + Sync + Debug + 'static,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 fn rsplit_once_cow(input: &EmbeddedPath, delimiter: &str) -> Option<(EmbeddedPath, EmbeddedPath)> {
     let mut result: Vec<_> = match input {
-        EmbeddedPath::Borrowed(s) => s.rsplitn(2, delimiter).map(|a| Cow::Borrowed(a)).collect(),
+        EmbeddedPath::Borrowed(s) => s.rsplitn(2, delimiter).map(Cow::Borrowed).collect(),
         EmbeddedPath::Owned(s) => s
             .rsplitn(2, delimiter)
             .map(|a| Cow::Owned(a.to_string()))
@@ -73,9 +82,9 @@ where
     fn read_dir(&self, path: &str) -> VfsResult<Box<dyn Iterator<Item = String>>> {
         let normalized_path = normalize_path(path)?;
         if let Some(children) = self.directory_map.get(normalized_path) {
-            return Ok(Box::new(
+            Ok(Box::new(
                 children.clone().into_iter().map(|path| path.into_owned()),
-            ));
+            ))
         } else {
             if self.files.contains_key(normalized_path) {
                 // Actually a file
@@ -83,9 +92,9 @@ where
                     message: format!("{} is not a directory", path),
                 });
             }
-            return Err(VfsError::FileNotFound {
+            Err(VfsError::FileNotFound {
                 path: path.to_string(),
-            });
+            })
         }
     }
 
@@ -95,11 +104,9 @@ where
 
     fn open_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndRead>> {
         match T::get(path.split_at(1).1) {
-            None => {
-                return Err(VfsError::FileNotFound {
-                    path: path.to_string(),
-                });
-            }
+            None => Err(VfsError::FileNotFound {
+                path: path.to_string(),
+            }),
             Some(file) => Ok(Box::new(Cursor::new(file.data))),
         }
     }
@@ -126,9 +133,9 @@ where
                 len: 0,
             });
         }
-        return Err(VfsError::FileNotFound {
+        Err(VfsError::FileNotFound {
             path: path.to_string(),
-        });
+        })
     }
 
     fn exists(&self, path: &str) -> VfsResult<bool> {
@@ -139,11 +146,11 @@ where
         if self.directory_map.contains_key(path) {
             return Ok(true);
         }
-        if path == "" {
+        if path.is_empty() {
             // Root always exists
             return Ok(true);
         }
-        return Ok(false);
+        Ok(false)
     }
 
     fn remove_file(&self, _path: &str) -> VfsResult<()> {
@@ -156,7 +163,7 @@ where
 }
 
 fn normalize_path(path: &str) -> VfsResult<&str> {
-    if path.len() == 0 {
+    if path.is_empty() {
         return Ok("");
     }
     let path = &path[1..];

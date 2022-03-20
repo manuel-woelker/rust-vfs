@@ -46,4 +46,4 @@ jobs:
               if: matrix.rust == 'stable' # only perform format check on stable
               with:
                   command: clippy
-                  args: -- -D warnings -A renamed-and-removed-lints
+                  args: --all-features -- -D warnings -A renamed-and-removed-lints
