@@ -65,4 +65,6 @@ pub use filesystem::FileSystem;
 pub use impls::embedded::EmbeddedFS;
 pub use impls::memory::MemoryFS;
 pub use impls::physical::PhysicalFS;
+pub use impls::overlay::OverlayFS;
+pub use impls::altroot::AltrootFS;
 pub use path::*;
