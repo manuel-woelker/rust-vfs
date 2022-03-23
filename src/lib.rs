@@ -61,8 +61,10 @@ pub mod path;
 
 pub use error::{VfsError, VfsResult};
 pub use filesystem::FileSystem;
+pub use impls::altroot::AltrootFS;
 #[cfg(feature = "embedded-fs")]
 pub use impls::embedded::EmbeddedFS;
 pub use impls::memory::MemoryFS;
+pub use impls::overlay::OverlayFS;
 pub use impls::physical::PhysicalFS;
 pub use path::*;
