@@ -24,6 +24,13 @@ Comments and pull-requests welcome!
 
 ## Changelog
 
+### 0.7.0 (2022-03-26)
+
+* Update to `EmbeddedFS` to `rust-embed` v6 (closes [#29](https://github.com/manuel-woelker/rust-vfs/issues/29))
+* Make `OverlayFS` and `AltrootFS` available at the crate root, making it more consistent
+  (PR [#30](https://github.com/manuel-woelker/rust-vfs/issues/30) -
+  thanks [@Zyian](https://github.com/Zyian))
+
 ### 0.6.2 (2022-03-07)
 
 * Activate `embedded-fs` feature when building on docs.rs to ensure that it actually shows up there
