@@ -24,6 +24,11 @@ Comments and pull-requests welcome!
 
 ## Changelog
 
+### 0.7.1 (2022-04-15)
+
+* Fixed a panic when accessing non-existing paths in `MemoryFS::append_file()` (closes 
+ [#31](https://github.com/manuel-woelker/rust-vfs/issues/31))
+
 ### 0.7.0 (2022-03-26)
 
 * Update to `EmbeddedFS` to `rust-embed` v6 (closes [#29](https://github.com/manuel-woelker/rust-vfs/issues/29))
