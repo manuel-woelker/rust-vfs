@@ -58,6 +58,23 @@ macro_rules! test_vfs {
             }
 
             #[test]
+            fn append_non_existing_file() {
+                let root = create_root();
+                let path = root.join("test_append.txt").unwrap();
+                let result = path.append_file();
+                match result {
+                    Ok(_) => {panic!("Expected error");}
+                    Err(err) => {
+                        let error_message = format!("{}", err);
+                        assert!(
+                            error_message.starts_with("Could not open file '/test_append.txt' for appending"),
+                            "Actual message: {}",
+                            error_message);
+                    }
+                }
+            }
+
+            #[test]
             fn create_dir() {
                 let root = create_root();
                 let _string = String::new();

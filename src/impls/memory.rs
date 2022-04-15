@@ -197,7 +197,12 @@ impl FileSystem for MemoryFS {
 
     fn append_file(&self, path: &str) -> VfsResult<Box<dyn Write>> {
         let handle = self.handle.write().unwrap();
-        let file = &handle.files[path];
+        let file = handle
+            .files
+            .get(path)
+            .ok_or_else(|| VfsError::FileNotFound {
+                path: path.to_string(),
+            })?;
         let mut content = Cursor::new(file.content.as_ref().clone());
         content.seek(SeekFrom::End(0))?;
         let writer = WritableFile {
