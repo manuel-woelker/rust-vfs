@@ -39,6 +39,16 @@ pub enum VfsError {
     NotSupported,
 }
 
+impl std::error::Error for VfsError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        if let Self::WithContext { cause, .. } = self {
+            Some(cause)
+        } else {
+            None
+        }
+    }
+}
+
 impl From<String> for VfsError {
     fn from(message: String) -> Self {
         VfsError::Other { message }
