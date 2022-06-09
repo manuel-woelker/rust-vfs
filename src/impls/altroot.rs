@@ -1,6 +1,6 @@
 //! A file system with its root in a particular directory of another filesystem
 
-use crate::{FileSystem, SeekAndRead, VfsError, VfsMetadata, VfsPath, VfsResult};
+use crate::{error::VfsErrorKind, FileSystem, SeekAndRead, VfsMetadata, VfsPath, VfsResult};
 use std::io::Write;
 
 /// Similar to a chroot but done purely by path manipulation
@@ -78,7 +78,7 @@ impl FileSystem for AltrootFS {
 
     fn copy_file(&self, src: &str, dest: &str) -> VfsResult<()> {
         if dest.is_empty() {
-            return Err(VfsError::NotSupported);
+            return Err(VfsErrorKind::NotSupported.into());
         }
         self.path(src)?.copy_file(&self.path(dest)?)
     }

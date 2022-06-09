@@ -1,8 +1,9 @@
 //! An ephemeral in-memory file system, intended mainly for unit tests
 
+use crate::error::VfsErrorKind;
+use crate::VfsResult;
 use crate::{FileSystem, VfsFileType};
 use crate::{SeekAndRead, VfsMetadata};
-use crate::{VfsError, VfsResult};
 use core::cmp;
 use std::collections::HashMap;
 use std::fmt;
@@ -39,9 +40,7 @@ impl MemoryFS {
                 return Ok(());
             }
         }
-        Err(VfsError::Other {
-            message: format!("Parent path of {} does not exist", path),
-        })
+        Err(VfsErrorKind::Other("Parent path does not exist".into()).into())
     }
 }
 
@@ -143,9 +142,7 @@ impl FileSystem for MemoryFS {
             })
             .collect();
         if !found_directory {
-            return Err(VfsError::FileNotFound {
-                path: path.to_string(),
-            });
+            return Err(VfsErrorKind::FileNotFound.into());
         }
         Ok(Box::new(entries.into_iter()))
     }
@@ -164,13 +161,8 @@ impl FileSystem for MemoryFS {
 
     fn open_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndRead>> {
         let handle = self.handle.read().unwrap();
-        let file = handle
-            .files
-            .get(path)
-            .ok_or_else(|| VfsError::FileNotFound {
-                path: path.to_string(),
-            })?;
-        ensure_file(file)?;
+        let file = handle.files.get(path).ok_or(VfsErrorKind::FileNotFound)?;
+        ensure_file(path, file)?;
         Ok(Box::new(ReadableFile {
             content: file.content.clone(),
             position: 0,
@@ -197,12 +189,7 @@ impl FileSystem for MemoryFS {
 
     fn append_file(&self, path: &str) -> VfsResult<Box<dyn Write>> {
         let handle = self.handle.write().unwrap();
-        let file = handle
-            .files
-            .get(path)
-            .ok_or_else(|| VfsError::FileNotFound {
-                path: path.to_string(),
-            })?;
+        let file = handle.files.get(path).ok_or(VfsErrorKind::FileNotFound)?;
         let mut content = Cursor::new(file.content.as_ref().clone());
         content.seek(SeekFrom::End(0))?;
         let writer = WritableFile {
@@ -216,9 +203,7 @@ impl FileSystem for MemoryFS {
     fn metadata(&self, path: &str) -> VfsResult<VfsMetadata> {
         let guard = self.handle.read().unwrap();
         let files = &guard.files;
-        let file = files.get(path).ok_or_else(|| VfsError::FileNotFound {
-            path: path.to_string(),
-        })?;
+        let file = files.get(path).ok_or(VfsErrorKind::FileNotFound)?;
         Ok(VfsMetadata {
             file_type: file.file_type,
             len: file.content.len() as u64,
@@ -234,25 +219,19 @@ impl FileSystem for MemoryFS {
         handle
             .files
             .remove(path)
-            .ok_or_else(|| VfsError::FileNotFound {
-                path: path.to_string(),
-            })?;
+            .ok_or(VfsErrorKind::FileNotFound)?;
         Ok(())
     }
 
     fn remove_dir(&self, path: &str) -> VfsResult<()> {
         if self.read_dir(path)?.next().is_some() {
-            return Err(VfsError::Other {
-                message: "Directory to remove is not empty".to_string(),
-            });
+            return Err(VfsErrorKind::Other("Directory to remove is not empty".into()).into());
         }
         let mut handle = self.handle.write().unwrap();
         handle
             .files
             .remove(path)
-            .ok_or_else(|| VfsError::FileNotFound {
-                path: path.to_string(),
-            })?;
+            .ok_or(VfsErrorKind::FileNotFound)?;
         Ok(())
     }
 }
@@ -342,7 +321,10 @@ mod tests {
         let root = VfsPath::new(MemoryFS::new());
         let path = root.join("foo").unwrap();
         let result = path.remove_dir();
-        assert_eq!(format!("{}", result.unwrap_err()), "Could not remove directory '/foo', cause: The file or directory `/foo` could not be found");
+        assert_eq!(
+            format!("{}", result.unwrap_err()),
+            "Could not remove directory for '/foo': The file or directory could not be found"
+        );
     }
 
     #[test]
@@ -353,7 +335,10 @@ mod tests {
         match result {
             Ok(_) => panic!("Error expected"),
             Err(err) => {
-                assert_eq!(format!("{}", err), "Could not read directory '/foo', cause: The file or directory `/foo` could not be found");
+                assert_eq!(
+                    format!("{}", err),
+                    "Could not read directory for '/foo': The file or directory could not be found"
+                );
             }
         }
     }
@@ -371,11 +356,9 @@ mod tests {
     }
 }
 
-fn ensure_file(file: &MemoryFile) -> VfsResult<()> {
+fn ensure_file(path: &str, file: &MemoryFile) -> VfsResult<()> {
     if file.file_type != VfsFileType::File {
-        return Err(VfsError::Other {
-            message: "Not a file".to_string(),
-        });
+        return Err(VfsErrorKind::Other("Not a file".into()).into());
     }
     Ok(())
 }

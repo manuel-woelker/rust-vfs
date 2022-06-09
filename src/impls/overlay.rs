@@ -1,7 +1,7 @@
 //! An overlay file system combining two filesystems, an upper layer with read/write access and a lower layer with only read access
 
-use crate::error::VfsResultExt;
-use crate::{FileSystem, SeekAndRead, VfsError, VfsMetadata, VfsPath, VfsResult};
+use crate::error::VfsErrorKind;
+use crate::{FileSystem, SeekAndRead, VfsMetadata, VfsPath, VfsResult};
 use std::collections::HashSet;
 use std::io::Write;
 
@@ -36,9 +36,7 @@ impl OverlayFS {
             return Ok(self.layers[0].clone());
         }
         if self.whiteout_path(path)?.exists()? {
-            return Err(VfsError::FileNotFound {
-                path: path.to_string(),
-            });
+            return Err(VfsErrorKind::FileNotFound.into());
         }
         for layer in &self.layers {
             let layer_path = layer.join(&path[1..])?;
@@ -48,9 +46,7 @@ impl OverlayFS {
         }
         let read_path = self.write_layer().join(&path[1..])?;
         if !read_path.exists()? {
-            return Err(VfsError::FileNotFound {
-                path: path.to_string(),
-            });
+            return Err(VfsErrorKind::FileNotFound.into());
         }
         Ok(read_path)
     }
@@ -79,9 +75,7 @@ impl OverlayFS {
                 return Ok(());
             }
         }
-        Err(VfsError::Other {
-            message: format!("Parent path of '{}' does not exist", path),
-        })
+        Err(VfsErrorKind::Other("Parent path does not exist".into()).into())
     }
 }
 
@@ -89,9 +83,7 @@ impl FileSystem for OverlayFS {
     fn read_dir(&self, path: &str) -> VfsResult<Box<dyn Iterator<Item = String>>> {
         let actual_path = if !path.is_empty() { &path[1..] } else { path };
         if !self.read_path(path)?.exists()? {
-            return Err(VfsError::FileNotFound {
-                path: path.to_string(),
-            });
+            return Err(VfsErrorKind::FileNotFound.into());
         }
         let mut entries = HashSet::<String>::new();
         for layer in &self.layers {
@@ -155,7 +147,7 @@ impl FileSystem for OverlayFS {
     fn exists(&self, path: &str) -> VfsResult<bool> {
         if self
             .whiteout_path(path)
-            .with_context(|| "whiteout_path")?
+            .map_err(|err| err.with_context(|| "whiteout_path"))?
             .exists()?
         {
             return Ok(false);

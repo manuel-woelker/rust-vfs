@@ -1,8 +1,9 @@
 //! A "physical" file system implementation using the underlying OS file system
 
+use crate::error::VfsErrorKind;
+use crate::VfsResult;
 use crate::{FileSystem, VfsMetadata};
 use crate::{SeekAndRead, VfsFileType};
-use crate::{VfsError, VfsResult};
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -97,6 +98,7 @@ impl FileSystem for PhysicalFS {
 
     fn move_file(&self, src: &str, dest: &str) -> VfsResult<()> {
         std::fs::rename(self.get_path(src), self.get_path(dest))?;
+
         Ok(())
     }
 
@@ -104,7 +106,7 @@ impl FileSystem for PhysicalFS {
         let result = std::fs::rename(self.get_path(src), self.get_path(dest));
         if result.is_err() {
             // Error possibly due to different filesystems, return not supported and let the fallback handle it
-            return Err(VfsError::NotSupported);
+            return Err(VfsErrorKind::NotSupported.into());
         }
         Ok(())
     }

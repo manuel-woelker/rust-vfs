@@ -6,7 +6,7 @@
 use std::io::{Read, Seek, Write};
 use std::sync::Arc;
 
-use crate::error::VfsResultExt;
+use crate::error::VfsErrorKind;
 use crate::{FileSystem, VfsError, VfsResult};
 
 /// Trait combining Seek and Read, return value for opening files
@@ -110,9 +110,7 @@ impl VfsPath {
         let mut base_path = self.clone();
         for component in path.split('/') {
             if component.is_empty() {
-                return Err(VfsError::InvalidPath {
-                    path: path.to_string(),
-                });
+                return Err(VfsError::from(VfsErrorKind::InvalidPath).with_path(path));
             }
             if component == "." {
                 continue;
@@ -123,9 +121,7 @@ impl VfsPath {
                 } else if let Some(parent) = base_path.parent() {
                     base_path = parent;
                 } else {
-                    return Err(VfsError::InvalidPath {
-                        path: path.to_string(),
-                    });
+                    return Err(VfsError::from(VfsErrorKind::InvalidPath).with_path(path));
                 }
             } else {
                 new_components.push(component);
@@ -179,7 +175,7 @@ impl VfsPath {
         self.fs
             .fs
             .create_dir(&self.path)
-            .with_context(|| format!("Could not create directory '{}'", &self.path))
+            .map_err(|err| err.with_context(|| "Could not create directory"))
     }
 
     /// Creates the directory at this path, also creating parent directories as necessary
@@ -244,7 +240,10 @@ impl VfsPath {
             self.fs
                 .fs
                 .read_dir(&self.path)
-                .with_context(|| format!("Could not read directory '{}'", &self.path))?
+                .map_err(|err| {
+                    err.with_path(&self.path)
+                        .with_context(|| "Could not read directory")
+                })?
                 .map(move |path| VfsPath {
                     path: format!("{}/{}", parent, path),
                     fs: fs.clone(),
@@ -272,7 +271,7 @@ impl VfsPath {
         self.fs
             .fs
             .create_file(&self.path)
-            .with_context(|| format!("Could not create file '{}'", &self.path))
+            .map_err(|err| err.with_context(|| "Could not create file"))
     }
 
     /// Opens the file at this path for reading
@@ -294,7 +293,7 @@ impl VfsPath {
         self.fs
             .fs
             .open_file(&self.path)
-            .with_context(|| format!("Could not open file '{}'", &self.path))
+            .map_err(|err| err.with_context(|| "Could not open file"))
     }
 
     /// Checks whether parent is a directory
@@ -302,27 +301,27 @@ impl VfsPath {
         let parent = self.parent();
         match parent {
             None => {
-                return Err(format!(
-                    "Could not {} at '{}', not a valid location",
-                    action, &self.path
-                )
-                .into());
+                return Err(VfsError::from(VfsErrorKind::Other(format!(
+                    "Could not {}, not a valid location",
+                    action
+                )))
+                .with_path(&self.path));
             }
             Some(directory) => {
                 if !directory.exists()? {
-                    return Err(format!(
-                        "Could not {} at '{}', parent directory does not exist",
-                        action, &self.path
-                    )
-                    .into());
+                    return Err(VfsError::from(VfsErrorKind::Other(format!(
+                        "Could not {}, parent directory does not exist",
+                        action
+                    )))
+                    .with_path(&self.path));
                 }
                 let metadata = directory.metadata()?;
                 if metadata.file_type != VfsFileType::Directory {
-                    return Err(format!(
-                        "Could not {} at '{}', parent path is not a directory",
-                        action, &self.path
-                    )
-                    .into());
+                    return Err(VfsError::from(VfsErrorKind::Other(format!(
+                        "Could not {}, parent path is not a directory",
+                        action
+                    )))
+                    .with_path(&self.path));
                 }
             }
         }
@@ -347,7 +346,7 @@ impl VfsPath {
         self.fs
             .fs
             .append_file(&self.path)
-            .with_context(|| format!("Could not open file '{}' for appending", &self.path))
+            .map_err(|err| err.with_context(|| "Could not open file for appending"))
     }
 
     /// Removes the file at this path
@@ -369,7 +368,7 @@ impl VfsPath {
         self.fs
             .fs
             .remove_file(&self.path)
-            .with_context(|| format!("Could not remove file '{}'", &self.path))
+            .map_err(|err| err.with_context(|| "Could not remove file"))
     }
 
     /// Removes the directory at this path
@@ -390,10 +389,10 @@ impl VfsPath {
     /// # Ok::<(), VfsError>(())
     /// ```
     pub fn remove_dir(&self) -> VfsResult<()> {
-        self.fs
-            .fs
-            .remove_dir(&self.path)
-            .with_context(|| format!("Could not remove directory '{}'", &self.path))
+        self.fs.fs.remove_dir(&self.path).map_err(|err| {
+            err.with_path(&self.path)
+                .with_context(|| "Could not remove directory")
+        })
     }
 
     /// Ensures that the directory at this path is removed, recursively deleting all contents if necessary
@@ -447,10 +446,10 @@ impl VfsPath {
     /// assert_eq!(file.metadata()?.file_type, VfsFileType::File);
     /// # Ok::<(), VfsError>(())
     pub fn metadata(&self) -> VfsResult<VfsMetadata> {
-        self.fs
-            .fs
-            .metadata(&self.path)
-            .with_context(|| format!("Could not get metadata for '{}'", &self.path))
+        self.fs.fs.metadata(&self.path).map_err(|err| {
+            err.with_path(&self.path)
+                .with_context(|| "Could not get metadata")
+        })
     }
 
     /// Returns `true` if the path exists and is pointing at a regular file, otherwise returns `false`.
@@ -629,15 +628,20 @@ impl VfsPath {
     pub fn read_to_string(&self) -> VfsResult<String> {
         let metadata = self.metadata()?;
         if metadata.file_type != VfsFileType::File {
-            return Err(VfsError::Other {
-                message: format!("Could not read '{}' because it is a directory", self.path),
-            });
+            return Err(
+                VfsError::from(VfsErrorKind::Other("Path is a directory".into()))
+                    .with_path(&self.path)
+                    .with_context(|| "Could not read path"),
+            );
         }
         let mut result = String::with_capacity(metadata.len as usize);
         self.open_file()?
             .read_to_string(&mut result)
-            .map_err(From::from)
-            .with_context(|| format!("Could not read '{}'", self.path))?;
+            .map_err(|source| {
+                VfsError::from(source)
+                    .with_path(&self.path)
+                    .with_context(|| "Could not read path")
+            })?;
         Ok(result)
     }
 
@@ -661,27 +665,37 @@ impl VfsPath {
     pub fn copy_file(&self, destination: &VfsPath) -> VfsResult<()> {
         || -> VfsResult<()> {
             if destination.exists()? {
-                return Err("Destination exists already".to_string().into());
+                return Err(VfsError::from(VfsErrorKind::Other(
+                    "Destination exists already".into(),
+                ))
+                .with_path(&self.path));
             }
             if Arc::ptr_eq(&self.fs, &destination.fs) {
                 let result = self.fs.fs.copy_file(&self.path, &destination.path);
-                if let Err(VfsError::NotSupported) = result {
-                    // continue
-                } else {
-                    return result;
+                match result {
+                    Err(err) if matches!(err.kind(), VfsErrorKind::NotSupported) => {
+                        // continue
+                    }
+                    other => return other,
                 }
             }
             let mut src = self.open_file()?;
             let mut dest = destination.create_file()?;
-            std::io::copy(&mut src, &mut dest)?;
+            std::io::copy(&mut src, &mut dest).map_err(|source| {
+                VfsError::from(source)
+                    .with_path(&self.path)
+                    .with_context(|| "Could not read path")
+            })?;
             Ok(())
         }()
-        .with_context(|| {
-            format!(
-                "Could not copy '{}' to '{}'",
-                self.as_str(),
-                destination.as_str()
-            )
+        .map_err(|err| {
+            err.with_context(|| {
+                format!(
+                    "Could not copy '{}' to '{}'",
+                    self.as_str(),
+                    destination.as_str()
+                )
+            })
         })?;
         Ok(())
     }
@@ -707,28 +721,38 @@ impl VfsPath {
     pub fn move_file(&self, destination: &VfsPath) -> VfsResult<()> {
         || -> VfsResult<()> {
             if destination.exists()? {
-                return Err("Destination exists already".to_string().into());
+                return Err(VfsError::from(VfsErrorKind::Other(
+                    "Destination exists already".into(),
+                ))
+                .with_path(&destination.path));
             }
             if Arc::ptr_eq(&self.fs, &destination.fs) {
                 let result = self.fs.fs.move_file(&self.path, &destination.path);
-                if let Err(VfsError::NotSupported) = result {
-                    // continue
-                } else {
-                    return result;
+                match result {
+                    Err(err) if matches!(err.kind(), VfsErrorKind::NotSupported) => {
+                        // continue
+                    }
+                    other => return other,
                 }
             }
             let mut src = self.open_file()?;
             let mut dest = destination.create_file()?;
-            std::io::copy(&mut src, &mut dest)?;
+            std::io::copy(&mut src, &mut dest).map_err(|source| {
+                VfsError::from(source)
+                    .with_path(&self.path)
+                    .with_context(|| "Could not read path")
+            })?;
             self.remove_file()?;
             Ok(())
         }()
-        .with_context(|| {
-            format!(
-                "Could not move '{}' to '{}'",
-                self.as_str(),
-                destination.as_str()
-            )
+        .map_err(|err| {
+            err.with_context(|| {
+                format!(
+                    "Could not move '{}' to '{}'",
+                    self.as_str(),
+                    destination.as_str()
+                )
+            })
         })?;
         Ok(())
     }
@@ -756,7 +780,10 @@ impl VfsPath {
         let mut files_copied = 0u64;
         || -> VfsResult<()> {
             if destination.exists()? {
-                return Err("Destination exists already".to_string().into());
+                return Err(VfsError::from(VfsErrorKind::Other(
+                    "Destination exists already".into(),
+                ))
+                .with_path(&destination.path));
             }
             destination.create_dir()?;
             let prefix = self.path.as_str();
@@ -772,12 +799,14 @@ impl VfsPath {
             }
             Ok(())
         }()
-        .with_context(|| {
-            format!(
-                "Could not copy directory '{}' to '{}'",
-                self.as_str(),
-                destination.as_str()
-            )
+        .map_err(|err| {
+            err.with_context(|| {
+                format!(
+                    "Could not copy directory '{}' to '{}'",
+                    self.as_str(),
+                    destination.as_str()
+                )
+            })
         })?;
         Ok(files_copied)
     }
@@ -803,14 +832,18 @@ impl VfsPath {
     pub fn move_dir(&self, destination: &VfsPath) -> VfsResult<()> {
         || -> VfsResult<()> {
             if destination.exists()? {
-                return Err("Destination exists already".to_string().into());
+                return Err(VfsError::from(VfsErrorKind::Other(
+                    "Destination exists already".into(),
+                ))
+                .with_path(&destination.path));
             }
             if Arc::ptr_eq(&self.fs, &destination.fs) {
                 let result = self.fs.fs.move_dir(&self.path, &destination.path);
-                if let Err(VfsError::NotSupported) = result {
-                    // continue
-                } else {
-                    return result;
+                match result {
+                    Err(err) if matches!(err.kind(), VfsErrorKind::NotSupported) => {
+                        // continue
+                    }
+                    other => return other,
                 }
             }
             destination.create_dir()?;
@@ -827,12 +860,14 @@ impl VfsPath {
             self.remove_dir_all()?;
             Ok(())
         }()
-        .with_context(|| {
-            format!(
-                "Could not move directory '{}' to '{}'",
-                self.as_str(),
-                destination.as_str()
-            )
+        .map_err(|err| {
+            err.with_context(|| {
+                format!(
+                    "Could not move directory '{}' to '{}'",
+                    self.as_str(),
+                    destination.as_str()
+                )
+            })
         })?;
         Ok(())
     }

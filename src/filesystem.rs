@@ -1,6 +1,7 @@
 //! The filesystem trait definitions needed to implement new virtual filesystems
 
-use crate::{SeekAndRead, VfsError, VfsMetadata, VfsPath, VfsResult};
+use crate::error::VfsErrorKind;
+use crate::{SeekAndRead, VfsMetadata, VfsPath, VfsResult};
 use std::fmt::Debug;
 use std::io::Write;
 
@@ -34,16 +35,16 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
     /// Removes the directory at this path
     fn remove_dir(&self, path: &str) -> VfsResult<()>;
     /// Copies the src path to the destination path within the same filesystem (optional)
-    fn copy_file(&self, _src: &str, _dest: &str) -> VfsResult<()> {
-        Err(VfsError::NotSupported)
+    fn copy_file(&self, _src: &str, dest: &str) -> VfsResult<()> {
+        Err(VfsErrorKind::NotSupported.into())
     }
     /// Moves the src path to the destination path within the same filesystem (optional)
-    fn move_file(&self, _src: &str, _dest: &str) -> VfsResult<()> {
-        Err(VfsError::NotSupported)
+    fn move_file(&self, _src: &str, dest: &str) -> VfsResult<()> {
+        Err(VfsErrorKind::NotSupported.into())
     }
     /// Moves the src directory to the destination path within the same filesystem (optional)
-    fn move_dir(&self, _src: &str, _dest: &str) -> VfsResult<()> {
-        Err(VfsError::NotSupported)
+    fn move_dir(&self, _src: &str, dest: &str) -> VfsResult<()> {
+        Err(VfsErrorKind::NotSupported.into())
     }
 }
 
