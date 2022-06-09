@@ -67,7 +67,7 @@ macro_rules! test_vfs {
                     Err(err) => {
                         let error_message = format!("{}", err);
                         assert!(
-                            error_message.starts_with("Could not open file '/test_append.txt' for appending"),
+                            error_message.starts_with("Could not open file for appending"),
                             "Actual message: {}",
                             error_message);
                     }
@@ -376,19 +376,24 @@ macro_rules! test_vfs {
                     "/foo"
                 );
 
+                /// Utility function for templating the same error message
+                fn invalid_path_message(path: &str) -> String {
+                    format!("An error occured for '{}': The path is invalid", path)
+                }
+
                 assert_eq!(
                     root.join("..").unwrap_err().to_string(),
-                    "The path `..` is invalid".to_string(),
+                    invalid_path_message(".."),
                     ".."
                 );
                 assert_eq!(
                     root.join("../foo").unwrap_err().to_string(),
-                    "The path `../foo` is invalid".to_string(),
+                    invalid_path_message("../foo"),
                     "../foo"
                 );
                 assert_eq!(
                     root.join("foo/../..").unwrap_err().to_string(),
-                    "The path `foo/../..` is invalid".to_string(),
+                    invalid_path_message("foo/../.."),
                     "foo/../.."
                 );
                 assert_eq!(
@@ -397,18 +402,18 @@ macro_rules! test_vfs {
                         .join("../..")
                         .unwrap_err()
                         .to_string(),
-                    "The path `../..` is invalid".to_string(),
+                    invalid_path_message("../.."),
                     "foo+../.."
                 );
 
                 assert_eq!(
                     root.join("/").unwrap_err().to_string(),
-                    "The path `/` is invalid".to_string(),
+                    invalid_path_message("/"),
                     "/"
                 );
                 assert_eq!(
                     root.join("foo/").unwrap_err().to_string(),
-                    "The path `foo/` is invalid".to_string(),
+                    invalid_path_message("foo/"),
                     "foo/"
                 );
             }
@@ -506,7 +511,7 @@ macro_rules! test_vfs {
                     .expect_err("walk_dir")
                     .to_string();
                 assert!(
-                    error_message.starts_with("Could not read directory '/foo'"),
+                    error_message.starts_with("Could not read directory for '/foo'"),
                     "Actual message: {}",
                     error_message
                 );
@@ -528,7 +533,7 @@ macro_rules! test_vfs {
                     .expect_err("walk_dir")
                     .to_string();
                 assert!(
-                    error_message.starts_with("Could not read directory '/foo'"),
+                    error_message.starts_with("Could not read directory for '/foo'"),
                     "Actual message: {}",
                     error_message
                 );
@@ -538,7 +543,7 @@ macro_rules! test_vfs {
             }
 
             #[test]
-            fn read_as_string() -> VfsResult<()> {
+            fn read_to_string() -> VfsResult<()> {
                 let root = create_root();
                 let path = root.join("foobar.txt")?;
                 path.create_file()?.write_all(b"Hello World")?;
@@ -547,7 +552,7 @@ macro_rules! test_vfs {
             }
 
             #[test]
-            fn read_as_string_missing() -> VfsResult<()> {
+            fn read_to_string_missing() -> VfsResult<()> {
                 let root = create_root();
                 let error_message = root.join("foobar.txt")?.read_to_string().expect_err("read_to_string").to_string();
                 assert!(
@@ -559,12 +564,12 @@ macro_rules! test_vfs {
             }
 
             #[test]
-            fn read_as_string_directory() -> VfsResult<()> {
+            fn read_to_string_directory() -> VfsResult<()> {
                 let root = create_root();
                 root.join("foobar.txt")?.create_dir()?;
                 let error_message = root.join("foobar.txt")?.read_to_string().expect_err("read_to_string").to_string();
                 assert!(
-                    error_message.starts_with("FileSystem error: Could not read '/foobar.txt' because it is a directory"),
+                    error_message.starts_with("Could not read path for '/foobar.txt'"),
                     "Actual message: {}",
                     error_message
                 );
@@ -572,14 +577,15 @@ macro_rules! test_vfs {
             }
 
             #[test]
-            fn read_as_string_nonutf8() -> VfsResult<()> {
+            fn read_to_string_nonutf8() -> VfsResult<()> {
                 let root = create_root();
                 let path = root.join("foobar.txt")?;
                 path.create_file()?.write_all(&vec![0, 159, 146, 150])?;
                 let error_message = path.read_to_string().expect_err("read_to_string").to_string();
                 assert_eq!(
                     &error_message,
-                    "Could not read '/foobar.txt', cause: IO error: stream did not contain valid UTF-8"                );
+                    "Could not read path for '/foobar.txt': IO error: stream did not contain valid UTF-8"
+                );
                 Ok(())
             }
 
@@ -1126,19 +1132,25 @@ macro_rules! test_vfs_readonly {
                     "/foo"
                 );
 
+                /// Utility function for templating the same error message
+                // TODO: Maybe deduplicate this function
+                fn invalid_path_message(path: &str) -> String {
+                    format!("An error occured for '{}': The path is invalid", path)
+                }
+
                 assert_eq!(
                     root.join("..").unwrap_err().to_string(),
-                    "The path `..` is invalid".to_string(),
+                    invalid_path_message(".."),
                     ".."
                 );
                 assert_eq!(
                     root.join("../foo").unwrap_err().to_string(),
-                    "The path `../foo` is invalid".to_string(),
+                    invalid_path_message("../foo"),
                     "../foo"
                 );
                 assert_eq!(
                     root.join("foo/../..").unwrap_err().to_string(),
-                    "The path `foo/../..` is invalid".to_string(),
+                    invalid_path_message("foo/../.."),
                     "foo/../.."
                 );
                 assert_eq!(
@@ -1147,18 +1159,18 @@ macro_rules! test_vfs_readonly {
                         .join("../..")
                         .unwrap_err()
                         .to_string(),
-                    "The path `../..` is invalid".to_string(),
+                    invalid_path_message("../.."),
                     "foo+../.."
                 );
 
                 assert_eq!(
                     root.join("/").unwrap_err().to_string(),
-                    "The path `/` is invalid".to_string(),
+                    invalid_path_message("/"),
                     "/"
                 );
                 assert_eq!(
                     root.join("foo/").unwrap_err().to_string(),
-                    "The path `foo/` is invalid".to_string(),
+                    invalid_path_message("foo/"),
                     "foo/"
                 );
             }
@@ -1219,7 +1231,7 @@ macro_rules! test_vfs_readonly {
                     .expect_err("walk_dir")
                     .to_string();
                 assert!(
-                    error_message.starts_with("Could not read directory '/foo'"),
+                    error_message.starts_with("Could not read directory for '/foo'"),
                     "Actual message: {}",
                     error_message
                 );
@@ -1227,7 +1239,7 @@ macro_rules! test_vfs_readonly {
             }
 
             #[test]
-            fn read_as_string() -> VfsResult<()> {
+            fn read_to_string() -> VfsResult<()> {
                 let root = create_root();
                 let path = root.join("a.txt")?;
                 assert_eq!(path.read_to_string()?, "a");
@@ -1235,7 +1247,7 @@ macro_rules! test_vfs_readonly {
             }
 
             #[test]
-            fn read_as_string_missing() -> VfsResult<()> {
+            fn read_to_string_missing() -> VfsResult<()> {
                 let root = create_root();
                 let error_message = root
                     .join("foobar.txt")?
@@ -1251,7 +1263,7 @@ macro_rules! test_vfs_readonly {
             }
 
             #[test]
-            fn read_as_string_directory() -> VfsResult<()> {
+            fn read_to_string_directory() -> VfsResult<()> {
                 let root = create_root();
                 let error_message = root
                     .join("a")?
@@ -1259,9 +1271,7 @@ macro_rules! test_vfs_readonly {
                     .expect_err("read_to_string")
                     .to_string();
                 assert!(
-                    error_message.starts_with(
-                        "FileSystem error: Could not read '/a' because it is a directory"
-                    ),
+                    error_message.starts_with("Could not read path for '/a'"),
                     "Actual message: {}",
                     error_message
                 );

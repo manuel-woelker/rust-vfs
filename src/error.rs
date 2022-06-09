@@ -1,47 +1,90 @@
 //! Error and Result definitions
 
-use std::fmt::{Display, Formatter};
-use std::io::Error;
+use std::{error, fmt, io};
 
 /// The error type of this crate
 #[derive(Debug)]
-pub enum VfsError {
-    /// A generic IO error
-    IoError(std::io::Error),
-
-    /// The file or directory at the given path could not be found
-    FileNotFound {
-        /// The path of the file not found
-        path: String,
-    },
-
-    /// The given path is invalid, e.g. because contains '.' or '..'
-    InvalidPath {
-        /// The invalid path
-        path: String,
-    },
-
-    /// Generic error variant
-    Other {
-        /// The generic error message
-        message: String,
-    },
-
-    /// Generic error context, used for adding context to an error (like a path)
-    WithContext {
-        /// The context error message
-        context: String,
-        /// The underlying error
-        cause: Box<VfsError>,
-    },
-
-    /// Functionality not supported by this filesystem
-    NotSupported,
+pub struct VfsError {
+    /// The path this error was encountered in
+    path: String,
+    /// The kind of error
+    kind: VfsErrorKind,
+    /// An optional human-readable string describing the context for this error
+    ///
+    /// If not provided, a generic context message is used
+    context: String,
+    /// The underlying error
+    cause: Option<Box<VfsError>>,
 }
 
-impl std::error::Error for VfsError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        if let Self::WithContext { cause, .. } = self {
+/// The only way to create a VfsError is via a VfsErrorKind
+///
+/// This conversion implements certain normalizations
+impl From<VfsErrorKind> for VfsError {
+    fn from(kind: VfsErrorKind) -> Self {
+        // Normalize the error here before we return it
+        let kind = match kind {
+            VfsErrorKind::IoError(io) => match io.kind() {
+                io::ErrorKind::NotFound => VfsErrorKind::FileNotFound,
+                io::ErrorKind::Unsupported => VfsErrorKind::NotSupported,
+                _ => VfsErrorKind::IoError(io),
+            },
+            // Remaining kinda are passed through as-is
+            other => other,
+        };
+
+        Self {
+            // TODO (Techno): See if this could be checked at compile-time to make sure the VFS abstraction
+            //              never forgets to add a path. Might need a separate error type for FS impls vs VFS
+            path: "PATH NOT FILLED BY VFS LAYER".into(),
+            kind,
+            context: "An error occured".into(),
+            cause: None,
+        }
+    }
+}
+
+impl From<io::Error> for VfsError {
+    fn from(err: io::Error) -> Self {
+        Self::from(VfsErrorKind::IoError(err))
+    }
+}
+
+impl VfsError {
+    // Path filled by the VFS crate rather than the implementations
+    pub(crate) fn with_path(mut self, path: impl Into<String>) -> Self {
+        self.path = path.into();
+        self
+    }
+
+    pub fn with_context<C, F>(mut self, context: F) -> Self
+    where
+        C: fmt::Display + Send + Sync + 'static,
+        F: FnOnce() -> C,
+    {
+        self.context = context().to_string();
+        self
+    }
+
+    pub fn with_cause(mut self, cause: VfsError) -> Self {
+        self.cause = Some(Box::new(cause));
+        self
+    }
+
+    pub fn kind(&self) -> &VfsErrorKind {
+        &self.kind
+    }
+}
+
+impl fmt::Display for VfsError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} for '{}': {}", self.context, self.path, self.kind())
+    }
+}
+
+impl error::Error for VfsError {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        if let Some(cause) = &self.cause {
             Some(cause)
         } else {
             None
@@ -49,37 +92,43 @@ impl std::error::Error for VfsError {
     }
 }
 
-impl From<String> for VfsError {
-    fn from(message: String) -> Self {
-        VfsError::Other { message }
-    }
+/// The kinds of errors that can occur
+#[derive(Debug)]
+pub enum VfsErrorKind {
+    /// A generic I/O error
+    ///
+    /// Certain standard I/O errors are normalized to their VfsErrorKind counterparts
+    IoError(io::Error),
+
+    /// The file or directory at the given path could not be found
+    FileNotFound,
+
+    /// The given path is invalid, e.g. because contains '.' or '..'
+    InvalidPath,
+
+    /// Generic error variant
+    Other(String),
+
+    /// Functionality not supported by this filesystem
+    NotSupported,
 }
 
-impl From<std::io::Error> for VfsError {
-    fn from(cause: Error) -> Self {
-        VfsError::IoError(cause)
-    }
-}
-
-impl std::fmt::Display for VfsError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for VfsErrorKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            VfsError::IoError(cause) => {
+            VfsErrorKind::IoError(cause) => {
                 write!(f, "IO error: {}", cause)
             }
-            VfsError::FileNotFound { path } => {
-                write!(f, "The file or directory `{}` could not be found", path)
+            VfsErrorKind::FileNotFound => {
+                write!(f, "The file or directory could not be found")
             }
-            VfsError::InvalidPath { path } => {
-                write!(f, "The path `{}` is invalid", path)
+            VfsErrorKind::InvalidPath => {
+                write!(f, "The path is invalid")
             }
-            VfsError::Other { message } => {
+            VfsErrorKind::Other(message) => {
                 write!(f, "FileSystem error: {}", message)
             }
-            VfsError::WithContext { context, cause } => {
-                write!(f, "{}, cause: {}", context, cause)
-            }
-            VfsError::NotSupported => {
+            VfsErrorKind::NotSupported => {
                 write!(f, "Functionality not supported by this filesystem")
             }
         }
@@ -88,24 +137,3 @@ impl std::fmt::Display for VfsError {
 
 /// The result type of this crate
 pub type VfsResult<T> = std::result::Result<T, VfsError>;
-
-/// Result extension trait to add context information
-pub(crate) trait VfsResultExt<T> {
-    fn with_context<C, F>(self, f: F) -> VfsResult<T>
-    where
-        C: Display + Send + Sync + 'static,
-        F: FnOnce() -> C;
-}
-
-impl<T> VfsResultExt<T> for VfsResult<T> {
-    fn with_context<C, F>(self, context: F) -> VfsResult<T>
-    where
-        C: Display + Send + Sync + 'static,
-        F: FnOnce() -> C,
-    {
-        self.map_err(|error| VfsError::WithContext {
-            context: context().to_string(),
-            cause: Box::new(error),
-        })
-    }
-}
