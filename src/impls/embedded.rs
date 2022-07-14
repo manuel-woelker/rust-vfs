@@ -106,6 +106,10 @@ where
         }
     }
 
+    fn update_file(&self, _path: &str) -> VfsResult<Box<dyn crate::SeekAndReadAndWrite>> {
+        Err(VfsError::NotSupported)
+    }
+
     fn create_file(&self, _path: &str) -> VfsResult<Box<dyn Write>> {
         Err(VfsErrorKind::NotSupported.into())
     }

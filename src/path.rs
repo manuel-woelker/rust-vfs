@@ -311,16 +311,19 @@ impl VfsPath {
     /// write!(file.create_file()?, "Hello, world!")?;
     /// let mut result = String::new();
     ///
-    /// file.update_file()?.read_to_string(&mut result)?;
+    /// let mut handle = file.update_file()?;
+    /// handle.read_to_string(&mut result)?;
     ///
     /// assert_eq!(&result, "Hello, world!");
     ///
-    /// file.rewind()?
-    /// file.write(b"Goodnight, world.")?;
+    /// handle.rewind()?;
+    /// handle.write(b"Goodnight, world.")?;
+    /// handle.rewind()?;
     ///
-    /// file.read_to_string(&mut result)?;
+    /// let mut result2 = String::new();
+    /// handle.read_to_string(&mut result2)?;
     ///
-    /// assert_eq!(&result, "Goodnight, world.");
+    /// assert_eq!(&result2, "Goodnight, world.");
     /// # Ok::<(), VfsError>(())
     /// ```
     pub fn update_file(&self) -> VfsResult<Box<dyn SeekAndReadAndWrite>> {

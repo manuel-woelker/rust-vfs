@@ -220,8 +220,10 @@ impl FileSystem for MemoryFS {
                 path: path.to_string(),
             })?;
         ensure_file(file)?;
+        let mut content = Cursor::new(file.content.as_ref().clone());
+        content.seek(SeekFrom::Start(0))?;
         Ok(Box::new(WriteableAndReadableFile {
-            content: Cursor::new(file.content.to_vec()),
+            content,
             destination: path.to_string(),
             fs: self.handle.clone(),
         }))
