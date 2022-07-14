@@ -121,6 +121,10 @@ impl FileSystem for OverlayFS {
         self.read_path(path)?.open_file()
     }
 
+    fn update_file(&self, path: &str) -> VfsResult<Box<dyn crate::SeekAndReadAndWrite>> {
+        self.read_path(path)?.update_file()
+    }
+
     fn create_file(&self, path: &str) -> VfsResult<Box<dyn Write>> {
         self.ensure_has_parent(path)?;
         let result = self.write_path(path)?.create_file()?;

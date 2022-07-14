@@ -14,6 +14,11 @@ pub trait SeekAndRead: Seek + Read {}
 
 impl<T> SeekAndRead for T where T: Seek + Read {}
 
+/// Trait combining Seek, Read and Write, return value for opening files with random access.
+pub trait SeekAndReadAndWrite: Seek + Read + Write {}
+
+impl<T> SeekAndReadAndWrite for T where T: Seek + Read + Write {}
+
 /// Type of file
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum VfsFileType {
@@ -294,6 +299,35 @@ impl VfsPath {
             err.with_path(&self.path)
                 .with_context(|| "Could not open file")
         })
+    }
+
+    /// Opens the file at this path for reading and writing
+    ///
+    /// ```
+    /// # use std::io::{SeekFrom, Read};
+    /// use vfs::{MemoryFS, VfsError, VfsPath};
+    /// let path = VfsPath::new(MemoryFS::new());
+    /// let file = path.join("foo.txt")?;
+    /// write!(file.create_file()?, "Hello, world!")?;
+    /// let mut result = String::new();
+    ///
+    /// file.update_file()?.read_to_string(&mut result)?;
+    ///
+    /// assert_eq!(&result, "Hello, world!");
+    ///
+    /// file.rewind()?
+    /// file.write(b"Goodnight, world.")?;
+    ///
+    /// file.read_to_string(&mut result)?;
+    ///
+    /// assert_eq!(&result, "Goodnight, world.");
+    /// # Ok::<(), VfsError>(())
+    /// ```
+    pub fn update_file(&self) -> VfsResult<Box<dyn SeekAndReadAndWrite>> {
+        self.fs
+            .fs
+            .update_file(&self.path)
+            .with_context(|| format!("Could not open file '{}'", &self.path))
     }
 
     /// Checks whether parent is a directory

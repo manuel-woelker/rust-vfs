@@ -110,6 +110,15 @@ impl FileSystem for PhysicalFS {
         }
         Ok(())
     }
+
+    fn update_file(&self, path: &str) -> VfsResult<Box<dyn crate::SeekAndReadAndWrite>> {
+        Ok(Box::new(
+            OpenOptions::new()
+                .write(true)
+                .read(true)
+                .open(self.get_path(path))?,
+        ))
+    }
 }
 
 #[cfg(test)]
