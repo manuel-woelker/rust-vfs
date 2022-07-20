@@ -6,7 +6,8 @@ use std::marker::PhantomData;
 
 use rust_embed::RustEmbed;
 
-use crate::{FileSystem, SeekAndRead, VfsError, VfsFileType, VfsMetadata, VfsResult};
+use crate::error::VfsErrorKind;
+use crate::{FileSystem, SeekAndRead, VfsFileType, VfsMetadata, VfsResult};
 
 type EmbeddedPath = Cow<'static, str>;
 
@@ -88,35 +89,29 @@ where
         } else {
             if self.files.contains_key(normalized_path) {
                 // Actually a file
-                return Err(VfsError::Other {
-                    message: format!("{} is not a directory", path),
-                });
+                return Err(VfsErrorKind::Other("Not a directory".into()).into());
             }
-            Err(VfsError::FileNotFound {
-                path: path.to_string(),
-            })
+            Err(VfsErrorKind::FileNotFound.into())
         }
     }
 
     fn create_dir(&self, _path: &str) -> VfsResult<()> {
-        Err(VfsError::NotSupported)
+        Err(VfsErrorKind::NotSupported.into())
     }
 
     fn open_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndRead>> {
         match T::get(path.split_at(1).1) {
-            None => Err(VfsError::FileNotFound {
-                path: path.to_string(),
-            }),
+            None => Err(VfsErrorKind::FileNotFound.into()),
             Some(file) => Ok(Box::new(Cursor::new(file.data))),
         }
     }
 
     fn create_file(&self, _path: &str) -> VfsResult<Box<dyn Write>> {
-        Err(VfsError::NotSupported)
+        Err(VfsErrorKind::NotSupported.into())
     }
 
     fn append_file(&self, _path: &str) -> VfsResult<Box<dyn Write>> {
-        Err(VfsError::NotSupported)
+        Err(VfsErrorKind::NotSupported.into())
     }
 
     fn metadata(&self, path: &str) -> VfsResult<VfsMetadata> {
@@ -133,9 +128,7 @@ where
                 len: 0,
             });
         }
-        Err(VfsError::FileNotFound {
-            path: path.to_string(),
-        })
+        Err(VfsErrorKind::FileNotFound.into())
     }
 
     fn exists(&self, path: &str) -> VfsResult<bool> {
@@ -154,11 +147,11 @@ where
     }
 
     fn remove_file(&self, _path: &str) -> VfsResult<()> {
-        Err(VfsError::NotSupported)
+        Err(VfsErrorKind::NotSupported.into())
     }
 
     fn remove_dir(&self, _path: &str) -> VfsResult<()> {
-        Err(VfsError::NotSupported)
+        Err(VfsErrorKind::NotSupported.into())
     }
 }
 
@@ -175,7 +168,7 @@ mod tests {
     use std::collections::HashSet;
     use std::io::Read;
 
-    use crate::{FileSystem, VfsError, VfsFileType, VfsPath};
+    use crate::{FileSystem, VfsFileType, VfsPath};
 
     use super::*;
 
@@ -217,29 +210,29 @@ mod tests {
     #[test]
     fn read_dir_no_directory_err() {
         let fs = get_test_fs();
-        assert!(match fs.read_dir("/c/f") {
-            Err(VfsError::FileNotFound { .. }) => true,
-            _ => false,
-        });
-        assert!(match fs.read_dir("/a.txt.") {
-            Err(VfsError::FileNotFound { .. }) => true,
-            _ => false,
-        });
-        assert!(match fs.read_dir("/abc/def/ghi") {
-            Err(VfsError::FileNotFound { .. }) => true,
-            _ => false,
-        });
+        assert!(matches!(
+            fs.read_dir("/c/f").map(|_| ()).unwrap_err().kind(),
+            VfsErrorKind::FileNotFound
+        ));
+        assert!(matches!(
+            fs.read_dir("/a.txt.").map(|_| ()).unwrap_err().kind(),
+            VfsErrorKind::FileNotFound
+        ));
+        assert!(matches!(
+            fs.read_dir("/abc/def/ghi").map(|_| ()).unwrap_err().kind(),
+            VfsErrorKind::FileNotFound
+        ));
     }
 
     #[test]
     fn read_dir_on_file_err() {
         let fs = get_test_fs();
-        assert!(match fs.read_dir("/a.txt") {
-            Err(VfsError::Other { message }) => &message == "/a.txt is not a directory",
+        assert!(match fs.read_dir("/a.txt").map(|_| ()).unwrap_err().kind() {
+            VfsErrorKind::Other(message) => message == "Not a directory",
             _ => false,
         });
-        assert!(match fs.read_dir("/a/d.txt") {
-            Err(VfsError::Other { message }) => &message == "/a/d.txt is not a directory",
+        assert!(match fs.read_dir("/a/d.txt").map(|_| ()).unwrap_err().kind() {
+            VfsErrorKind::Other(message) => message == "Not a directory",
             _ => false,
         });
     }
@@ -247,10 +240,10 @@ mod tests {
     #[test]
     fn create_dir_not_supported() {
         let fs = get_test_fs();
-        assert!(match fs.create_dir("/abc") {
-            Err(VfsError::NotSupported) => true,
-            _ => false,
-        })
+        assert!(matches!(
+            fs.create_dir("/abc").map(|_| ()).unwrap_err().kind(),
+            VfsErrorKind::NotSupported
+        ))
     }
 
     #[test]
@@ -278,16 +271,18 @@ mod tests {
     #[test]
     fn open_file_not_found() {
         let fs = get_test_fs();
+        // FIXME: These tests have been weakened since the FS implementations aren't intended to
+        //      provide paths for errors. Maybe this could be handled better
         assert!(match fs.open_file("/") {
-            Err(VfsError::FileNotFound { path }) => path.as_str() == "/",
+            Err(err) => matches!(err.kind(), VfsErrorKind::FileNotFound),
             _ => false,
         });
         assert!(match fs.open_file("/abc.txt") {
-            Err(VfsError::FileNotFound { path }) => path.as_str() == "/abc.txt",
+            Err(err) => matches!(err.kind(), VfsErrorKind::FileNotFound),
             _ => false,
         });
         assert!(match fs.open_file("/c/f.txt") {
-            Err(VfsError::FileNotFound { path }) => path.as_str() == "/c/f.txt",
+            Err(err) => matches!(err.kind(), VfsErrorKind::FileNotFound),
             _ => false,
         });
     }
@@ -295,19 +290,19 @@ mod tests {
     #[test]
     fn create_file_not_supported() {
         let fs = get_test_fs();
-        assert!(match fs.create_file("/abc.txt") {
-            Err(VfsError::NotSupported) => true,
-            _ => false,
-        });
+        assert!(matches!(
+            fs.create_file("/abc.txt").map(|_| ()).unwrap_err().kind(),
+            VfsErrorKind::NotSupported
+        ));
     }
 
     #[test]
     fn append_file_not_supported() {
         let fs = get_test_fs();
-        assert!(match fs.append_file("/abc.txt") {
-            Err(VfsError::NotSupported) => true,
-            _ => false,
-        });
+        assert!(matches!(
+            fs.append_file("/abc.txt").map(|_| ()).unwrap_err().kind(),
+            VfsErrorKind::NotSupported
+        ));
     }
 
     #[test]
@@ -343,7 +338,7 @@ mod tests {
     fn metadata_not_found() {
         let fs = get_test_fs();
         assert!(match fs.metadata("/abc.txt") {
-            Err(VfsError::FileNotFound { path }) => path.as_str() == "/abc.txt",
+            Err(err) => matches!(err.kind(), VfsErrorKind::FileNotFound),
             _ => false,
         });
     }
@@ -368,19 +363,13 @@ mod tests {
     #[test]
     fn remove_file_not_supported() {
         let fs = get_test_fs();
-        assert!(match fs.remove_file("/abc.txt") {
-            Err(VfsError::NotSupported) => true,
-            _ => false,
-        });
+        assert!(matches!(fs.remove_file("/abc.txt").map(|_| ()).unwrap_err().kind(), VfsErrorKind::NotSupported));
     }
 
     #[test]
     fn remove_dir_not_supported() {
         let fs = get_test_fs();
-        assert!(match fs.remove_dir("/abc.txt") {
-            Err(VfsError::NotSupported) => true,
-            _ => false,
-        });
+        assert!(matches!(fs.remove_dir("/abc.txt").map(|_| ()).unwrap_err().kind(), VfsErrorKind::NotSupported));
     }
 
     #[test]
