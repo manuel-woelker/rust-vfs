@@ -172,10 +172,10 @@ impl VfsPath {
     /// ```
     pub fn create_dir(&self) -> VfsResult<()> {
         self.get_parent("create directory")?;
-        self.fs
-            .fs
-            .create_dir(&self.path)
-            .map_err(|err| err.with_path(&self.path).with_context(|| "Could not create directory"))
+        self.fs.fs.create_dir(&self.path).map_err(|err| {
+            err.with_path(&self.path)
+                .with_context(|| "Could not create directory")
+        })
     }
 
     /// Creates the directory at this path, also creating parent directories as necessary
@@ -268,10 +268,10 @@ impl VfsPath {
     /// ```
     pub fn create_file(&self) -> VfsResult<Box<dyn Write>> {
         self.get_parent("create file")?;
-        self.fs
-            .fs
-            .create_file(&self.path)
-            .map_err(|err| err.with_path(&self.path).with_context(|| "Could not create file"))
+        self.fs.fs.create_file(&self.path).map_err(|err| {
+            err.with_path(&self.path)
+                .with_context(|| "Could not create file")
+        })
     }
 
     /// Opens the file at this path for reading
@@ -290,10 +290,10 @@ impl VfsPath {
     /// # Ok::<(), VfsError>(())
     /// ```
     pub fn open_file(&self) -> VfsResult<Box<dyn SeekAndRead>> {
-        self.fs
-            .fs
-            .open_file(&self.path)
-            .map_err(|err| err.with_path(&self.path).with_context(|| "Could not open file"))
+        self.fs.fs.open_file(&self.path).map_err(|err| {
+            err.with_path(&self.path)
+                .with_context(|| "Could not open file")
+        })
     }
 
     /// Checks whether parent is a directory
@@ -343,10 +343,10 @@ impl VfsPath {
     /// # Ok::<(), VfsError>(())
     /// ```
     pub fn append_file(&self) -> VfsResult<Box<dyn Write>> {
-        self.fs
-            .fs
-            .append_file(&self.path)
-            .map_err(|err| err.with_path(&self.path).with_context(|| "Could not open file for appending"))
+        self.fs.fs.append_file(&self.path).map_err(|err| {
+            err.with_path(&self.path)
+                .with_context(|| "Could not open file for appending")
+        })
     }
 
     /// Removes the file at this path
@@ -365,10 +365,10 @@ impl VfsPath {
     /// # Ok::<(), VfsError>(())
     /// ```
     pub fn remove_file(&self) -> VfsResult<()> {
-        self.fs
-            .fs
-            .remove_file(&self.path)
-            .map_err(|err| err.with_path(&self.path).with_context(|| "Could not remove file"))
+        self.fs.fs.remove_file(&self.path).map_err(|err| {
+            err.with_path(&self.path)
+                .with_context(|| "Could not remove file")
+        })
     }
 
     /// Removes the directory at this path
