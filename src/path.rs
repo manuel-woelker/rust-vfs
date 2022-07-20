@@ -175,7 +175,7 @@ impl VfsPath {
         self.fs
             .fs
             .create_dir(&self.path)
-            .map_err(|err| err.with_context(|| "Could not create directory"))
+            .map_err(|err| err.with_path(&self.path).with_context(|| "Could not create directory"))
     }
 
     /// Creates the directory at this path, also creating parent directories as necessary
@@ -271,7 +271,7 @@ impl VfsPath {
         self.fs
             .fs
             .create_file(&self.path)
-            .map_err(|err| err.with_context(|| "Could not create file"))
+            .map_err(|err| err.with_path(&self.path).with_context(|| "Could not create file"))
     }
 
     /// Opens the file at this path for reading
@@ -293,7 +293,7 @@ impl VfsPath {
         self.fs
             .fs
             .open_file(&self.path)
-            .map_err(|err| err.with_context(|| "Could not open file"))
+            .map_err(|err| err.with_path(&self.path).with_context(|| "Could not open file"))
     }
 
     /// Checks whether parent is a directory
@@ -346,7 +346,7 @@ impl VfsPath {
         self.fs
             .fs
             .append_file(&self.path)
-            .map_err(|err| err.with_context(|| "Could not open file for appending"))
+            .map_err(|err| err.with_path(&self.path).with_context(|| "Could not open file for appending"))
     }
 
     /// Removes the file at this path
@@ -368,7 +368,7 @@ impl VfsPath {
         self.fs
             .fs
             .remove_file(&self.path)
-            .map_err(|err| err.with_context(|| "Could not remove file"))
+            .map_err(|err| err.with_path(&self.path).with_context(|| "Could not remove file"))
     }
 
     /// Removes the directory at this path
@@ -689,7 +689,7 @@ impl VfsPath {
             Ok(())
         }()
         .map_err(|err| {
-            err.with_context(|| {
+            err.with_path(&self.path).with_context(|| {
                 format!(
                     "Could not copy '{}' to '{}'",
                     self.as_str(),
@@ -746,7 +746,7 @@ impl VfsPath {
             Ok(())
         }()
         .map_err(|err| {
-            err.with_context(|| {
+            err.with_path(&self.path).with_context(|| {
                 format!(
                     "Could not move '{}' to '{}'",
                     self.as_str(),
@@ -800,7 +800,7 @@ impl VfsPath {
             Ok(())
         }()
         .map_err(|err| {
-            err.with_context(|| {
+            err.with_path(&self.path).with_context(|| {
                 format!(
                     "Could not copy directory '{}' to '{}'",
                     self.as_str(),
@@ -861,7 +861,7 @@ impl VfsPath {
             Ok(())
         }()
         .map_err(|err| {
-            err.with_context(|| {
+            err.with_path(&self.path).with_context(|| {
                 format!(
                     "Could not move directory '{}' to '{}'",
                     self.as_str(),

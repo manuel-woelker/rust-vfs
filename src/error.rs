@@ -74,6 +74,10 @@ impl VfsError {
     pub fn kind(&self) -> &VfsErrorKind {
         &self.kind
     }
+
+    pub fn path(&self) -> &String {
+        &self.path
+    }
 }
 
 impl fmt::Display for VfsError {
