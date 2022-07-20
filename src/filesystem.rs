@@ -35,15 +35,15 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
     /// Removes the directory at this path
     fn remove_dir(&self, path: &str) -> VfsResult<()>;
     /// Copies the src path to the destination path within the same filesystem (optional)
-    fn copy_file(&self, _src: &str, dest: &str) -> VfsResult<()> {
+    fn copy_file(&self, _src: &str, _dest: &str) -> VfsResult<()> {
         Err(VfsErrorKind::NotSupported.into())
     }
     /// Moves the src path to the destination path within the same filesystem (optional)
-    fn move_file(&self, _src: &str, dest: &str) -> VfsResult<()> {
+    fn move_file(&self, _src: &str, _dest: &str) -> VfsResult<()> {
         Err(VfsErrorKind::NotSupported.into())
     }
     /// Moves the src directory to the destination path within the same filesystem (optional)
-    fn move_dir(&self, _src: &str, dest: &str) -> VfsResult<()> {
+    fn move_dir(&self, _src: &str, _dest: &str) -> VfsResult<()> {
         Err(VfsErrorKind::NotSupported.into())
     }
 }
