@@ -227,14 +227,18 @@ mod tests {
     #[test]
     fn read_dir_on_file_err() {
         let fs = get_test_fs();
-        assert!(match fs.read_dir("/a.txt").map(|_| ()).unwrap_err().kind() {
-            VfsErrorKind::Other(message) => message == "Not a directory",
-            _ => false,
-        });
-        assert!(match fs.read_dir("/a/d.txt").map(|_| ()).unwrap_err().kind() {
-            VfsErrorKind::Other(message) => message == "Not a directory",
-            _ => false,
-        });
+        assert!(
+            match fs.read_dir("/a.txt").map(|_| ()).unwrap_err().kind() {
+                VfsErrorKind::Other(message) => message == "Not a directory",
+                _ => false,
+            }
+        );
+        assert!(
+            match fs.read_dir("/a/d.txt").map(|_| ()).unwrap_err().kind() {
+                VfsErrorKind::Other(message) => message == "Not a directory",
+                _ => false,
+            }
+        );
     }
 
     #[test]
@@ -363,13 +367,19 @@ mod tests {
     #[test]
     fn remove_file_not_supported() {
         let fs = get_test_fs();
-        assert!(matches!(fs.remove_file("/abc.txt").map(|_| ()).unwrap_err().kind(), VfsErrorKind::NotSupported));
+        assert!(matches!(
+            fs.remove_file("/abc.txt").map(|_| ()).unwrap_err().kind(),
+            VfsErrorKind::NotSupported
+        ));
     }
 
     #[test]
     fn remove_dir_not_supported() {
         let fs = get_test_fs();
-        assert!(matches!(fs.remove_dir("/abc.txt").map(|_| ()).unwrap_err().kind(), VfsErrorKind::NotSupported));
+        assert!(matches!(
+            fs.remove_dir("/abc.txt").map(|_| ()).unwrap_err().kind(),
+            VfsErrorKind::NotSupported
+        ));
     }
 
     #[test]
