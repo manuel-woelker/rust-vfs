@@ -210,18 +210,22 @@ mod tests {
     #[test]
     fn read_dir_no_directory_err() {
         let fs = get_test_fs();
-        assert!(matches!(
-            fs.read_dir("/c/f").map(|_| ()).unwrap_err().kind(),
-            VfsErrorKind::FileNotFound
-        ));
-        assert!(matches!(
-            fs.read_dir("/a.txt.").map(|_| ()).unwrap_err().kind(),
-            VfsErrorKind::FileNotFound
-        ));
-        assert!(matches!(
-            fs.read_dir("/abc/def/ghi").map(|_| ()).unwrap_err().kind(),
-            VfsErrorKind::FileNotFound
-        ));
+        assert!(match fs.read_dir("/c/f").map(|_| ()).unwrap_err().kind() {
+            VfsErrorKind::FileNotFound => true,
+            _ => false,
+        });
+        assert!(
+            match fs.read_dir("/a.txt.").map(|_| ()).unwrap_err().kind() {
+                VfsErrorKind::FileNotFound => true,
+                _ => false,
+            }
+        );
+        assert!(
+            match fs.read_dir("/abc/def/ghi").map(|_| ()).unwrap_err().kind() {
+                VfsErrorKind::FileNotFound => true,
+                _ => false,
+            }
+        );
     }
 
     #[test]
@@ -244,10 +248,12 @@ mod tests {
     #[test]
     fn create_dir_not_supported() {
         let fs = get_test_fs();
-        assert!(matches!(
-            fs.create_dir("/abc").map(|_| ()).unwrap_err().kind(),
-            VfsErrorKind::NotSupported
-        ))
+        assert!(
+            match fs.create_dir("/abc").map(|_| ()).unwrap_err().kind() {
+                VfsErrorKind::NotSupported => true,
+                _ => false,
+            }
+        )
     }
 
     #[test]
@@ -278,15 +284,24 @@ mod tests {
         // FIXME: These tests have been weakened since the FS implementations aren't intended to
         //      provide paths for errors. Maybe this could be handled better
         assert!(match fs.open_file("/") {
-            Err(err) => matches!(err.kind(), VfsErrorKind::FileNotFound),
+            Err(err) => match err.kind() {
+                VfsErrorKind::FileNotFound => true,
+                _ => false,
+            },
             _ => false,
         });
         assert!(match fs.open_file("/abc.txt") {
-            Err(err) => matches!(err.kind(), VfsErrorKind::FileNotFound),
+            Err(err) => match err.kind() {
+                VfsErrorKind::FileNotFound => true,
+                _ => false,
+            },
             _ => false,
         });
         assert!(match fs.open_file("/c/f.txt") {
-            Err(err) => matches!(err.kind(), VfsErrorKind::FileNotFound),
+            Err(err) => match err.kind() {
+                VfsErrorKind::FileNotFound => true,
+                _ => false,
+            },
             _ => false,
         });
     }
@@ -294,19 +309,23 @@ mod tests {
     #[test]
     fn create_file_not_supported() {
         let fs = get_test_fs();
-        assert!(matches!(
-            fs.create_file("/abc.txt").map(|_| ()).unwrap_err().kind(),
-            VfsErrorKind::NotSupported
-        ));
+        assert!(
+            match fs.create_file("/abc.txt").map(|_| ()).unwrap_err().kind() {
+                VfsErrorKind::NotSupported => true,
+                _ => false,
+            }
+        );
     }
 
     #[test]
     fn append_file_not_supported() {
         let fs = get_test_fs();
-        assert!(matches!(
-            fs.append_file("/abc.txt").map(|_| ()).unwrap_err().kind(),
-            VfsErrorKind::NotSupported
-        ));
+        assert!(
+            match fs.append_file("/abc.txt").map(|_| ()).unwrap_err().kind() {
+                VfsErrorKind::NotSupported => true,
+                _ => false,
+            }
+        );
     }
 
     #[test]
@@ -342,7 +361,10 @@ mod tests {
     fn metadata_not_found() {
         let fs = get_test_fs();
         assert!(match fs.metadata("/abc.txt") {
-            Err(err) => matches!(err.kind(), VfsErrorKind::FileNotFound),
+            Err(err) => match err.kind() {
+                VfsErrorKind::FileNotFound => true,
+                _ => false,
+            },
             _ => false,
         });
     }
@@ -367,19 +389,23 @@ mod tests {
     #[test]
     fn remove_file_not_supported() {
         let fs = get_test_fs();
-        assert!(matches!(
-            fs.remove_file("/abc.txt").map(|_| ()).unwrap_err().kind(),
-            VfsErrorKind::NotSupported
-        ));
+        assert!(
+            match fs.remove_file("/abc.txt").map(|_| ()).unwrap_err().kind() {
+                VfsErrorKind::NotSupported => true,
+                _ => false,
+            }
+        );
     }
 
     #[test]
     fn remove_dir_not_supported() {
         let fs = get_test_fs();
-        assert!(matches!(
-            fs.remove_dir("/abc.txt").map(|_| ()).unwrap_err().kind(),
-            VfsErrorKind::NotSupported
-        ));
+        assert!(
+            match fs.remove_dir("/abc.txt").map(|_| ()).unwrap_err().kind() {
+                VfsErrorKind::NotSupported => true,
+                _ => false,
+            }
+        );
     }
 
     #[test]

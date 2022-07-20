@@ -673,9 +673,12 @@ impl VfsPath {
             if Arc::ptr_eq(&self.fs, &destination.fs) {
                 let result = self.fs.fs.copy_file(&self.path, &destination.path);
                 match result {
-                    Err(err) if matches!(err.kind(), VfsErrorKind::NotSupported) => {
-                        // continue
-                    }
+                    Err(err) => match err.kind() {
+                        VfsErrorKind::NotSupported => {
+                            // continue
+                        }
+                        _ => return Err(err),
+                    },
                     other => return other,
                 }
             }
@@ -729,9 +732,12 @@ impl VfsPath {
             if Arc::ptr_eq(&self.fs, &destination.fs) {
                 let result = self.fs.fs.move_file(&self.path, &destination.path);
                 match result {
-                    Err(err) if matches!(err.kind(), VfsErrorKind::NotSupported) => {
-                        // continue
-                    }
+                    Err(err) => match err.kind() {
+                        VfsErrorKind::NotSupported => {
+                            // continue
+                        }
+                        _ => return Err(err),
+                    },
                     other => return other,
                 }
             }
@@ -840,9 +846,12 @@ impl VfsPath {
             if Arc::ptr_eq(&self.fs, &destination.fs) {
                 let result = self.fs.fs.move_dir(&self.path, &destination.path);
                 match result {
-                    Err(err) if matches!(err.kind(), VfsErrorKind::NotSupported) => {
-                        // continue
-                    }
+                    Err(err) => match err.kind() {
+                        VfsErrorKind::NotSupported => {
+                            // continue
+                        }
+                        _ => return Err(err),
+                    },
                     other => return other,
                 }
             }

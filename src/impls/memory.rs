@@ -162,7 +162,7 @@ impl FileSystem for MemoryFS {
     fn open_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndRead>> {
         let handle = self.handle.read().unwrap();
         let file = handle.files.get(path).ok_or(VfsErrorKind::FileNotFound)?;
-        ensure_file(path, file)?;
+        ensure_file(file)?;
         Ok(Box::new(ReadableFile {
             content: file.content.clone(),
             position: 0,
@@ -356,7 +356,7 @@ mod tests {
     }
 }
 
-fn ensure_file(path: &str, file: &MemoryFile) -> VfsResult<()> {
+fn ensure_file(file: &MemoryFile) -> VfsResult<()> {
     if file.file_type != VfsFileType::File {
         return Err(VfsErrorKind::Other("Not a file".into()).into());
     }
