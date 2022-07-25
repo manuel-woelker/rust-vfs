@@ -22,8 +22,6 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
     fn create_dir(&self, path: &str) -> VfsResult<()>;
     /// Opens the file at this path for reading
     fn open_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndRead>>;
-    /// Opens the file at this path for reading and writing
-    fn update_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndReadAndWrite>>;
     /// Creates a file at this path for writing
     fn create_file(&self, path: &str) -> VfsResult<Box<dyn Write>>;
     /// Opens the file at this path for appending
@@ -47,6 +45,32 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
     /// Moves the src directory to the destination path within the same filesystem (optional)
     fn move_dir(&self, _src: &str, _dest: &str) -> VfsResult<()> {
         Err(VfsErrorKind::NotSupported.into())
+    }
+
+    /// Informs the filesystem to 'flush' its potentially cached information.
+    ///
+    /// This is, by default, queries the current size.
+    fn size_hint(&self, path: &str) -> VfsResult<u64> {
+        self.metadata(path).map(|f| f.len)
+    }
+
+    /// Informs the filesystem to 'flush' its potentially cached information.
+    ///
+    /// This is, by default, a no-op.
+    fn sync(&self, _path: &str) -> VfsResult<()> {
+        Ok(())
+    }
+
+    /// Set a size hint for the associated path.
+    ///
+    /// This is, by default, a no-op.
+    fn set_size_hint(&self, _hint: usize, _path: &str) -> VfsResult<()> {
+        Ok(())
+    }
+
+    /// Opens the file at this path for reading and writing
+    fn update_file(&self, _path: &str) -> VfsResult<Box<dyn SeekAndReadAndWrite>> {
+        Err(VfsError::NotSupported)
     }
 }
 

@@ -316,9 +316,9 @@ impl VfsPath {
     ///
     /// assert_eq!(&result, "Hello, world!");
     ///
-    /// handle.rewind()?;
+    /// handle.seek(SeekFrom::Start(0))?;
     /// handle.write(b"Goodnight, world.")?;
-    /// handle.rewind()?;
+    /// handle.seek(SeekFrom::Start(0))?;
     ///
     /// let mut result2 = String::new();
     /// handle.read_to_string(&mut result2)?;
@@ -916,6 +916,14 @@ impl VfsPath {
             })
         })?;
         Ok(())
+    }
+
+    pub fn sync(&mut self) -> VfsResult<()> {
+        self.fs.fs.sync(&self.path)
+    }
+
+    pub fn set_size_hint(&mut self, size_hint: usize) -> VfsResult<()> {
+        self.fs.fs.set_size_hint(size_hint, &self.path)
     }
 }
 

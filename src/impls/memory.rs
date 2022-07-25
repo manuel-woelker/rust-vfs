@@ -119,48 +119,6 @@ impl Seek for ReadableFile {
     }
 }
 
-struct WriteableAndReadableFile {
-    content: Cursor<Vec<u8>>,
-    destination: String,
-    fs: MemoryFsHandle,
-}
-
-impl Write for WriteableAndReadableFile {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.content.write(buf)
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        self.content.flush()
-    }
-}
-
-impl Read for WriteableAndReadableFile {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        self.content.read(buf)
-    }
-}
-
-impl Seek for WriteableAndReadableFile {
-    fn seek(&mut self, pos: SeekFrom) -> std::io::Result<u64> {
-        self.content.seek(pos)
-    }
-}
-
-impl Drop for WriteableAndReadableFile {
-    fn drop(&mut self) {
-        let mut content = vec![];
-        swap(&mut content, self.content.get_mut());
-        self.fs.write().unwrap().files.insert(
-            self.destination.clone(),
-            MemoryFile {
-                file_type: VfsFileType::File,
-                content: Arc::new(content),
-            },
-        );
-    }
-}
-
 impl FileSystem for MemoryFS {
     fn read_dir(&self, path: &str) -> VfsResult<Box<dyn Iterator<Item = String>>> {
         let prefix = format!("{}/", path);
@@ -208,24 +166,6 @@ impl FileSystem for MemoryFS {
         Ok(Box::new(ReadableFile {
             content: file.content.clone(),
             position: 0,
-        }))
-    }
-
-    fn update_file(&self, path: &str) -> VfsResult<Box<dyn crate::SeekAndReadAndWrite>> {
-        let handle = self.handle.read().unwrap();
-        let file = handle
-            .files
-            .get(path)
-            .ok_or_else(|| VfsError::FileNotFound {
-                path: path.to_string(),
-            })?;
-        ensure_file(file)?;
-        let mut content = Cursor::new(file.content.as_ref().clone());
-        content.seek(SeekFrom::Start(0))?;
-        Ok(Box::new(WriteableAndReadableFile {
-            content,
-            destination: path.to_string(),
-            fs: self.handle.clone(),
         }))
     }
 
