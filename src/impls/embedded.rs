@@ -7,7 +7,7 @@ use std::marker::PhantomData;
 use rust_embed::RustEmbed;
 
 use crate::error::VfsErrorKind;
-use crate::{FileSystem, SeekAndRead, VfsFileType, VfsMetadata, VfsResult};
+use crate::{FileSystem, SeekAndRead, VfsFileType, VfsMetadata, VfsResult, VfsAccess};
 
 type EmbeddedPath = Cow<'static, str>;
 
@@ -107,7 +107,7 @@ where
     }
 
     fn update_file(&self, _path: &str) -> VfsResult<Box<dyn crate::SeekAndReadAndWrite>> {
-        Err(VfsError::NotSupported)
+        Err(VfsErrorKind::NotSupported)
     }
 
     fn create_file(&self, _path: &str) -> VfsResult<Box<dyn Write>> {
@@ -124,12 +124,14 @@ where
             return Ok(VfsMetadata {
                 file_type: VfsFileType::File,
                 len: *len,
+                access: HashSet::from([VfsAccess::Read])
             });
         }
         if self.directory_map.contains_key(normalized_path) {
             return Ok(VfsMetadata {
                 file_type: VfsFileType::Directory,
                 len: 0,
+                access: HashSet::from([VfsAccess::Read])
             });
         }
         Err(VfsErrorKind::FileNotFound.into())

@@ -1,12 +1,12 @@
 //! A "physical" file system implementation using the underlying OS file system
 
 use crate::error::VfsErrorKind;
-use crate::VfsResult;
-use crate::{FileSystem, VfsMetadata};
-use crate::{SeekAndRead, VfsFileType};
+use crate::{SeekAndRead, VfsFileType, VfsResult, VfsAccess, FileSystem, VfsMetadata};
+use std::collections::HashSet;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
+
 
 /// A physical filesystem implementation using the underlying OS file system
 #[derive(Debug)]
@@ -63,16 +63,26 @@ impl FileSystem for PhysicalFS {
     }
 
     fn metadata(&self, path: &str) -> VfsResult<VfsMetadata> {
-        let metadata = self.get_path(path).metadata()?;
+        let pb = self.get_path(path);
+        let metadata = pb.metadata()?;
+        let mut access = HashSet::new();
+        access.insert(VfsAccess::Read);
+
+        if !metadata.permissions().readonly() {
+            access.insert(VfsAccess::Write);
+        }
+
         Ok(if metadata.is_dir() {
             VfsMetadata {
                 file_type: VfsFileType::Directory,
                 len: 0,
+                access,
             }
         } else {
             VfsMetadata {
                 file_type: VfsFileType::File,
                 len: metadata.len(),
+                access,
             }
         })
     }

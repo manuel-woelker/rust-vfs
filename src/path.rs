@@ -3,6 +3,7 @@
 //! The virtual file system abstraction generalizes over file systems and allow using
 //! different VirtualFileSystem implementations (i.e. an in memory implementation for unit tests)
 
+use std::collections::HashSet;
 use std::io::{Read, Seek, Write};
 use std::sync::Arc;
 
@@ -28,6 +29,15 @@ pub enum VfsFileType {
     Directory,
 }
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+pub enum VfsAccess {
+    /// The resource at this path can be read from.
+    Read,
+
+    /// The resource at this path can be written to.
+    Write,
+}
+
 /// File metadata information
 #[derive(Debug)]
 pub struct VfsMetadata {
@@ -35,6 +45,8 @@ pub struct VfsMetadata {
     pub file_type: VfsFileType,
     /// Length of the file in bytes, 0 for directories
     pub len: u64,
+    /// Access levels available to this path.
+    pub access: HashSet<VfsAccess>,
 }
 
 #[derive(Debug)]
@@ -330,7 +342,6 @@ impl VfsPath {
         self.fs
             .fs
             .update_file(&self.path)
-            .with_context(|| format!("Could not open file '{}'", &self.path))
     }
 
     /// Checks whether parent is a directory
@@ -621,7 +632,7 @@ impl VfsPath {
     /// Directories are visited before their children
     ///
     /// Note that the iterator items can contain errors, usually when directories are removed during the iteration.
-    /// The returned paths may also point to non-existant files if there is concurrent removal.
+    /// The returned paths may also point to non-existent files if there is concurrent removal.
     ///
     /// Also note that loops in the file system hierarchy may cause this iterator to never terminate.
     ///
