@@ -70,7 +70,7 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
 
     /// Opens the file at this path for reading and writing
     fn update_file(&self, _path: &str) -> VfsResult<Box<dyn SeekAndReadAndWrite>> {
-        Err(VfsError::NotSupported)
+        Err(VfsErrorKind::NotSupported.into())
     }
 }
 
