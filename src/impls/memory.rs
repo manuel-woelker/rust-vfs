@@ -300,6 +300,10 @@ impl FileSystem for MemoryFS {
             .ok_or(VfsErrorKind::FileNotFound)?;
         Ok(())
     }
+
+    fn sync(&self, path: &str) -> VfsResult<()> {
+        Ok(())
+    }
 }
 
 struct MemoryFsImpl {

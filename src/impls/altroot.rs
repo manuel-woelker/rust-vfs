@@ -50,10 +50,6 @@ impl FileSystem for AltrootFS {
         self.path(path)?.open_file()
     }
 
-    fn update_file(&self, path: &str) -> VfsResult<Box<dyn crate::SeekAndReadAndWrite>> {
-        self.path(path)?.update_file()
-    }
-
     fn create_file(&self, path: &str) -> VfsResult<Box<dyn Write>> {
         self.path(path)?.create_file()
     }
@@ -85,6 +81,14 @@ impl FileSystem for AltrootFS {
             return Err(VfsErrorKind::NotSupported.into());
         }
         self.path(src)?.copy_file(&self.path(dest)?)
+    }
+
+    fn update_file(&self, path: &str) -> VfsResult<Box<dyn crate::SeekAndReadAndWrite>> {
+        self.path(path)?.update_file()
+    }
+
+    fn sync(&self, path: &str) -> VfsResult<()> {
+        self.path(path)?.sync()
     }
 }
 

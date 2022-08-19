@@ -47,19 +47,15 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
         Err(VfsErrorKind::NotSupported.into())
     }
 
-    /// Informs the filesystem to 'flush' its potentially cached information.
+    /// This obtains the potential size of the current path in the filesystem.
     ///
-    /// This is, by default, queries the current size.
+    /// This, by default, queries the current size.
     fn size_hint(&self, path: &str) -> VfsResult<u64> {
         self.metadata(path).map(|f| f.len)
     }
 
     /// Informs the filesystem to 'flush' its potentially cached information.
-    ///
-    /// This is, by default, a no-op.
-    fn sync(&self, _path: &str) -> VfsResult<()> {
-        Ok(())
-    }
+    fn sync(&self, path: &str) -> VfsResult<()>;
 
     /// Set a size hint for the associated path.
     ///

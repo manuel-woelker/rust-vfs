@@ -129,6 +129,10 @@ impl FileSystem for PhysicalFS {
                 .open(self.get_path(path))?,
         ))
     }
+
+    fn sync(&self, path: &str) -> VfsResult<()> {
+        Ok(())
+    }
 }
 
 #[cfg(test)]
