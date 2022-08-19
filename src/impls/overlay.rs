@@ -31,6 +31,10 @@ impl OverlayFS {
         &self.layers[0]
     }
 
+    fn sync_path(&self,path:&str) -> VfsResult<()>{
+        self.read_path(path).and_then(|p| p.sync())
+    }
+
     fn read_path(&self, path: &str) -> VfsResult<VfsPath> {
         if path.is_empty() {
             return Ok(self.layers[0].clone());
@@ -185,6 +189,10 @@ impl FileSystem for OverlayFS {
         whiteout_path.parent().unwrap().create_dir_all()?;
         whiteout_path.create_file()?;
         Ok(())
+    }
+
+    fn sync(&self, path: &str) -> VfsResult<()> {
+        self.sync_path(path)
     }
 }
 

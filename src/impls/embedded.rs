@@ -155,6 +155,9 @@ where
     fn remove_dir(&self, _path: &str) -> VfsResult<()> {
         Err(VfsErrorKind::NotSupported.into())
     }
+    fn sync(&self, _path: &str) -> VfsResult<()> {
+        Ok(())
+    }
 }
 
 fn normalize_path(path: &str) -> VfsResult<&str> {

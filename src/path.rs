@@ -929,7 +929,7 @@ impl VfsPath {
         Ok(())
     }
 
-    pub fn sync(&mut self) -> VfsResult<()> {
+    pub fn sync(&self) -> VfsResult<()> {
         self.fs.fs.sync(&self.path)
     }
 

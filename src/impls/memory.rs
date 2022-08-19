@@ -301,7 +301,7 @@ impl FileSystem for MemoryFS {
         Ok(())
     }
 
-    fn sync(&self, path: &str) -> VfsResult<()> {
+    fn sync(&self, _path: &str) -> VfsResult<()> {
         Ok(())
     }
 }
