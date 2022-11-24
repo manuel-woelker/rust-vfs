@@ -143,3 +143,26 @@ impl fmt::Display for VfsErrorKind {
 
 /// The result type of this crate
 pub type VfsResult<T> = std::result::Result<T, VfsError>;
+
+
+#[cfg(test)]
+mod tests {
+    use crate::{VfsError, VfsResult};
+    use crate::error::VfsErrorKind;
+
+    fn produce_vfs_result() -> VfsResult<()> {
+        Err(VfsError::from(VfsErrorKind::Other("Not a file".into())).with_path("foo"))
+    }
+
+    fn produce_anyhow_result() -> anyhow::Result<()> {
+        Ok(produce_vfs_result()?)
+    }
+
+
+    #[test]
+    fn anyhow_compatibility() {
+        let result = produce_anyhow_result().unwrap_err();
+        assert_eq!(result.to_string(), "An error occured for 'foo': FileSystem error: Not a file")
+    }
+
+}
