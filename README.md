@@ -24,6 +24,11 @@ Comments and pull-requests welcome!
 
 ## Changelog
 
+### 0.8.0 (2022-11-24)
+
+* Impl `std::error::Error` for `VfsError` ([#32](https://github.com/manuel-woelker/rust-vfs/pull/32)) and improved error 
+  ergonomics for end users ([#34](https://github.com/manuel-woelker/rust-vfs/pull/34)) - thanks [@Technohacker](https://github.com/Technohacker)
+
 ### 0.7.1 (2022-04-15)
 
 * Fixed a panic when accessing non-existing paths in `MemoryFS::append_file()` (closes 
