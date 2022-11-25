@@ -46,15 +46,15 @@ impl FileSystem for AltrootFS {
         self.path(path)?.create_dir()
     }
 
-    fn open_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndRead>> {
+    fn open_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndRead + Send>> {
         self.path(path)?.open_file()
     }
 
-    fn create_file(&self, path: &str) -> VfsResult<Box<dyn Write>> {
+    fn create_file(&self, path: &str) -> VfsResult<Box<dyn Write + Send>> {
         self.path(path)?.create_file()
     }
 
-    fn append_file(&self, path: &str) -> VfsResult<Box<dyn Write>> {
+    fn append_file(&self, path: &str) -> VfsResult<Box<dyn Write + Send>> {
         self.path(path)?.append_file()
     }
 

@@ -45,15 +45,15 @@ impl FileSystem for PhysicalFS {
         Ok(())
     }
 
-    fn open_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndRead>> {
+    fn open_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndRead + Send>> {
         Ok(Box::new(File::open(self.get_path(path))?))
     }
 
-    fn create_file(&self, path: &str) -> VfsResult<Box<dyn Write>> {
+    fn create_file(&self, path: &str) -> VfsResult<Box<dyn Write + Send>> {
         Ok(Box::new(File::create(self.get_path(path))?))
     }
 
-    fn append_file(&self, path: &str) -> VfsResult<Box<dyn Write>> {
+    fn append_file(&self, path: &str) -> VfsResult<Box<dyn Write + Send>> {
         Ok(Box::new(
             OpenOptions::new()
                 .write(true)
