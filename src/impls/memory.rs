@@ -159,7 +159,7 @@ impl FileSystem for MemoryFS {
         Ok(())
     }
 
-    fn open_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndRead>> {
+    fn open_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndRead + Send>> {
         let handle = self.handle.read().unwrap();
         let file = handle.files.get(path).ok_or(VfsErrorKind::FileNotFound)?;
         ensure_file(file)?;
@@ -169,7 +169,7 @@ impl FileSystem for MemoryFS {
         }))
     }
 
-    fn create_file(&self, path: &str) -> VfsResult<Box<dyn Write>> {
+    fn create_file(&self, path: &str) -> VfsResult<Box<dyn Write + Send>> {
         self.ensure_has_parent(path)?;
         let content = Arc::new(Vec::<u8>::new());
         self.handle.write().unwrap().files.insert(
@@ -187,7 +187,7 @@ impl FileSystem for MemoryFS {
         Ok(Box::new(writer))
     }
 
-    fn append_file(&self, path: &str) -> VfsResult<Box<dyn Write>> {
+    fn append_file(&self, path: &str) -> VfsResult<Box<dyn Write + Send>> {
         let handle = self.handle.write().unwrap();
         let file = handle.files.get(path).ok_or(VfsErrorKind::FileNotFound)?;
         let mut content = Cursor::new(file.content.as_ref().clone());

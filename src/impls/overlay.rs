@@ -117,11 +117,11 @@ impl FileSystem for OverlayFS {
         Ok(())
     }
 
-    fn open_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndRead>> {
+    fn open_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndRead + Send>> {
         self.read_path(path)?.open_file()
     }
 
-    fn create_file(&self, path: &str) -> VfsResult<Box<dyn Write>> {
+    fn create_file(&self, path: &str) -> VfsResult<Box<dyn Write + Send>> {
         self.ensure_has_parent(path)?;
         let result = self.write_path(path)?.create_file()?;
         let whiteout_path = self.whiteout_path(path)?;
@@ -131,7 +131,7 @@ impl FileSystem for OverlayFS {
         Ok(result)
     }
 
-    fn append_file(&self, path: &str) -> VfsResult<Box<dyn Write>> {
+    fn append_file(&self, path: &str) -> VfsResult<Box<dyn Write + Send>> {
         let write_path = self.write_path(path)?;
         if !write_path.exists()? {
             self.ensure_has_parent(path)?;

@@ -266,7 +266,7 @@ impl VfsPath {
     /// assert_eq!(&result, "Hello, world!");
     /// # Ok::<(), VfsError>(())
     /// ```
-    pub fn create_file(&self) -> VfsResult<Box<dyn Write>> {
+    pub fn create_file(&self) -> VfsResult<Box<dyn Write + Send>> {
         self.get_parent("create file")?;
         self.fs.fs.create_file(&self.path).map_err(|err| {
             err.with_path(&self.path)
@@ -289,7 +289,7 @@ impl VfsPath {
     /// assert_eq!(&result, "Hello, world!");
     /// # Ok::<(), VfsError>(())
     /// ```
-    pub fn open_file(&self) -> VfsResult<Box<dyn SeekAndRead>> {
+    pub fn open_file(&self) -> VfsResult<Box<dyn SeekAndRead + Send>> {
         self.fs.fs.open_file(&self.path).map_err(|err| {
             err.with_path(&self.path)
                 .with_context(|| "Could not open file")
@@ -342,7 +342,7 @@ impl VfsPath {
     /// assert_eq!(&result, "Hello, world!");
     /// # Ok::<(), VfsError>(())
     /// ```
-    pub fn append_file(&self) -> VfsResult<Box<dyn Write>> {
+    pub fn append_file(&self) -> VfsResult<Box<dyn Write + Send>> {
         self.fs.fs.append_file(&self.path).map_err(|err| {
             err.with_path(&self.path)
                 .with_context(|| "Could not open file for appending")

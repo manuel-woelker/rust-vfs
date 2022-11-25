@@ -99,18 +99,18 @@ where
         Err(VfsErrorKind::NotSupported.into())
     }
 
-    fn open_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndRead>> {
+    fn open_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndRead + Send>> {
         match T::get(path.split_at(1).1) {
             None => Err(VfsErrorKind::FileNotFound.into()),
             Some(file) => Ok(Box::new(Cursor::new(file.data))),
         }
     }
 
-    fn create_file(&self, _path: &str) -> VfsResult<Box<dyn Write>> {
+    fn create_file(&self, _path: &str) -> VfsResult<Box<dyn Write + Send>> {
         Err(VfsErrorKind::NotSupported.into())
     }
 
-    fn append_file(&self, _path: &str) -> VfsResult<Box<dyn Write>> {
+    fn append_file(&self, _path: &str) -> VfsResult<Box<dyn Write + Send>> {
         Err(VfsErrorKind::NotSupported.into())
     }
 
