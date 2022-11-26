@@ -13,8 +13,8 @@ edition = "2018"
 travis-ci = { repository = "manuel-woelker/rust-vfs", branch = "master" }
 
 [dependencies]
-rust-embed = { version = "6.3.0", optional = true }
-rust-embed-impl = { version = "6.2.0", optional = true }
+rust-embed = { version = "6.3.*", optional = true }
+rust-embed-impl = { version = "6.2.*", optional = true }
 
 [dev-dependencies]
 uuid = { version = "=0.8.1", features = ["v4"] }
