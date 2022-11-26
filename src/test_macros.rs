@@ -275,20 +275,20 @@ macro_rules! test_vfs {
             #[test]
             fn parent() {
                 let root = create_root();
-                assert_eq!(root.parent(), None, "root");
+                assert_eq!(root.parent(), root.clone(), "root");
                 assert_eq!(
                     root.join("foo").unwrap().parent(),
-                    Some(root.clone()),
+                    root.clone(),
                     "foo"
                 );
                 assert_eq!(
                     root.join("foo/bar").unwrap().parent(),
-                    Some(root.join("foo").unwrap()),
+                    root.join("foo").unwrap(),
                     "foo/bar"
                 );
                 assert_eq!(
                     root.join("foo/bar/baz").unwrap().parent(),
-                    Some(root.join("foo/bar").unwrap()),
+                    root.join("foo/bar").unwrap(),
                     "foo/bar/baz"
                 );
             }
@@ -301,9 +301,9 @@ macro_rules! test_vfs {
                 assert_eq!(root.join("foo").unwrap(), root.join("foo").unwrap());
                 assert_eq!(
                     root.join("foo").unwrap(),
-                    root.join("foo/bar").unwrap().parent().unwrap()
+                    root.join("foo/bar").unwrap().parent()
                 );
-                assert_eq!(root, root.join("foo").unwrap().parent().unwrap());
+                assert_eq!(root, root.join("foo").unwrap().parent());
 
                 assert_ne!(root, root.join("foo").unwrap());
                 assert_ne!(root.join("bar").unwrap(), root.join("foo").unwrap());
@@ -375,36 +375,19 @@ macro_rules! test_vfs {
                         .as_str(),
                     "/foo"
                 );
+                assert_eq!(
+                    root.join("..").unwrap(),
+                    root
+                );
+                assert_eq!(
+                    root.join("../foo").unwrap(),
+                    root.join("foo").unwrap()
+                );
 
                 /// Utility function for templating the same error message
                 fn invalid_path_message(path: &str) -> String {
                     format!("An error occured for '{}': The path is invalid", path)
                 }
-
-                assert_eq!(
-                    root.join("..").unwrap_err().to_string(),
-                    invalid_path_message(".."),
-                    ".."
-                );
-                assert_eq!(
-                    root.join("../foo").unwrap_err().to_string(),
-                    invalid_path_message("../foo"),
-                    "../foo"
-                );
-                assert_eq!(
-                    root.join("foo/../..").unwrap_err().to_string(),
-                    invalid_path_message("foo/../.."),
-                    "foo/../.."
-                );
-                assert_eq!(
-                    root.join("foo")
-                        .unwrap()
-                        .join("../..")
-                        .unwrap_err()
-                        .to_string(),
-                    invalid_path_message("../.."),
-                    "foo+../.."
-                );
 
                 assert_eq!(
                     root.join("/").unwrap_err().to_string(),
@@ -1024,20 +1007,16 @@ macro_rules! test_vfs_readonly {
             #[test]
             fn parent() {
                 let root = create_root();
-                assert_eq!(root.parent(), None, "root");
-                assert_eq!(
-                    root.join("foo").unwrap().parent(),
-                    Some(root.clone()),
-                    "foo"
-                );
+                assert_eq!(root.parent(), root.clone(), "root");
+                assert_eq!(root.join("foo").unwrap().parent(), root.clone(), "foo");
                 assert_eq!(
                     root.join("foo/bar").unwrap().parent(),
-                    Some(root.join("foo").unwrap()),
+                    root.join("foo").unwrap(),
                     "foo/bar"
                 );
                 assert_eq!(
                     root.join("foo/bar/baz").unwrap().parent(),
-                    Some(root.join("foo/bar").unwrap()),
+                    root.join("foo/bar").unwrap(),
                     "foo/bar/baz"
                 );
             }
@@ -1057,9 +1036,9 @@ macro_rules! test_vfs_readonly {
                 assert_eq!(root.join("foo").unwrap(), root.join("foo").unwrap());
                 assert_eq!(
                     root.join("foo").unwrap(),
-                    root.join("foo/bar").unwrap().parent().unwrap()
+                    root.join("foo/bar").unwrap().parent()
                 );
-                assert_eq!(root, root.join("foo").unwrap().parent().unwrap());
+                assert_eq!(root, root.join("foo").unwrap().parent());
 
                 assert_ne!(root, root.join("foo").unwrap());
                 assert_ne!(root.join("bar").unwrap(), root.join("foo").unwrap());
@@ -1131,37 +1110,14 @@ macro_rules! test_vfs_readonly {
                         .as_str(),
                     "/foo"
                 );
+                assert_eq!(root.join("..").unwrap(), root);
+                assert_eq!(root.join("../foo").unwrap(), root.join("foo").unwrap());
 
                 /// Utility function for templating the same error message
                 // TODO: Maybe deduplicate this function
                 fn invalid_path_message(path: &str) -> String {
                     format!("An error occured for '{}': The path is invalid", path)
                 }
-
-                assert_eq!(
-                    root.join("..").unwrap_err().to_string(),
-                    invalid_path_message(".."),
-                    ".."
-                );
-                assert_eq!(
-                    root.join("../foo").unwrap_err().to_string(),
-                    invalid_path_message("../foo"),
-                    "../foo"
-                );
-                assert_eq!(
-                    root.join("foo/../..").unwrap_err().to_string(),
-                    invalid_path_message("foo/../.."),
-                    "foo/../.."
-                );
-                assert_eq!(
-                    root.join("foo")
-                        .unwrap()
-                        .join("../..")
-                        .unwrap_err()
-                        .to_string(),
-                    invalid_path_message("../.."),
-                    "foo+../.."
-                );
 
                 assert_eq!(
                     root.join("/").unwrap_err().to_string(),

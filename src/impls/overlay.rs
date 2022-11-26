@@ -165,7 +165,7 @@ impl FileSystem for OverlayFS {
             write_path.remove_file()?;
         }
         let whiteout_path = self.whiteout_path(path)?;
-        whiteout_path.parent().unwrap().create_dir_all()?;
+        whiteout_path.parent().create_dir_all()?;
         whiteout_path.create_file()?;
         Ok(())
     }
@@ -178,7 +178,7 @@ impl FileSystem for OverlayFS {
             write_path.remove_dir()?;
         }
         let whiteout_path = self.whiteout_path(path)?;
-        whiteout_path.parent().unwrap().create_dir_all()?;
+        whiteout_path.parent().create_dir_all()?;
         whiteout_path.create_file()?;
         Ok(())
     }
