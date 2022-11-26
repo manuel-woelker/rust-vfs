@@ -118,10 +118,8 @@ impl VfsPath {
             if component == ".." {
                 if !new_components.is_empty() {
                     new_components.truncate(new_components.len() - 1);
-                } else if let Some(parent) = base_path.parent() {
-                    base_path = parent;
                 } else {
-                    return Err(VfsError::from(VfsErrorKind::InvalidPath).with_path(path));
+                    base_path = self.parent();
                 }
             } else {
                 new_components.push(component);
@@ -299,31 +297,20 @@ impl VfsPath {
     /// Checks whether parent is a directory
     fn get_parent(&self, action: &str) -> VfsResult<()> {
         let parent = self.parent();
-        match parent {
-            None => {
-                return Err(VfsError::from(VfsErrorKind::Other(format!(
-                    "Could not {}, not a valid location",
-                    action
-                )))
-                .with_path(&self.path));
-            }
-            Some(directory) => {
-                if !directory.exists()? {
-                    return Err(VfsError::from(VfsErrorKind::Other(format!(
-                        "Could not {}, parent directory does not exist",
-                        action
-                    )))
-                    .with_path(&self.path));
-                }
-                let metadata = directory.metadata()?;
-                if metadata.file_type != VfsFileType::Directory {
-                    return Err(VfsError::from(VfsErrorKind::Other(format!(
-                        "Could not {}, parent path is not a directory",
-                        action
-                    )))
-                    .with_path(&self.path));
-                }
-            }
+        if !parent.exists()? {
+            return Err(VfsError::from(VfsErrorKind::Other(format!(
+                "Could not {}, parent directory does not exist",
+                action
+            )))
+            .with_path(&self.path));
+        }
+        let metadata = parent.metadata()?;
+        if metadata.file_type != VfsFileType::Directory {
+            return Err(VfsError::from(VfsErrorKind::Other(format!(
+                "Could not {}, parent path is not a directory",
+                action
+            )))
+            .with_path(&self.path));
         }
         Ok(())
     }
@@ -559,24 +546,26 @@ impl VfsPath {
 
     /// Returns the parent path of this portion of this path
     ///
-    /// Returns `None` if this is a root path
+    /// Root will return itself.
     ///
     /// ```
     /// # use std::io::Read;
     /// use vfs::{MemoryFS, VfsError, VfsFileType, VfsMetadata, VfsPath};
     /// let path = VfsPath::new(MemoryFS::new());
     ///
-    /// assert_eq!(path.parent(), None);
-    /// assert_eq!(path.join("foo/bar")?.parent(), Some(path.join("foo")?));
-    /// assert_eq!(path.join("foo")?.parent(), Some(path));
+    /// assert_eq!(path.parent(), path.root());
+    /// assert_eq!(path.join("foo/bar")?.parent(), path.join("foo")?);
+    /// assert_eq!(path.join("foo")?.parent(), path);
     ///
     /// # Ok::<(), VfsError>(())
-    pub fn parent(&self) -> Option<Self> {
+    pub fn parent(&self) -> Self {
         let index = self.path.rfind('/');
-        index.map(|idx| VfsPath {
-            path: self.path[..idx].to_string(),
-            fs: self.fs.clone(),
-        })
+        index
+            .map(|idx| VfsPath {
+                path: self.path[..idx].to_string(),
+                fs: self.fs.clone(),
+            })
+            .unwrap_or_else(|| self.root())
     }
 
     /// Recursively iterates over all the directories and files at this path

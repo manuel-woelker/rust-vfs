@@ -101,8 +101,8 @@ mod tests {
         let altroot_path = memory_root.join("altroot").unwrap();
         altroot_path.create_dir().unwrap();
         let altroot: VfsPath = AltrootFS::new(altroot_path.clone()).into();
-        assert_eq!(altroot.parent(), None);
-        assert_eq!(altroot_path.parent(), Some(memory_root));
+        assert_eq!(altroot.parent(), altroot.root());
+        assert_eq!(altroot_path.parent(), memory_root);
     }
 }
 
