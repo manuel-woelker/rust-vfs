@@ -30,7 +30,7 @@ impl AltrootFS {
         if path.starts_with('/') {
             return self.root.join(&path[1..]);
         }
-        self.root.join(&path)
+        self.root.join(path)
     }
 }
 

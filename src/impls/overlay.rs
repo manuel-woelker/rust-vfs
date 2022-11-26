@@ -60,7 +60,7 @@ impl OverlayFS {
 
     fn whiteout_path(&self, path: &str) -> VfsResult<VfsPath> {
         if path.is_empty() {
-            return self.write_layer().join(&".whiteout/_wo");
+            return self.write_layer().join(".whiteout/_wo");
         }
         self.write_layer()
             .join(&format!(".whiteout/{}_wo", &path[1..]))
