@@ -1,7 +1,7 @@
 //! The filesystem trait definitions needed to implement new virtual filesystems
 
 use crate::error::VfsErrorKind;
-use crate::{SeekAndRead, VfsMetadata, VfsPath, VfsResult};
+use crate::{SeekAndRead, SeekAndReadAndWrite, VfsMetadata, VfsPath, VfsResult};
 use std::fmt::Debug;
 use std::io::Write;
 
@@ -44,6 +44,28 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
     }
     /// Moves the src directory to the destination path within the same filesystem (optional)
     fn move_dir(&self, _src: &str, _dest: &str) -> VfsResult<()> {
+        Err(VfsErrorKind::NotSupported.into())
+    }
+
+    /// This obtains the potential size of the current path in the filesystem.
+    ///
+    /// This, by default, queries the current size.
+    fn size_hint(&self, path: &str) -> VfsResult<u64> {
+        self.metadata(path).map(|f| f.len)
+    }
+
+    /// Informs the filesystem to 'flush' its potentially cached information.
+    fn sync(&self, path: &str) -> VfsResult<()>;
+
+    /// Set a size hint for the associated path.
+    ///
+    /// This is, by default, a no-op.
+    fn set_size_hint(&self, _hint: usize, _path: &str) -> VfsResult<()> {
+        Ok(())
+    }
+
+    /// Opens the file at this path for reading and writing
+    fn update_file(&self, _path: &str) -> VfsResult<Box<dyn SeekAndReadAndWrite>> {
         Err(VfsErrorKind::NotSupported.into())
     }
 }

@@ -82,6 +82,14 @@ impl FileSystem for AltrootFS {
         }
         self.path(src)?.copy_file(&self.path(dest)?)
     }
+
+    fn update_file(&self, path: &str) -> VfsResult<Box<dyn crate::SeekAndReadAndWrite>> {
+        self.path(path)?.update_file()
+    }
+
+    fn sync(&self, path: &str) -> VfsResult<()> {
+        self.path(path)?.sync()
+    }
 }
 
 #[cfg(test)]

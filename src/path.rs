@@ -3,6 +3,7 @@
 //! The virtual file system abstraction generalizes over file systems and allow using
 //! different VirtualFileSystem implementations (i.e. an in memory implementation for unit tests)
 
+use std::collections::HashSet;
 use std::io::{Read, Seek, Write};
 use std::sync::Arc;
 
@@ -14,6 +15,11 @@ pub trait SeekAndRead: Seek + Read {}
 
 impl<T> SeekAndRead for T where T: Seek + Read {}
 
+/// Trait combining Seek, Read and Write, return value for opening files with random access.
+pub trait SeekAndReadAndWrite: Seek + Read + Write {}
+
+impl<T> SeekAndReadAndWrite for T where T: Seek + Read + Write {}
+
 /// Type of file
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum VfsFileType {
@@ -23,6 +29,15 @@ pub enum VfsFileType {
     Directory,
 }
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+pub enum VfsAccess {
+    /// The resource at this path can be read from.
+    Read,
+
+    /// The resource at this path can be written to.
+    Write,
+}
+
 /// File metadata information
 #[derive(Debug)]
 pub struct VfsMetadata {
@@ -30,6 +45,8 @@ pub struct VfsMetadata {
     pub file_type: VfsFileType,
     /// Length of the file in bytes, 0 for directories
     pub len: u64,
+    /// Access levels available to this path.
+    pub access: HashSet<VfsAccess>,
 }
 
 #[derive(Debug)]
@@ -294,6 +311,37 @@ impl VfsPath {
             err.with_path(&self.path)
                 .with_context(|| "Could not open file")
         })
+    }
+
+    /// Opens the file at this path for reading and writing
+    ///
+    /// ```
+    /// # use std::io::{SeekFrom, Read};
+    /// use vfs::{MemoryFS, VfsError, VfsPath};
+    /// let path = VfsPath::new(MemoryFS::new());
+    /// let file = path.join("foo.txt")?;
+    /// write!(file.create_file()?, "Hello, world!")?;
+    /// let mut result = String::new();
+    ///
+    /// let mut handle = file.update_file()?;
+    /// handle.read_to_string(&mut result)?;
+    ///
+    /// assert_eq!(&result, "Hello, world!");
+    ///
+    /// handle.seek(SeekFrom::Start(0))?;
+    /// handle.write(b"Goodnight, world.")?;
+    /// handle.seek(SeekFrom::Start(0))?;
+    ///
+    /// let mut result2 = String::new();
+    /// handle.read_to_string(&mut result2)?;
+    ///
+    /// assert_eq!(&result2, "Goodnight, world.");
+    /// # Ok::<(), VfsError>(())
+    /// ```
+    pub fn update_file(&self) -> VfsResult<Box<dyn SeekAndReadAndWrite>> {
+        self.fs
+            .fs
+            .update_file(&self.path)
     }
 
     /// Checks whether parent is a directory
@@ -584,7 +632,7 @@ impl VfsPath {
     /// Directories are visited before their children
     ///
     /// Note that the iterator items can contain errors, usually when directories are removed during the iteration.
-    /// The returned paths may also point to non-existant files if there is concurrent removal.
+    /// The returned paths may also point to non-existent files if there is concurrent removal.
     ///
     /// Also note that loops in the file system hierarchy may cause this iterator to never terminate.
     ///
@@ -879,6 +927,14 @@ impl VfsPath {
             })
         })?;
         Ok(())
+    }
+
+    pub fn sync(&self) -> VfsResult<()> {
+        self.fs.fs.sync(&self.path)
+    }
+
+    pub fn set_size_hint(&mut self, size_hint: usize) -> VfsResult<()> {
+        self.fs.fs.set_size_hint(size_hint, &self.path)
     }
 }
 

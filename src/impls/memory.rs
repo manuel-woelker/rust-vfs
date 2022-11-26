@@ -1,16 +1,15 @@
 //! An ephemeral in-memory file system, intended mainly for unit tests
 
 use crate::error::VfsErrorKind;
-use crate::VfsResult;
-use crate::{FileSystem, VfsFileType};
-use crate::{SeekAndRead, VfsMetadata};
+use crate::{VfsResult, FileSystem, SeekAndRead, VfsFileType, VfsMetadata, VfsAccess};
 use core::cmp;
-use std::collections::HashMap;
+use std::collections::{HashSet, HashMap};
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 use std::mem::swap;
 use std::sync::{Arc, RwLock};
+
 
 type MemoryFsHandle = Arc<RwLock<MemoryFsImpl>>;
 
@@ -119,6 +118,56 @@ impl Seek for ReadableFile {
     }
 }
 
+struct RandomAccessFile {
+    content: Cursor<Vec<u8>>,
+    destination: String,
+    fs: MemoryFsHandle,
+}
+
+impl RandomAccessFile {
+    fn from_file(value: Arc<Vec<u8>>, destination: String, fs: MemoryFsHandle) -> Self {
+        Self {
+            content: Cursor::new(value.to_vec()),
+            destination,
+            fs,
+        }
+    }
+}
+
+impl Write for RandomAccessFile {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.content.write(buf)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.content.flush()
+    }
+}
+
+impl Read for RandomAccessFile {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.content.read(buf)
+    }
+}
+impl Seek for RandomAccessFile {
+    fn seek(&mut self, pos: SeekFrom) -> std::io::Result<u64> {
+        self.content.seek(pos)
+    }
+}
+impl Drop for RandomAccessFile {
+    fn drop(&mut self) {
+        let mut content = vec![];
+        swap(&mut content, self.content.get_mut());
+        self.fs.write().unwrap().files.insert(
+            self.destination.clone(),
+            MemoryFile {
+                file_type: VfsFileType::File,
+                content: Arc::new(content),
+            },
+        );
+    }
+}
+
 impl FileSystem for MemoryFS {
     fn read_dir(&self, path: &str) -> VfsResult<Box<dyn Iterator<Item = String>>> {
         let prefix = format!("{}/", path);
@@ -195,18 +244,35 @@ impl FileSystem for MemoryFS {
         let writer = WritableFile {
             content,
             destination: path.to_string(),
-            fs: self.handle.clone(),
+            fs: Arc::clone(&self.handle),
         };
         Ok(Box::new(writer))
+    }
+
+    fn update_file(&self, path: &str) -> VfsResult<Box<dyn crate::SeekAndReadAndWrite>> {
+        let handle = self.handle.read().unwrap();
+        let file = handle
+            .files
+            .get(path)
+            .ok_or_else(|| VfsErrorKind::FileNotFound)?;
+        ensure_file(file)?;
+
+        Ok(Box::new(RandomAccessFile::from_file(
+            Arc::clone(&file.content),
+            path.to_string(),
+            Arc::clone(&self.handle),
+        )))
     }
 
     fn metadata(&self, path: &str) -> VfsResult<VfsMetadata> {
         let guard = self.handle.read().unwrap();
         let files = &guard.files;
         let file = files.get(path).ok_or(VfsErrorKind::FileNotFound)?;
+
         Ok(VfsMetadata {
             file_type: file.file_type,
             len: file.content.len() as u64,
+            access: HashSet::from([VfsAccess::Read, VfsAccess::Write]),
         })
     }
 
@@ -232,6 +298,10 @@ impl FileSystem for MemoryFS {
             .files
             .remove(path)
             .ok_or(VfsErrorKind::FileNotFound)?;
+        Ok(())
+    }
+
+    fn sync(&self, _path: &str) -> VfsResult<()> {
         Ok(())
     }
 }

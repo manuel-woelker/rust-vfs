@@ -7,7 +7,7 @@ use std::marker::PhantomData;
 use rust_embed::RustEmbed;
 
 use crate::error::VfsErrorKind;
-use crate::{FileSystem, SeekAndRead, VfsFileType, VfsMetadata, VfsResult};
+use crate::{FileSystem, SeekAndRead, VfsFileType, VfsMetadata, VfsResult, VfsAccess};
 
 type EmbeddedPath = Cow<'static, str>;
 
@@ -120,12 +120,14 @@ where
             return Ok(VfsMetadata {
                 file_type: VfsFileType::File,
                 len: *len,
+                access: HashSet::from([VfsAccess::Read])
             });
         }
         if self.directory_map.contains_key(normalized_path) {
             return Ok(VfsMetadata {
                 file_type: VfsFileType::Directory,
                 len: 0,
+                access: HashSet::from([VfsAccess::Read])
             });
         }
         Err(VfsErrorKind::FileNotFound.into())
@@ -152,6 +154,9 @@ where
 
     fn remove_dir(&self, _path: &str) -> VfsResult<()> {
         Err(VfsErrorKind::NotSupported.into())
+    }
+    fn sync(&self, _path: &str) -> VfsResult<()> {
+        Ok(())
     }
 }
 
