@@ -108,11 +108,11 @@ impl VfsPath {
         }
         let mut new_components: Vec<&str> = vec![];
         let mut base_path = self.clone();
+        if path.ends_with('/') {
+            return Err(VfsError::from(VfsErrorKind::InvalidPath).with_path(path));
+        }
         for component in path.split('/') {
-            if component.is_empty() {
-                return Err(VfsError::from(VfsErrorKind::InvalidPath).with_path(path));
-            }
-            if component == "." {
+            if component == "." || component.is_empty() {
                 continue;
             }
             if component == ".." {
