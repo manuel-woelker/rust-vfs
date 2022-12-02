@@ -320,6 +320,7 @@ macro_rules! test_vfs {
                 assert_eq!(root.join("foo").unwrap().join("").unwrap().as_str(), "/foo");
                 assert_eq!(root.join("foo").unwrap().as_str(), "/foo");
                 assert_eq!(root.join("foo/bar").unwrap().as_str(), "/foo/bar");
+                assert_eq!(root.join("foo/////bar").unwrap().as_str(), "/foo/bar");
                 assert_eq!(root.join("foo/bar/baz").unwrap().as_str(), "/foo/bar/baz");
                 assert_eq!(
                     root.join("foo").unwrap().join("bar").unwrap().as_str(),
