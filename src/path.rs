@@ -153,6 +153,20 @@ impl VfsPath {
         }
     }
 
+    /// Returns true if this is the root path
+    ///
+    /// ```
+    /// # use vfs::{MemoryFS, VfsError, VfsFileType, VfsPath};
+    /// let path = VfsPath::new(MemoryFS::new());
+    /// assert!(path.is_root());
+    /// let path = path.join("foo/bar")?;
+    /// assert!(! path.is_root());
+    /// # Ok::<(), VfsError>(())
+    /// ```
+    pub fn is_root(&self) -> bool {
+        self.path.is_empty()
+    }
+
     /// Creates the directory at this path
     ///
     /// Note that the parent directory must exist.
