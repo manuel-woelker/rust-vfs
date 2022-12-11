@@ -124,7 +124,7 @@ impl VfsPath {
                 if !new_components.is_empty() {
                     new_components.truncate(new_components.len() - 1);
                 } else {
-                    base_path = self.parent();
+                    base_path = base_path.parent();
                 }
             } else {
                 new_components.push(component);
