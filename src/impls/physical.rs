@@ -31,7 +31,7 @@ impl PhysicalFS {
 }
 
 impl FileSystem for PhysicalFS {
-    fn read_dir(&self, path: &str) -> VfsResult<Box<dyn Iterator<Item = String>>> {
+    fn read_dir(&self, path: &str) -> VfsResult<Box<dyn Iterator<Item = String> + Send>> {
         let entries = Box::new(
             self.get_path(path)
                 .read_dir()?

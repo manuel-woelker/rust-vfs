@@ -120,7 +120,7 @@ impl Seek for ReadableFile {
 }
 
 impl FileSystem for MemoryFS {
-    fn read_dir(&self, path: &str) -> VfsResult<Box<dyn Iterator<Item = String>>> {
+    fn read_dir(&self, path: &str) -> VfsResult<Box<dyn Iterator<Item = String> + Send>> {
         let prefix = format!("{}/", path);
         let handle = self.handle.read().unwrap();
         let mut found_directory = false;

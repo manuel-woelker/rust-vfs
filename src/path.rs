@@ -245,7 +245,7 @@ impl VfsPath {
     /// assert_eq!(directories, vec![path.join("bar")?, path.join("foo")?]);
     /// # Ok::<(), VfsError>(())
     /// ```
-    pub fn read_dir(&self) -> VfsResult<Box<dyn Iterator<Item = VfsPath>>> {
+    pub fn read_dir(&self) -> VfsResult<Box<dyn Iterator<Item = VfsPath> + Send>> {
         let parent = self.path.clone();
         let fs = self.fs.clone();
         Ok(Box::new(
@@ -888,7 +888,7 @@ impl VfsPath {
 /// An iterator for recursively walking a file hierarchy
 pub struct WalkDirIterator {
     /// the path iterator of the current directory
-    inner: Box<dyn Iterator<Item = VfsPath>>,
+    inner: Box<dyn Iterator<Item = VfsPath> + Send>,
     /// stack of subdirectories still to walk
     todo: Vec<VfsPath>,
 }

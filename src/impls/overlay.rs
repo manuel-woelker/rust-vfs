@@ -80,7 +80,7 @@ impl OverlayFS {
 }
 
 impl FileSystem for OverlayFS {
-    fn read_dir(&self, path: &str) -> VfsResult<Box<dyn Iterator<Item = String>>> {
+    fn read_dir(&self, path: &str) -> VfsResult<Box<dyn Iterator<Item = String> + Send>> {
         let actual_path = if !path.is_empty() { &path[1..] } else { path };
         if !self.read_path(path)?.exists()? {
             return Err(VfsErrorKind::FileNotFound.into());
