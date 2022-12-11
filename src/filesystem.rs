@@ -15,7 +15,7 @@ use std::io::Write;
 pub trait FileSystem: Debug + Sync + Send + 'static {
     /// Iterates over all direct children of this directory path
     /// NOTE: the returned String items denote the local bare filenames, i.e. they should not contain "/" anywhere
-    fn read_dir(&self, path: &str) -> VfsResult<Box<dyn Iterator<Item = String>>>;
+    fn read_dir(&self, path: &str) -> VfsResult<Box<dyn Iterator<Item = String> + Send>>;
     /// Creates the directory at this path
     ///
     /// Note that the parent directory must already exist.

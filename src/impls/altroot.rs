@@ -35,11 +35,11 @@ impl AltrootFS {
 }
 
 impl FileSystem for AltrootFS {
-    fn read_dir(&self, path: &str) -> VfsResult<Box<dyn Iterator<Item = String>>> {
+    fn read_dir(&self, path: &str) -> VfsResult<Box<dyn Iterator<Item = String> + Send>> {
         self.path(path)?
             .read_dir()
             .map(|result| result.map(|path| path.filename()))
-            .map(|entries| Box::new(entries) as Box<dyn Iterator<Item = String>>)
+            .map(|entries| Box::new(entries) as Box<dyn Iterator<Item = String> + Send>)
     }
 
     fn create_dir(&self, path: &str) -> VfsResult<()> {

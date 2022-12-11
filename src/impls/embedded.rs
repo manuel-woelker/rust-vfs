@@ -80,7 +80,7 @@ impl<T> FileSystem for EmbeddedFS<T>
 where
     T: RustEmbed + Send + Sync + Debug + 'static,
 {
-    fn read_dir(&self, path: &str) -> VfsResult<Box<dyn Iterator<Item = String>>> {
+    fn read_dir(&self, path: &str) -> VfsResult<Box<dyn Iterator<Item = String> + Send>> {
         let normalized_path = normalize_path(path)?;
         if let Some(children) = self.directory_map.get(normalized_path) {
             Ok(Box::new(
