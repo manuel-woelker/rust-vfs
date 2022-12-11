@@ -385,16 +385,14 @@ macro_rules! test_vfs {
                     root.join("foo").unwrap()
                 );
 
+                assert_eq!(root.join("/").unwrap(), root);
+                assert_eq!(root.join("foo/bar").unwrap().join("/baz").unwrap(), root.join("baz").unwrap());
+
                 /// Utility function for templating the same error message
                 fn invalid_path_message(path: &str) -> String {
                     format!("An error occured for '{}': The path is invalid", path)
                 }
 
-                assert_eq!(
-                    root.join("/").unwrap_err().to_string(),
-                    invalid_path_message("/"),
-                    "/"
-                );
                 assert_eq!(
                     root.join("foo/").unwrap_err().to_string(),
                     invalid_path_message("foo/"),
@@ -1114,17 +1112,18 @@ macro_rules! test_vfs_readonly {
                 assert_eq!(root.join("..").unwrap(), root);
                 assert_eq!(root.join("../foo").unwrap(), root.join("foo").unwrap());
 
+                assert_eq!(root.join("/").unwrap(), root);
+                assert_eq!(
+                    root.join("foo/bar").unwrap().join("/baz").unwrap(),
+                    root.join("baz").unwrap()
+                );
+
                 /// Utility function for templating the same error message
                 // TODO: Maybe deduplicate this function
                 fn invalid_path_message(path: &str) -> String {
                     format!("An error occured for '{}': The path is invalid", path)
                 }
 
-                assert_eq!(
-                    root.join("/").unwrap_err().to_string(),
-                    invalid_path_message("/"),
-                    "/"
-                );
                 assert_eq!(
                     root.join("foo/").unwrap_err().to_string(),
                     invalid_path_message("foo/"),

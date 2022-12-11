@@ -107,8 +107,13 @@ impl VfsPath {
             return Ok(self.clone());
         }
         let mut new_components: Vec<&str> = vec![];
-        let mut base_path = self.clone();
-        if path.ends_with('/') {
+        let mut base_path = if path.starts_with('/') {
+            self.root()
+        } else {
+            self.clone()
+        };
+        // Prevent paths from ending in slashes unless this is just the root directory.
+        if path.len() > 1 && path.ends_with('/') {
             return Err(VfsError::from(VfsErrorKind::InvalidPath).with_path(path));
         }
         for component in path.split('/') {
