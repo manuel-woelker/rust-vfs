@@ -388,6 +388,11 @@ macro_rules! test_vfs {
                 assert_eq!(root.join("/").unwrap(), root);
                 assert_eq!(root.join("foo/bar").unwrap().join("/baz").unwrap(), root.join("baz").unwrap());
 
+                assert_eq!(
+                    root.join("/foo/bar/baz").unwrap().join("../../..").unwrap(),
+                    root
+                );
+
                 /// Utility function for templating the same error message
                 fn invalid_path_message(path: &str) -> String {
                     format!("An error occured for '{}': The path is invalid", path)
@@ -1116,6 +1121,11 @@ macro_rules! test_vfs_readonly {
                 assert_eq!(
                     root.join("foo/bar").unwrap().join("/baz").unwrap(),
                     root.join("baz").unwrap()
+                );
+
+                assert_eq!(
+                    root.join("/foo/bar/baz").unwrap().join("../../..").unwrap(),
+                    root
                 );
 
                 /// Utility function for templating the same error message
