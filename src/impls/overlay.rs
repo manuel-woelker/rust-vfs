@@ -63,7 +63,7 @@ impl OverlayFS {
             return self.write_layer().join(".whiteout/_wo");
         }
         self.write_layer()
-            .join(&format!(".whiteout/{}_wo", &path[1..]))
+            .join(format!(".whiteout/{}_wo", &path[1..]))
     }
 
     fn ensure_has_parent(&self, path: &str) -> VfsResult<()> {
@@ -95,7 +95,7 @@ impl FileSystem for OverlayFS {
             }
         }
         // remove whiteout entries that have been removed
-        let whiteout_path = self.write_layer().join(&format!(".whiteout{}", path))?;
+        let whiteout_path = self.write_layer().join(format!(".whiteout{}", path))?;
         if whiteout_path.exists()? {
             for path in whiteout_path.read_dir()? {
                 let filename = path.filename();
