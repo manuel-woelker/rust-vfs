@@ -24,6 +24,22 @@ Comments and pull-requests welcome!
 
 ## Changelog
 
+### 0.9.0 (2022-12-20)
+
+* prevent `Path::create_dir_all()` failures when executing in parallel
+  (fixes [#47](https://github.com/manuel-woelker/rust-vfs/pull/47))
+* Allow absolute paths (e.g. starting with "/") in `VfsPath::join()`
+  ([#45](https://github.com/manuel-woelker/rust-vfs/pull/45) - thanks [@Property404](https://github.com/Property404))
+* Allow multiple consecutive slashes in paths
+  ([#43](https://github.com/manuel-woelker/rust-vfs/pull/43) - thanks [@Property404](https://github.com/Property404))
+* Add method `VfsPath::is_root()`
+  ([#44](https://github.com/manuel-woelker/rust-vfs/pull/44) - thanks [@Property404](https://github.com/Property404))
+* `Path::join()` now allows resolving '..' at the root (resolving to root itself)
+ ([#41](https://github.com/manuel-woelker/rust-vfs/pull/41) - thanks [@Property404](https://github.com/Property404))  
+*  Add `Send` to trait objects returned from APIs
+   ([#40](https://github.com/manuel-woelker/rust-vfs/pull/40),
+   [#46](https://github.com/manuel-woelker/rust-vfs/pull/46) - thanks [@Property404](https://github.com/Property404))
+
 ### 0.8.0 (2022-11-24)
 
 * Impl `std::error::Error` for `VfsError` ([#32](https://github.com/manuel-woelker/rust-vfs/pull/32)) and improved error 
