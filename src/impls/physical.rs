@@ -1,11 +1,11 @@
 //! A "physical" file system implementation using the underlying OS file system
 
 use crate::error::VfsErrorKind;
-use crate::VfsResult;
 use crate::{FileSystem, VfsMetadata};
 use crate::{SeekAndRead, VfsFileType};
+use crate::{VfsError, VfsResult};
 use std::fs::{File, OpenOptions};
-use std::io::Write;
+use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
 
 /// A physical filesystem implementation using the underlying OS file system
@@ -41,7 +41,17 @@ impl FileSystem for PhysicalFS {
     }
 
     fn create_dir(&self, path: &str) -> VfsResult<()> {
-        std::fs::create_dir(self.get_path(path))?;
+        let fs_path = self.get_path(path);
+        std::fs::create_dir(&fs_path).map_err(|err| match err.kind() {
+            ErrorKind::AlreadyExists => {
+                let metadata = std::fs::metadata(&fs_path).unwrap();
+                if metadata.is_dir() {
+                    return VfsError::from(VfsErrorKind::DirectoryExists);
+                }
+                VfsError::from(VfsErrorKind::FileExists)
+            }
+            _ => err.into(),
+        })?;
         Ok(())
     }
 

@@ -115,6 +115,12 @@ pub enum VfsErrorKind {
     /// Generic error variant
     Other(String),
 
+    /// There is already a directory at the given path
+    DirectoryExists,
+
+    /// There is already a file at the given path
+    FileExists,
+
     /// Functionality not supported by this filesystem
     NotSupported,
 }
@@ -136,6 +142,12 @@ impl fmt::Display for VfsErrorKind {
             }
             VfsErrorKind::NotSupported => {
                 write!(f, "Functionality not supported by this filesystem")
+            }
+            VfsErrorKind::DirectoryExists => {
+                write!(f, "Directory already exists")
+            }
+            VfsErrorKind::FileExists => {
+                write!(f, "File already exists")
             }
         }
     }

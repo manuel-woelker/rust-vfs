@@ -174,7 +174,10 @@ impl VfsPath {
 
     /// Creates the directory at this path
     ///
-    /// Note that the parent directory must exist.
+    /// Note that the parent directory must exist, while the given path must not exist.
+    ///
+    /// Returns VfsErrorKind::FileExists if a file already exists at the given path
+    /// Returns VfsErrorKind::DirectoryExists if a directory already exists at the given path
     ///
     /// ```
     /// # use vfs::{MemoryFS, VfsError, VfsFileType, VfsPath};
@@ -225,8 +228,15 @@ impl VfsPath {
                 .map(|it| it + pos)
                 .unwrap_or_else(|| path.len());
             let directory = &path[..end];
-            if !self.fs.fs.exists(directory)? {
-                self.fs.fs.create_dir(directory)?;
+            if let Err(error) = self.fs.fs.create_dir(directory) {
+                match error.kind() {
+                    VfsErrorKind::DirectoryExists => {}
+                    _ => {
+                        return Err(error.with_path(directory).with_context(|| {
+                            format!("Could not create directories at '{}'", path)
+                        }))
+                    }
+                }
             }
             if end == path.len() {
                 break;

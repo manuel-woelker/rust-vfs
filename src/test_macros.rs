@@ -109,6 +109,34 @@ macro_rules! test_vfs {
                 let metadata = path.metadata().unwrap();
                 assert_eq!(metadata.file_type, VfsFileType::Directory);
                 assert_eq!(metadata.len, 0);
+                path.create_dir_all().unwrap();
+                root.create_dir_all().unwrap();
+                Ok(())
+            }
+
+            #[test]
+            fn create_dir_all_should_fail_for_existing_file() -> VfsResult<()>{
+                let root = create_root();
+                let _string = String::new();
+                let path = root.join("foo").unwrap();
+                let path2 = root.join("foo/bar").unwrap();
+                path.create_file().unwrap();
+                let result = path2.create_dir_all();
+                match result {
+                    Ok(_) => {panic!("Expected error");}
+                    Err(err) => {
+                        let error_message = format!("{}", err);
+                        if let VfsErrorKind::FileExists = err.kind() {
+
+                        } else {
+                            panic!("Expected file exists error")
+                        }
+                        assert!(
+                            error_message.eq("Could not create directories at '/foo/bar' for '/foo': File already exists"),
+                            "Actual message: {}",
+                            error_message);
+                    }
+                }
                 Ok(())
             }
 

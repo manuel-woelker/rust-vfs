@@ -5,6 +5,7 @@ use crate::VfsResult;
 use crate::{FileSystem, VfsFileType};
 use crate::{SeekAndRead, VfsMetadata};
 use core::cmp;
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
@@ -149,13 +150,25 @@ impl FileSystem for MemoryFS {
 
     fn create_dir(&self, path: &str) -> VfsResult<()> {
         self.ensure_has_parent(path)?;
-        self.handle.write().unwrap().files.insert(
-            path.to_string(),
-            MemoryFile {
-                file_type: VfsFileType::Directory,
-                content: Default::default(),
-            },
-        );
+        let map = &mut self.handle.write().unwrap().files;
+        let entry = map.entry(path.to_string());
+        match entry {
+            Entry::Occupied(file) => {
+                return match file.get().file_type {
+                    VfsFileType::File => Err(VfsErrorKind::FileExists.into()),
+                    VfsFileType::Directory => Err(VfsErrorKind::DirectoryExists.into()),
+                }
+            }
+            Entry::Vacant(_) => {
+                map.insert(
+                    path.to_string(),
+                    MemoryFile {
+                        file_type: VfsFileType::Directory,
+                        content: Default::default(),
+                    },
+                );
+            }
+        }
         Ok(())
     }
 
