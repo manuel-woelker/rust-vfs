@@ -19,7 +19,7 @@ where
     T: RustEmbed + Send + Sync + Debug + 'static,
 {
     p: PhantomData<T>,
-    directory_map: HashMap<EmbeddedPath, HashSet<EmbeddedPath>>,
+    directory_map: HashMap<EmbeddedPath, Vec<EmbeddedPath>>,
     files: HashMap<EmbeddedPath, u64>,
 }
 
@@ -28,7 +28,9 @@ where
     T: RustEmbed + Send + Sync + Debug + 'static,
 {
     pub fn new() -> Self {
-        let mut directory_map: HashMap<EmbeddedPath, HashSet<EmbeddedPath>> = Default::default();
+        let mut directory_map_unordered: HashMap<EmbeddedPath, HashSet<EmbeddedPath>> =
+            Default::default();
+        let mut directory_map: HashMap<EmbeddedPath, Vec<EmbeddedPath>> = Default::default();
         let mut files: HashMap<EmbeddedPath, u64> = Default::default();
         for file in T::iter() {
             let mut path = file.clone();
@@ -37,12 +39,20 @@ where
                 T::get(&path).expect("Path should exist").data.len() as u64,
             );
             while let Some((prefix, suffix)) = rsplit_once_cow(&path, "/") {
-                let children = directory_map.entry(prefix.clone()).or_default();
-                children.insert(suffix);
+                let children_unordered = directory_map_unordered.entry(prefix.clone()).or_default();
+                if !children_unordered.contains(&suffix) {
+                    children_unordered.insert(suffix.clone());
+                    let children = directory_map.entry(prefix.clone()).or_default();
+                    children.push(suffix);
+                }
                 path = prefix;
             }
-            let children = directory_map.entry("".into()).or_default();
-            children.insert(path);
+            let children_unordered = directory_map_unordered.entry("".into()).or_default();
+            if !children_unordered.contains(&path) {
+                children_unordered.insert(path.clone());
+                let children = directory_map.entry("".into()).or_default();
+                children.push(path);
+            }
         }
         EmbeddedFS {
             p: PhantomData::default(),
