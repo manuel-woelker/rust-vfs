@@ -46,7 +46,8 @@
 //! # }
 //! ```
 //!
-
+//!
+#![feature(async_closure)]
 #![allow(unknown_lints)]
 #![allow(clippy::upper_case_acronyms)]
 
@@ -58,6 +59,9 @@ pub mod error;
 pub mod filesystem;
 pub mod impls;
 pub mod path;
+
+#[cfg(feature = "async-vfs")]
+pub mod async_vfs;
 
 pub use error::{VfsError, VfsResult};
 pub use filesystem::FileSystem;
