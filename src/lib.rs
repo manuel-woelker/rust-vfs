@@ -47,9 +47,10 @@
 //! ```
 //!
 //!
-#![feature(async_closure)]
 #![allow(unknown_lints)]
 #![allow(clippy::upper_case_acronyms)]
+#![allow(clippy::redundant_async_block)]
+#![allow(clippy::type_complexity)]
 
 #[cfg(any(test, feature = "export-test-macros"))]
 #[macro_use]

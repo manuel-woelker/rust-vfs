@@ -132,7 +132,7 @@ impl Read for ReadableFile {
             &this.content[this.cursor_pos as usize..(this.cursor_pos + bytes_read) as usize],
         );
         this.cursor_pos += bytes_read;
-        return Poll::Ready(Ok(bytes_read as usize));
+        Poll::Ready(Ok(bytes_read as usize))
     }
 }
 

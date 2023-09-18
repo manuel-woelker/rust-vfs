@@ -723,7 +723,7 @@ impl VfsPath {
     /// # });
     /// ```
     pub async fn copy_file(&self, destination: &VfsPath) -> VfsResult<()> {
-        async || -> VfsResult<()> {
+        async {
             if destination.exists().await? {
                 return Err(VfsError::from(VfsErrorKind::Other(
                     "Destination exists already".into(),
@@ -752,7 +752,7 @@ impl VfsPath {
                         .with_context(|| "Could not read path")
                 })?;
             Ok(())
-        }()
+        }
         .await
         .map_err(|err| {
             err.with_path(&self.path).with_context(|| {
@@ -787,7 +787,7 @@ impl VfsPath {
     /// # });
     /// ```
     pub async fn move_file(&self, destination: &VfsPath) -> VfsResult<()> {
-        async move || -> VfsResult<()> {
+        async {
             if destination.exists().await? {
                 return Err(VfsError::from(VfsErrorKind::Other(
                     "Destination exists already".into(),
@@ -817,7 +817,7 @@ impl VfsPath {
                 })?;
             self.remove_file().await?;
             Ok(())
-        }()
+        }
         .await
         .map_err(|err| {
             err.with_path(&self.path).with_context(|| {
@@ -852,7 +852,7 @@ impl VfsPath {
     /// # });
     /// ```
     pub async fn copy_dir(&self, destination: &VfsPath) -> VfsResult<u64> {
-        let files_copied = async move || -> VfsResult<u64> {
+        let files_copied = async {
             let mut files_copied = 0u64;
             if destination.exists().await? {
                 return Err(VfsError::from(VfsErrorKind::Other(
@@ -874,7 +874,7 @@ impl VfsPath {
                 files_copied += 1;
             }
             Ok(files_copied)
-        }()
+        }
         .await
         .map_err(|err| {
             err.with_path(&self.path).with_context(|| {
@@ -908,7 +908,7 @@ impl VfsPath {
     /// # });
     /// ```
     pub async fn move_dir(&self, destination: &VfsPath) -> VfsResult<()> {
-        async || -> VfsResult<()> {
+        async {
             if destination.exists().await? {
                 return Err(VfsError::from(VfsErrorKind::Other(
                     "Destination exists already".into(),
@@ -941,7 +941,7 @@ impl VfsPath {
             }
             self.remove_dir_all().await?;
             Ok(())
-        }()
+        }
         .await
         .map_err(|err| {
             err.with_path(&self.path).with_context(|| {
@@ -993,7 +993,7 @@ impl Stream for WalkDirIterator {
                     Poll::Pending => return Poll::Pending,
                     Poll::Ready(Some(path)) => break Ok(path),
                     Poll::Ready(None) => {
-                        let directory = if this.todo.len() == 0 {
+                        let directory = if this.todo.is_empty() {
                             return Poll::Ready(None);
                         } else {
                             this.todo[this.todo.len() - 1].clone()
