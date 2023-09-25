@@ -113,7 +113,7 @@ impl FileSystem for OverlayFS {
                 }
             }
         }
-        Ok(Box::new(futures::stream::iter(entries.into_iter())))
+        Ok(Box::new(futures::stream::iter(entries)))
     }
 
     async fn create_dir(&self, path: &str) -> VfsResult<()> {
