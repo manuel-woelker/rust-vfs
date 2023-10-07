@@ -1,7 +1,8 @@
 //! An overlay file system combining two filesystems, an upper layer with read/write access and a lower layer with only read access
 
-use crate::async_vfs::error::VfsErrorKind;
-use crate::async_vfs::{FileSystem, SeekAndRead, VfsMetadata, VfsPath, VfsResult};
+use crate::async_vfs::{AsyncFileSystem, AsyncVfsPath, SeekAndRead};
+use crate::error::VfsErrorKind;
+use crate::{VfsMetadata, VfsResult};
 
 use async_std::io::Write;
 use async_trait::async_trait;
@@ -15,26 +16,26 @@ use std::collections::HashSet;
 /// NOTE: To allow removing files and directories (e.g. via remove_file()) from the lower layer filesystems, this mechanism creates a `.whiteout` folder in the root of the upper level filesystem to mark removed files
 ///
 #[derive(Debug, Clone)]
-pub struct OverlayFS {
-    layers: Vec<VfsPath>,
+pub struct AsyncOverlayFS {
+    layers: Vec<AsyncVfsPath>,
 }
 
-impl OverlayFS {
+impl AsyncOverlayFS {
     /// Create a new overlay FileSystem from the given layers, only the first layer is written to
-    pub fn new(layers: &[VfsPath]) -> Self {
+    pub fn new(layers: &[AsyncVfsPath]) -> Self {
         if layers.is_empty() {
-            panic!("OverlayFS needs at least one layer")
+            panic!("AsyncOverlayFS needs at least one layer")
         }
-        OverlayFS {
+        AsyncOverlayFS {
             layers: layers.to_vec(),
         }
     }
 
-    fn write_layer(&self) -> &VfsPath {
+    fn write_layer(&self) -> &AsyncVfsPath {
         &self.layers[0]
     }
 
-    async fn read_path(&self, path: &str) -> VfsResult<VfsPath> {
+    async fn read_path(&self, path: &str) -> VfsResult<AsyncVfsPath> {
         if path.is_empty() {
             return Ok(self.layers[0].clone());
         }
@@ -54,14 +55,14 @@ impl OverlayFS {
         Ok(read_path)
     }
 
-    fn write_path(&self, path: &str) -> VfsResult<VfsPath> {
+    fn write_path(&self, path: &str) -> VfsResult<AsyncVfsPath> {
         if path.is_empty() {
             return Ok(self.layers[0].clone());
         }
         self.write_layer().join(&path[1..])
     }
 
-    fn whiteout_path(&self, path: &str) -> VfsResult<VfsPath> {
+    fn whiteout_path(&self, path: &str) -> VfsResult<AsyncVfsPath> {
         if path.is_empty() {
             return self.write_layer().join(".whiteout/_wo");
         }
@@ -83,7 +84,7 @@ impl OverlayFS {
 }
 
 #[async_trait]
-impl FileSystem for OverlayFS {
+impl AsyncFileSystem for AsyncOverlayFS {
     async fn read_dir(
         &self,
         path: &str,
@@ -198,22 +199,22 @@ impl FileSystem for OverlayFS {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::async_vfs::MemoryFS;
+    use crate::async_vfs::AsyncMemoryFS;
 
     use async_std::io::WriteExt;
     use futures::stream::StreamExt;
 
     test_async_vfs!({
-        let upper_root: VfsPath = MemoryFS::new().into();
-        let lower_root: VfsPath = MemoryFS::new().into();
-        OverlayFS::new(&[upper_root, lower_root])
+        let upper_root: AsyncVfsPath = AsyncMemoryFS::new().into();
+        let lower_root: AsyncVfsPath = AsyncMemoryFS::new().into();
+        AsyncOverlayFS::new(&[upper_root, lower_root])
     });
 
-    fn create_roots() -> (VfsPath, VfsPath, VfsPath) {
-        let lower_root: VfsPath = MemoryFS::new().into();
-        let upper_root: VfsPath = MemoryFS::new().into();
-        let overlay_root: VfsPath =
-            OverlayFS::new(&[upper_root.clone(), lower_root.clone()]).into();
+    fn create_roots() -> (AsyncVfsPath, AsyncVfsPath, AsyncVfsPath) {
+        let lower_root: AsyncVfsPath = AsyncMemoryFS::new().into();
+        let upper_root: AsyncVfsPath = AsyncMemoryFS::new().into();
+        let overlay_root: AsyncVfsPath =
+            AsyncOverlayFS::new(&[upper_root.clone(), lower_root.clone()]).into();
         (lower_root, upper_root, overlay_root)
     }
 
@@ -416,7 +417,8 @@ mod tests {
 #[cfg(test)]
 mod tests_physical {
     use super::*;
-    use crate::async_vfs::PhysicalFS;
+    use crate::async_vfs::AsyncPhysicalFS;
+
     test_async_vfs!(futures::executor::block_on(async {
         let temp_dir = std::env::temp_dir();
         let dir = temp_dir.join(uuid::Uuid::new_v4().to_string());
@@ -425,8 +427,8 @@ mod tests_physical {
         let upper_path = dir.join("upper");
         async_std::fs::create_dir_all(&upper_path).await.unwrap();
 
-        let upper_root: VfsPath = PhysicalFS::new(upper_path).into();
-        let lower_root: VfsPath = PhysicalFS::new(lower_path).into();
-        OverlayFS::new(&[upper_root, lower_root])
+        let upper_root: AsyncVfsPath = AsyncPhysicalFS::new(upper_path).into();
+        let lower_root: AsyncVfsPath = AsyncPhysicalFS::new(lower_path).into();
+        AsyncOverlayFS::new(&[upper_root, lower_root])
     }));
 }

@@ -3,8 +3,10 @@
 //! The virtual file system abstraction generalizes over file systems and allow using
 //! different VirtualFileSystem implementations (i.e. an in memory implementation for unit tests)
 
-use crate::async_vfs::error::VfsErrorKind;
-use crate::async_vfs::{FileSystem, VfsError, VfsResult};
+use crate::async_vfs::AsyncFileSystem;
+use crate::error::{VfsError, VfsErrorKind};
+use crate::path::VfsFileType;
+use crate::{VfsMetadata, VfsResult};
 
 use async_recursion::async_recursion;
 use async_std::io::{Read, ReadExt, Seek, Write};
@@ -18,55 +20,37 @@ pub trait SeekAndRead: Seek + Read {}
 
 impl<T> SeekAndRead for T where T: Seek + Read {}
 
-/// Type of file
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub enum VfsFileType {
-    /// A plain file
-    File,
-    /// A Directory
-    Directory,
-}
-
-/// File metadata information
 #[derive(Debug)]
-pub struct VfsMetadata {
-    /// The type of file
-    pub file_type: VfsFileType,
-    /// Length of the file in bytes, 0 for directories
-    pub len: u64,
-}
-
-#[derive(Debug)]
-struct VFS {
-    fs: Box<dyn FileSystem>,
+struct AsyncVFS {
+    fs: Box<dyn AsyncFileSystem>,
 }
 
 /// A virtual filesystem path, identifying a single file or directory in this virtual filesystem
 #[derive(Clone, Debug)]
-pub struct VfsPath {
+pub struct AsyncVfsPath {
     path: String,
-    fs: Arc<VFS>,
+    fs: Arc<AsyncVFS>,
 }
 
-impl PartialEq for VfsPath {
+impl PartialEq for AsyncVfsPath {
     fn eq(&self, other: &Self) -> bool {
         self.path == other.path && Arc::ptr_eq(&self.fs, &other.fs)
     }
 }
 
-impl Eq for VfsPath {}
+impl Eq for AsyncVfsPath {}
 
-impl VfsPath {
+impl AsyncVfsPath {
     /// Creates a root path for the given filesystem
     ///
     /// ```
-    /// # use vfs::async_vfs::{PhysicalFS, VfsPath};
-    /// let path = VfsPath::new(PhysicalFS::new("."));
+    /// # use vfs::async_vfs::{AsyncPhysicalFS, AsyncVfsPath};
+    /// let path = AsyncVfsPath::new(AsyncPhysicalFS::new("."));
     /// ````
-    pub fn new<T: FileSystem>(filesystem: T) -> Self {
-        VfsPath {
+    pub fn new<T: AsyncFileSystem>(filesystem: T) -> Self {
+        AsyncVfsPath {
             path: "".to_string(),
-            fs: Arc::new(VFS {
+            fs: Arc::new(AsyncVFS {
                 fs: Box::new(filesystem),
             }),
         }
@@ -75,8 +59,9 @@ impl VfsPath {
     /// Returns the string representation of this path
     ///
     /// ```
-    /// # use vfs::async_vfs::{PhysicalFS, VfsError, VfsPath};
-    /// let path = VfsPath::new(PhysicalFS::new("."));
+    /// # use vfs::async_vfs::{AsyncPhysicalFS, AsyncVfsPath};
+    /// # use vfs::VfsError;
+    /// let path = AsyncVfsPath::new(AsyncPhysicalFS::new("."));
     ///
     /// assert_eq!(path.as_str(), "");
     /// assert_eq!(path.join("foo.txt")?.as_str(), "/foo.txt");
@@ -89,8 +74,9 @@ impl VfsPath {
     /// Appends a path segment to this path, returning the result
     ///
     /// ```
-    /// # use vfs::async_vfs::{PhysicalFS, VfsError, VfsPath};
-    /// let path = VfsPath::new(PhysicalFS::new("."));
+    /// # use vfs::async_vfs::{AsyncPhysicalFS, AsyncVfsPath};
+    /// # use vfs::VfsError;
+    /// let path = AsyncVfsPath::new(AsyncPhysicalFS::new("."));
     ///
     /// assert_eq!(path.join("foo.txt")?.as_str(), "/foo.txt");
     /// assert_eq!(path.join("foo/bar.txt")?.as_str(), "/foo/bar.txt");
@@ -139,7 +125,7 @@ impl VfsPath {
             path += "/";
             path += component
         }
-        Ok(VfsPath {
+        Ok(AsyncVfsPath {
             path,
             fs: self.fs.clone(),
         })
@@ -148,15 +134,16 @@ impl VfsPath {
     /// Returns the root path of this filesystem
     ///
     /// ```
-    /// # use vfs::async_vfs::{MemoryFS, VfsError, VfsFileType, VfsPath};
-    /// let path = VfsPath::new(MemoryFS::new());
+    /// # use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
+    /// # use vfs::{VfsError, VfsFileType};
+    /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let directory = path.join("foo/bar")?;
     ///
     /// assert_eq!(directory.root(), path);
     /// # Ok::<(), VfsError>(())
     /// ```
-    pub fn root(&self) -> VfsPath {
-        VfsPath {
+    pub fn root(&self) -> AsyncVfsPath {
+        AsyncVfsPath {
             path: "".to_string(),
             fs: self.fs.clone(),
         }
@@ -165,8 +152,9 @@ impl VfsPath {
     /// Returns true if this is the root path
     ///
     /// ```
-    /// # use vfs::{MemoryFS, VfsError, VfsFileType, VfsPath};
-    /// let path = VfsPath::new(MemoryFS::new());
+    /// # use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
+    /// # use vfs::{VfsError, VfsFileType};
+    /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// assert!(path.is_root());
     /// let path = path.join("foo/bar")?;
     /// assert!(! path.is_root());
@@ -184,9 +172,10 @@ impl VfsPath {
     /// Returns VfsErrorKind::DirectoryExists if a directory already exists at the given path
     ///
     /// ```
-    /// # use vfs::async_vfs::{MemoryFS, VfsError, VfsFileType, VfsPath};
+    /// # use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
+    /// # use vfs::{VfsError, VfsFileType};
     /// # tokio_test::block_on(async {
-    /// let path = VfsPath::new(MemoryFS::new());
+    /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let directory = path.join("foo")?;
     ///
     /// directory.create_dir().await?;
@@ -207,9 +196,10 @@ impl VfsPath {
     /// Creates the directory at this path, also creating parent directories as necessary
     ///
     /// ```
-    /// # use vfs::async_vfs::{MemoryFS, VfsError, VfsFileType, VfsPath};
+    /// # use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
+    /// # use vfs::{VfsError, VfsFileType};
     /// # tokio_test::block_on(async {
-    /// let path = VfsPath::new(MemoryFS::new());
+    /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let directory = path.join("foo/bar")?;
     ///
     /// directory.create_dir_all().await?;
@@ -257,11 +247,12 @@ impl VfsPath {
     /// Iterates over all entries of this directory path
     ///
     /// ```
-    /// # use vfs::async_vfs::{MemoryFS, VfsError, VfsPath};
+    /// # use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
+    /// # use vfs::VfsError;
     /// use futures::stream::Collect;
     /// use futures::stream::StreamExt;
     /// # tokio_test::block_on(async {
-    /// let path = VfsPath::new(MemoryFS::new());
+    /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// path.join("foo")?.create_dir().await?;
     /// path.join("bar")?.create_dir().await?;
     ///
@@ -272,7 +263,7 @@ impl VfsPath {
     /// # Ok::<(), VfsError>(())
     ///  # });
     /// ```
-    pub async fn read_dir(&self) -> VfsResult<Box<dyn Unpin + Stream<Item = VfsPath> + Send>> {
+    pub async fn read_dir(&self) -> VfsResult<Box<dyn Unpin + Stream<Item = AsyncVfsPath> + Send>> {
         let parent = self.path.clone();
         let fs = self.fs.clone();
         Ok(Box::new(
@@ -286,7 +277,7 @@ impl VfsPath {
                 })?
                 .map(move |path| {
                     println!("{:?}", path);
-                    VfsPath {
+                    AsyncVfsPath {
                         path: format!("{}/{}", parent, path),
                         fs: fs.clone(),
                     }
@@ -297,10 +288,11 @@ impl VfsPath {
     /// Creates a file at this path for writing, overwriting any existing file
     ///
     /// ```
-    /// # use vfs::async_vfs::{MemoryFS, VfsError, VfsPath};
+    /// # use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
+    /// # use vfs::VfsError;
     /// use async_std::io:: {ReadExt, WriteExt};
     /// # tokio_test::block_on(async {
-    /// let path = VfsPath::new(MemoryFS::new());
+    /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let file = path.join("foo.txt")?;
     ///
     /// write!(file.create_file().await?, "Hello, world!").await?;
@@ -322,10 +314,11 @@ impl VfsPath {
     /// Opens the file at this path for reading
     ///
     /// ```
-    /// # use vfs::async_vfs::{MemoryFS, VfsError, VfsPath};
+    /// # use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
+    /// # use vfs::VfsError;
     /// use async_std::io:: {ReadExt, WriteExt};
     /// # tokio_test::block_on(async {
-    /// let path = VfsPath::new(MemoryFS::new());
+    /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let file = path.join("foo.txt")?;
     /// write!(file.create_file().await?, "Hello, world!").await?;
     /// let mut result = String::new();
@@ -367,10 +360,11 @@ impl VfsPath {
     /// Opens the file at this path for appending
     ///
     /// ```
-    /// # use vfs::async_vfs::{MemoryFS, VfsError, VfsPath};
+    /// # use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
+    /// # use vfs::VfsError;
     /// use async_std::io:: {ReadExt, WriteExt};
     /// # tokio_test::block_on(async {
-    /// let path = VfsPath::new(MemoryFS::new());
+    /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let file = path.join("foo.txt")?;
     /// write!(file.create_file().await?, "Hello, ").await?;
     /// write!(file.append_file().await?, "world!").await?;
@@ -391,9 +385,10 @@ impl VfsPath {
     ///
     /// ```
     /// use async_std::io:: {ReadExt, WriteExt};
-    /// use vfs::async_vfs::{MemoryFS, VfsError, VfsPath};
+    /// # use vfs::async_vfs::{AsyncMemoryFS , AsyncVfsPath};
+    /// # use vfs::VfsError;
     /// # tokio_test::block_on(async {
-    /// let path = VfsPath::new(MemoryFS::new());
+    /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let file = path.join("foo.txt")?;
     /// write!(file.create_file().await?, "Hello, ").await?;
     /// assert!(file.exists().await?);
@@ -417,8 +412,9 @@ impl VfsPath {
     ///
     /// ```
     /// # tokio_test::block_on(async {
-    /// use vfs::async_vfs::{MemoryFS, VfsError, VfsPath};
-    /// let path = VfsPath::new(MemoryFS::new());
+    /// use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
+    /// use vfs::VfsError;
+    /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let directory = path.join("foo")?;
     /// directory.create_dir().await;
     /// assert!(directory.exists().await?);
@@ -441,9 +437,10 @@ impl VfsPath {
     /// Returns successfully if directory does not exist
     ///
     /// ```
-    /// use vfs::async_vfs::{MemoryFS, VfsError, VfsPath};
+    /// # use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
+    /// # use vfs::VfsError;
     /// # tokio_test::block_on(async {
-    /// let path = VfsPath::new(MemoryFS::new());
+    /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let directory = path.join("foo")?;
     /// directory.join("bar")?.create_dir_all().await?;
     /// assert!(directory.exists().await?);
@@ -474,10 +471,11 @@ impl VfsPath {
     /// Returns the file metadata for the file at this path
     ///
     /// ```
-    /// use vfs::async_vfs::{MemoryFS, VfsError, VfsFileType, VfsMetadata, VfsPath};
+    /// use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
+    /// use vfs::{VfsError, VfsFileType, VfsMetadata};
     /// use async_std::io::WriteExt;
     /// # tokio_test::block_on(async {
-    /// let path = VfsPath::new(MemoryFS::new());
+    /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let directory = path.join("foo")?;
     /// directory.create_dir().await?;
     ///
@@ -503,9 +501,10 @@ impl VfsPath {
     /// Note that this call may fail if the file's existence cannot be determined or the metadata can not be retrieved
     ///
     /// ```
-    /// use vfs::async_vfs::{MemoryFS, VfsError, VfsFileType, VfsMetadata, VfsPath};
+    /// # use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
+    /// # use vfs::{VfsError, VfsFileType, VfsMetadata};
     /// # tokio_test::block_on(async {
-    /// let path = VfsPath::new(MemoryFS::new());
+    /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let directory = path.join("foo")?;
     /// directory.create_dir().await?;
     /// let file = path.join("foo.txt")?;
@@ -528,9 +527,10 @@ impl VfsPath {
     /// Note that this call may fail if the directory's existence cannot be determined or the metadata can not be retrieved
     ///
     /// ```
+    /// # use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
+    /// # use vfs::{VfsError, VfsFileType, VfsMetadata};
     /// # tokio_test::block_on(async {
-    /// use vfs::async_vfs::{MemoryFS, VfsError, VfsFileType, VfsMetadata, VfsPath};
-    /// let path = VfsPath::new(MemoryFS::new());
+    /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let directory = path.join("foo")?;
     /// directory.create_dir().await?;
     /// let file = path.join("foo.txt")?;
@@ -551,9 +551,10 @@ impl VfsPath {
     /// Returns true if a file or directory exists at this path, false otherwise
     ///
     /// ```
-    /// use vfs::async_vfs::{MemoryFS, VfsError, VfsFileType, VfsMetadata, VfsPath};
+    /// # use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
+    /// # use vfs::{VfsError, VfsFileType, VfsMetadata};
     /// # tokio_test::block_on(async {
-    /// let path = VfsPath::new(MemoryFS::new());
+    /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let directory = path.join("foo")?;
     ///
     /// assert!(!directory.exists().await?);
@@ -570,8 +571,9 @@ impl VfsPath {
     /// Returns the filename portion of this path
     ///
     /// ```
-    /// use vfs::async_vfs::{MemoryFS, VfsError, VfsFileType, VfsMetadata, VfsPath};
-    /// let path = VfsPath::new(MemoryFS::new());
+    /// # use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
+    /// # use vfs::{VfsError, VfsFileType, VfsMetadata};
+    /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let file = path.join("foo/bar.txt")?;
     ///
     /// assert_eq!(&file.filename(), "bar.txt");
@@ -585,8 +587,9 @@ impl VfsPath {
     /// Returns the extension portion of this path
     ///
     /// ```
-    /// use vfs::async_vfs::{MemoryFS, VfsError, VfsFileType, VfsMetadata, VfsPath};
-    /// let path = VfsPath::new(MemoryFS::new());
+    /// # use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
+    /// # use vfs::{VfsError, VfsFileType, VfsMetadata};
+    /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     ///
     /// assert_eq!(path.join("foo/bar.txt")?.extension(), Some("txt".to_string()));
     /// assert_eq!(path.join("foo/bar.txt.zip")?.extension(), Some("zip".to_string()));
@@ -609,8 +612,9 @@ impl VfsPath {
     /// Root will return itself.
     ///
     /// ```
-    /// use vfs::async_vfs::{MemoryFS, VfsError, VfsFileType, VfsMetadata, VfsPath};
-    /// let path = VfsPath::new(MemoryFS::new());
+    /// # use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
+    /// # use vfs::{VfsError, VfsFileType, VfsMetadata};
+    /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     ///
     /// assert_eq!(path.parent(), path.root());
     /// assert_eq!(path.join("foo/bar")?.parent(), path.join("foo")?);
@@ -620,7 +624,7 @@ impl VfsPath {
     pub fn parent(&self) -> Self {
         let index = self.path.rfind('/');
         index
-            .map(|idx| VfsPath {
+            .map(|idx| AsyncVfsPath {
                 path: self.path[..idx].to_string(),
                 fs: self.fs.clone(),
             })
@@ -637,10 +641,11 @@ impl VfsPath {
     /// Also note that loops in the file system hierarchy may cause this iterator to never terminate.
     ///
     /// ```
-    /// # use vfs::async_vfs::{MemoryFS, VfsError, VfsPath, VfsResult};
+    /// # use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
+    /// # use vfs::{VfsError, VfsResult};
     /// use futures::stream::StreamExt;
     /// # tokio_test::block_on(async {
-    /// let root = VfsPath::new(MemoryFS::new());
+    /// let root = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// root.join("foo/bar")?.create_dir_all().await?;
     /// root.join("fizz/buzz")?.create_dir_all().await?;
     /// root.join("foo/bar/baz")?.create_file().await?;
@@ -668,10 +673,11 @@ impl VfsPath {
     /// Returns an error if the file does not exist or is not valid UTF-8
     ///
     /// ```
+    /// # use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
+    /// # use vfs::VfsError;
     /// use async_std::io::{ReadExt, WriteExt};
-    /// use vfs::async_vfs::{MemoryFS, VfsError, VfsPath};
     /// # tokio_test::block_on(async {
-    /// let path = VfsPath::new(MemoryFS::new());
+    /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let file = path.join("foo.txt")?;
     /// write!(file.create_file().await?, "Hello, world!").await?;
     ///
@@ -709,9 +715,10 @@ impl VfsPath {
     ///
     /// ```
     /// use async_std::io::{ReadExt, WriteExt};
-    /// use vfs::async_vfs::{MemoryFS, VfsError, VfsPath};
+    /// # use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
+    /// # use vfs::VfsError;
     /// # tokio_test::block_on(async {
-    /// let path = VfsPath::new(MemoryFS::new());
+    /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let src = path.join("foo.txt")?;
     /// write!(src.create_file().await?, "Hello, world!").await?;
     /// let dest = path.join("bar.txt")?;
@@ -722,7 +729,7 @@ impl VfsPath {
     /// # Ok::<(), VfsError>(())
     /// # });
     /// ```
-    pub async fn copy_file(&self, destination: &VfsPath) -> VfsResult<()> {
+    pub async fn copy_file(&self, destination: &AsyncVfsPath) -> VfsResult<()> {
         async {
             if destination.exists().await? {
                 return Err(VfsError::from(VfsErrorKind::Other(
@@ -771,10 +778,11 @@ impl VfsPath {
     /// The destination must not exist, but its parent directory must
     ///
     /// ```
+    /// # use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
+    /// # use vfs::VfsError;
     /// use async_std::io::{ReadExt, WriteExt};
-    /// use vfs::async_vfs::{MemoryFS, VfsError, VfsPath};
     /// # tokio_test::block_on(async {
-    /// let path = VfsPath::new(MemoryFS::new());
+    /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let src = path.join("foo.txt")?;
     /// write!(src.create_file().await?, "Hello, world!").await?;
     /// let dest = path.join("bar.txt")?;
@@ -786,7 +794,7 @@ impl VfsPath {
     /// # Ok::<(), VfsError>(())
     /// # });
     /// ```
-    pub async fn move_file(&self, destination: &VfsPath) -> VfsResult<()> {
+    pub async fn move_file(&self, destination: &AsyncVfsPath) -> VfsResult<()> {
         async {
             if destination.exists().await? {
                 return Err(VfsError::from(VfsErrorKind::Other(
@@ -838,9 +846,10 @@ impl VfsPath {
     /// Returns the number of files copied
     ///
     /// ```
-    /// use vfs::async_vfs::{MemoryFS, VfsError, VfsPath};
+    /// # use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
+    /// # use vfs::VfsError;
     /// # tokio_test::block_on(async {
-    /// let path = VfsPath::new(MemoryFS::new());
+    /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let src = path.join("foo")?;
     /// src.join("dir")?.create_dir_all().await?;
     /// let dest = path.join("bar.txt")?;
@@ -851,7 +860,7 @@ impl VfsPath {
     /// # Ok::<(), VfsError>(())
     /// # });
     /// ```
-    pub async fn copy_dir(&self, destination: &VfsPath) -> VfsResult<u64> {
+    pub async fn copy_dir(&self, destination: &AsyncVfsPath) -> VfsResult<u64> {
         let files_copied = async {
             let mut files_copied = 0u64;
             if destination.exists().await? {
@@ -865,7 +874,7 @@ impl VfsPath {
             let prefix_len = prefix.len();
             let mut path_stream = self.walk_dir().await?;
             while let Some(file) = path_stream.next().await {
-                let src_path: VfsPath = file?;
+                let src_path: AsyncVfsPath = file?;
                 let dest_path = destination.join(&src_path.as_str()[prefix_len + 1..])?;
                 match src_path.metadata().await?.file_type {
                     VfsFileType::Directory => dest_path.create_dir().await?,
@@ -893,9 +902,10 @@ impl VfsPath {
     /// The destination must not exist, but its parent directory must
     ///
     /// ```
-    /// use vfs::async_vfs::{MemoryFS, VfsError, VfsPath};
+    /// # use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
+    /// # use vfs::VfsError;
     /// # tokio_test::block_on(async {
-    /// let path = VfsPath::new(MemoryFS::new());
+    /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let src = path.join("foo")?;
     /// src.join("dir")?.create_dir_all().await?;
     /// let dest = path.join("bar.txt")?;
@@ -907,7 +917,7 @@ impl VfsPath {
     /// # Ok::<(), VfsError>(())
     /// # });
     /// ```
-    pub async fn move_dir(&self, destination: &VfsPath) -> VfsResult<()> {
+    pub async fn move_dir(&self, destination: &AsyncVfsPath) -> VfsResult<()> {
         async {
             if destination.exists().await? {
                 return Err(VfsError::from(VfsErrorKind::Other(
@@ -932,7 +942,7 @@ impl VfsPath {
             let prefix_len = prefix.len();
             let mut path_stream = self.walk_dir().await?;
             while let Some(file) = path_stream.next().await {
-                let src_path: VfsPath = file?;
+                let src_path: AsyncVfsPath = file?;
                 let dest_path = destination.join(&src_path.as_str()[prefix_len + 1..])?;
                 match src_path.metadata().await?.file_type {
                     VfsFileType::Directory => dest_path.create_dir().await?,
@@ -959,16 +969,16 @@ impl VfsPath {
 /// An iterator for recursively walking a file hierarchy
 pub struct WalkDirIterator {
     /// the path iterator of the current directory
-    inner: Box<dyn Stream<Item = VfsPath> + Send + Unpin>,
+    inner: Box<dyn Stream<Item = AsyncVfsPath> + Send + Unpin>,
     /// stack of subdirectories still to walk
-    todo: Vec<VfsPath>,
+    todo: Vec<AsyncVfsPath>,
     /// used to store the previous yield of the todo stream,
     /// which would otherwise get dropped if path.metadata() is pending
-    prev_result: Option<VfsPath>,
+    prev_result: Option<AsyncVfsPath>,
     // Used to store futures when poll_next returns pending
     // this ensures a new future is not spawned on each poll.
     read_dir_fut: Option<
-        BoxFuture<'static, Result<Box<(dyn Stream<Item = VfsPath> + Send + Unpin)>, VfsError>>,
+        BoxFuture<'static, Result<Box<(dyn Stream<Item = AsyncVfsPath> + Send + Unpin)>, VfsError>>,
     >,
     metadata_fut: Option<BoxFuture<'static, Result<VfsMetadata, VfsError>>>,
 }
@@ -981,7 +991,7 @@ impl std::fmt::Debug for WalkDirIterator {
 }
 
 impl Stream for WalkDirIterator {
-    type Item = VfsResult<VfsPath>;
+    type Item = VfsResult<AsyncVfsPath>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.get_mut();

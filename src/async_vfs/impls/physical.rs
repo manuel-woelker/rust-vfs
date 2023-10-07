@@ -1,8 +1,8 @@
 //! An async implementation of a "physical" file system implementation using the underlying OS file system
-use crate::async_vfs::error::VfsErrorKind;
-use crate::async_vfs::{FileSystem, VfsMetadata};
-use crate::async_vfs::{SeekAndRead, VfsFileType};
-use crate::async_vfs::{VfsError, VfsResult};
+use crate::async_vfs::{AsyncFileSystem, SeekAndRead};
+use crate::error::VfsErrorKind;
+use crate::path::VfsFileType;
+use crate::{VfsError, VfsMetadata, VfsResult};
 
 use async_std::fs::{File, OpenOptions};
 use async_std::io::{ErrorKind, Write};
@@ -13,14 +13,14 @@ use std::pin::Pin;
 
 /// A physical filesystem implementation using the underlying OS file system
 #[derive(Debug)]
-pub struct PhysicalFS {
+pub struct AsyncPhysicalFS {
     root: Pin<PathBuf>,
 }
 
-impl PhysicalFS {
+impl AsyncPhysicalFS {
     /// Create a new physical filesystem rooted in `root`
     pub fn new<T: AsRef<Path>>(root: T) -> Self {
-        PhysicalFS {
+        AsyncPhysicalFS {
             root: Pin::new(root.as_ref().to_path_buf()),
         }
     }
@@ -34,7 +34,7 @@ impl PhysicalFS {
 }
 
 #[async_trait]
-impl FileSystem for PhysicalFS {
+impl AsyncFileSystem for AsyncPhysicalFS {
     async fn read_dir(
         &self,
         path: &str,
@@ -136,7 +136,7 @@ impl FileSystem for PhysicalFS {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::async_vfs::VfsPath;
+    use crate::async_vfs::AsyncVfsPath;
 
     use async_std::io::ReadExt;
     use async_std::io::WriteExt;
@@ -147,12 +147,12 @@ mod tests {
         let temp_dir = std::env::temp_dir();
         let dir = temp_dir.join(uuid::Uuid::new_v4().to_string());
         async_std::fs::create_dir_all(&dir).await.unwrap();
-        PhysicalFS::new(dir)
+        AsyncPhysicalFS::new(dir)
     }));
-    test_async_vfs_readonly!({ PhysicalFS::new("test/test_directory") });
+    test_async_vfs_readonly!({ AsyncPhysicalFS::new("test/test_directory") });
 
-    fn create_root() -> VfsPath {
-        PhysicalFS::new(std::env::current_dir().unwrap()).into()
+    fn create_root() -> AsyncVfsPath {
+        AsyncPhysicalFS::new(std::env::current_dir().unwrap()).into()
     }
 
     #[tokio::test]
@@ -219,7 +219,7 @@ mod tests {
         let entries: Vec<_> = root.read_dir().await.unwrap().collect().await;
         let map: Vec<_> = entries
             .iter()
-            .map(|path: &VfsPath| path.as_str())
+            .map(|path: &AsyncVfsPath| path.as_str())
             .filter(|x| x.ends_with(".toml"))
             .collect();
         assert_eq!(&["/Cargo.toml"], &map[..]);

@@ -6,13 +6,13 @@ macro_rules! test_async_vfs {
         #[cfg(test)]
         mod vfs_tests {
             use super::*;
-            use $crate::async_vfs::VfsFileType;
-            use $crate::async_vfs::VfsPath;
-            use $crate::async_vfs::VfsResult;
+            use $crate::VfsFileType;
+            use $crate::async_vfs::AsyncVfsPath;
+            use $crate::VfsResult;
             use futures::stream::StreamExt;
             use async_std::io::{WriteExt, ReadExt};
 
-            fn create_root() -> VfsPath {
+            fn create_root() -> AsyncVfsPath {
                 $root.into()
             }
 
@@ -446,8 +446,8 @@ macro_rules! test_async_vfs {
                 assert_entries(&root, vec![]).await
             }
 
-            async fn assert_entries(path: &VfsPath, expected: Vec<&str>) -> VfsResult<()> {
-                let entries: Vec<VfsPath> = path.walk_dir().await?.map(|path| path.unwrap()).collect().await;
+            async fn assert_entries(path: &AsyncVfsPath, expected: Vec<&str>) -> VfsResult<()> {
+                let entries: Vec<AsyncVfsPath> = path.walk_dir().await?.map(|path| path.unwrap()).collect().await;
                 let mut paths = entries.iter().map(|x| x.as_str()).collect::<Vec<&str>>();
                 paths.sort();
                 assert_eq!(paths, expected);
@@ -924,11 +924,10 @@ macro_rules! test_async_vfs_readonly {
         mod vfs_tests_readonly {
             use super::*;
             use futures::stream::StreamExt;
-            use $crate::async_vfs::VfsFileType;
-            use $crate::async_vfs::VfsPath;
-            use $crate::async_vfs::VfsResult;
+            use $crate::async_vfs::AsyncVfsPath;
+            use $crate::{VfsFileType, VfsResult};
 
-            fn create_root() -> VfsPath {
+            fn create_root() -> AsyncVfsPath {
                 $root.into()
             }
 
@@ -1223,8 +1222,8 @@ macro_rules! test_async_vfs_readonly {
                 assert_entries(&root.join("a/x/y")?, vec!["/a/x/y/z"]).await
             }
 
-            async fn assert_entries(path: &VfsPath, expected: Vec<&str>) -> VfsResult<()> {
-                let entries: Vec<VfsPath> = path
+            async fn assert_entries(path: &AsyncVfsPath, expected: Vec<&str>) -> VfsResult<()> {
+                let entries: Vec<AsyncVfsPath> = path
                     .walk_dir()
                     .await?
                     .map(|path| path.unwrap())

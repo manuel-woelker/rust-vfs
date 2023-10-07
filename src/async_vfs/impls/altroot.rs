@@ -1,8 +1,7 @@
 //! A file system with its root in a particular directory of another filesystem
 
-use crate::async_vfs::{
-    error::VfsErrorKind, FileSystem, SeekAndRead, VfsMetadata, VfsPath, VfsResult,
-};
+use crate::async_vfs::{AsyncFileSystem, AsyncVfsPath, SeekAndRead};
+use crate::{error::VfsErrorKind, VfsMetadata, VfsResult};
 
 use async_std::io::Write;
 use async_trait::async_trait;
@@ -15,20 +14,20 @@ use futures::stream::{Stream, StreamExt};
 /// Symlinks, hardlinks, remounts, side channels and other file system mechanisms can be exploited
 /// to circumvent this mechanism
 #[derive(Debug, Clone)]
-pub struct AltrootFS {
-    root: VfsPath,
+pub struct AsyncAltrootFS {
+    root: AsyncVfsPath,
 }
 
-impl AltrootFS {
+impl AsyncAltrootFS {
     /// Create a new root FileSystem at the given virtual path
-    pub fn new(root: VfsPath) -> Self {
-        AltrootFS { root }
+    pub fn new(root: AsyncVfsPath) -> Self {
+        AsyncAltrootFS { root }
     }
 }
 
-impl AltrootFS {
+impl AsyncAltrootFS {
     #[allow(clippy::manual_strip)] // strip prefix manually for MSRV 1.32
-    fn path(&self, path: &str) -> VfsResult<VfsPath> {
+    fn path(&self, path: &str) -> VfsResult<AsyncVfsPath> {
         if path.is_empty() {
             return Ok(self.root.clone());
         }
@@ -40,7 +39,7 @@ impl AltrootFS {
 }
 
 #[async_trait]
-impl FileSystem for AltrootFS {
+impl AsyncFileSystem for AsyncAltrootFS {
     async fn read_dir(
         &self,
         path: &str,
@@ -98,21 +97,21 @@ impl FileSystem for AltrootFS {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::async_vfs::MemoryFS;
+    use crate::async_vfs::AsyncMemoryFS;
 
     test_async_vfs!(futures::executor::block_on(async {
-        let memory_root: VfsPath = MemoryFS::new().into();
+        let memory_root: AsyncVfsPath = AsyncMemoryFS::new().into();
         let altroot_path = memory_root.join("altroot").unwrap();
         altroot_path.create_dir().await.unwrap();
-        AltrootFS::new(altroot_path)
+        AsyncAltrootFS::new(altroot_path)
     }));
 
     #[tokio::test]
     async fn parent() {
-        let memory_root: VfsPath = MemoryFS::new().into();
+        let memory_root: AsyncVfsPath = AsyncMemoryFS::new().into();
         let altroot_path = memory_root.join("altroot").unwrap();
         altroot_path.create_dir().await.unwrap();
-        let altroot: VfsPath = AltrootFS::new(altroot_path.clone()).into();
+        let altroot: AsyncVfsPath = AsyncAltrootFS::new(altroot_path.clone()).into();
         assert_eq!(altroot.parent(), altroot.root());
         assert_eq!(altroot_path.parent(), memory_root);
     }
@@ -121,7 +120,7 @@ mod tests {
 #[cfg(test)]
 mod tests_physical {
     use super::*;
-    use crate::async_vfs::PhysicalFS;
+    use crate::async_vfs::AsyncPhysicalFS;
 
     use async_std::io::ReadExt;
 
@@ -130,15 +129,15 @@ mod tests_physical {
         let dir = temp_dir.join(uuid::Uuid::new_v4().to_string());
         std::fs::create_dir_all(&dir).unwrap();
 
-        let physical_root: VfsPath = PhysicalFS::new(dir).into();
+        let physical_root: AsyncVfsPath = AsyncPhysicalFS::new(dir).into();
         let altroot_path = physical_root.join("altroot").unwrap();
         altroot_path.create_dir().await.unwrap();
-        AltrootFS::new(altroot_path)
+        AsyncAltrootFS::new(altroot_path)
     }));
 
     test_async_vfs_readonly!({
-        let physical_root: VfsPath = PhysicalFS::new("test").into();
+        let physical_root: AsyncVfsPath = AsyncPhysicalFS::new("test").into();
         let altroot_path = physical_root.join("test_directory").unwrap();
-        AltrootFS::new(altroot_path)
+        AsyncAltrootFS::new(altroot_path)
     });
 }

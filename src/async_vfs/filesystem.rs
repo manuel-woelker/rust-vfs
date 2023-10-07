@@ -1,7 +1,8 @@
 //! The async filesystem trait definitions needed to implement new async virtual filesystems
 
-use crate::async_vfs::error::VfsErrorKind;
-use crate::async_vfs::{SeekAndRead, VfsMetadata, VfsPath, VfsResult};
+use crate::async_vfs::{AsyncVfsPath, SeekAndRead};
+use crate::error::VfsErrorKind;
+use crate::{VfsMetadata, VfsResult};
 
 use async_std::io::Write;
 use async_std::stream::Stream;
@@ -16,7 +17,7 @@ use std::fmt::Debug;
 ///
 /// Please use the test_macros [test_macros::test_async_vfs!] and [test_macros::test_async_vfs_readonly!]
 #[async_trait]
-pub trait FileSystem: Debug + Sync + Send + 'static {
+pub trait AsyncFileSystem: Debug + Sync + Send + 'static {
     /// Iterates over all direct children of this directory path
     /// NOTE: the returned String items denote the local bare filenames, i.e. they should not contain "/" anywhere
     async fn read_dir(
@@ -55,8 +56,8 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
     }
 }
 
-impl<T: FileSystem> From<T> for VfsPath {
+impl<T: AsyncFileSystem> From<T> for AsyncVfsPath {
     fn from(filesystem: T) -> Self {
-        VfsPath::new(filesystem)
+        AsyncVfsPath::new(filesystem)
     }
 }

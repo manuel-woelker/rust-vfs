@@ -1,8 +1,8 @@
 //! An ephemeral in-memory file system, intended mainly for unit tests
-use crate::async_vfs::error::VfsErrorKind;
-use crate::async_vfs::VfsResult;
-use crate::async_vfs::{FileSystem, VfsFileType};
-use crate::async_vfs::{SeekAndRead, VfsMetadata};
+use crate::async_vfs::{AsyncFileSystem, SeekAndRead};
+use crate::error::VfsErrorKind;
+use crate::path::VfsFileType;
+use crate::{VfsMetadata, VfsResult};
 
 use async_std::io::{prelude::SeekExt, Cursor, Read, Seek, SeekFrom, Write};
 use async_std::sync::{Arc, RwLock};
@@ -16,24 +16,24 @@ use std::fmt::{Debug, Formatter};
 use std::mem::swap;
 use std::pin::Pin;
 
-type MemoryFsHandle = Arc<RwLock<MemoryFsImpl>>;
+type AsyncMemoryFsHandle = Arc<RwLock<AsyncMemoryFsImpl>>;
 
 /// An ephemeral in-memory file system, intended mainly for unit tests
-pub struct MemoryFS {
-    handle: MemoryFsHandle,
+pub struct AsyncMemoryFS {
+    handle: AsyncMemoryFsHandle,
 }
 
-impl Debug for MemoryFS {
+impl Debug for AsyncMemoryFS {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str("In Memory File System")
     }
 }
 
-impl MemoryFS {
+impl AsyncMemoryFS {
     /// Create a new in-memory filesystem
     pub fn new() -> Self {
-        MemoryFS {
-            handle: Arc::new(RwLock::new(MemoryFsImpl::new())),
+        AsyncMemoryFS {
+            handle: Arc::new(RwLock::new(AsyncMemoryFsImpl::new())),
         }
     }
 
@@ -48,19 +48,19 @@ impl MemoryFS {
     }
 }
 
-impl Default for MemoryFS {
+impl Default for AsyncMemoryFS {
     fn default() -> Self {
         Self::new()
     }
 }
 
-struct WritableFile {
+struct AsyncWritableFile {
     content: Cursor<Vec<u8>>,
     destination: String,
-    fs: MemoryFsHandle,
+    fs: AsyncMemoryFsHandle,
 }
 
-impl Write for WritableFile {
+impl Write for AsyncWritableFile {
     fn poll_write(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -89,13 +89,13 @@ impl Write for WritableFile {
     }
 }
 
-impl Drop for WritableFile {
+impl Drop for AsyncWritableFile {
     fn drop(&mut self) {
         let mut content = vec![];
         swap(&mut content, self.content.get_mut());
         futures::executor::block_on(self.fs.write()).files.insert(
             self.destination.clone(),
-            MemoryFile {
+            AsyncMemoryFile {
                 file_type: VfsFileType::File,
                 content: Arc::new(content),
             },
@@ -103,20 +103,20 @@ impl Drop for WritableFile {
     }
 }
 
-struct ReadableFile {
+struct AsyncReadableFile {
     #[allow(clippy::rc_buffer)] // to allow accessing the same object as writable
     content: Arc<Vec<u8>>,
     // Position of the read cursor in the "file"
     cursor_pos: u64,
 }
 
-impl ReadableFile {
+impl AsyncReadableFile {
     fn len(&self) -> u64 {
         self.content.len() as u64
     }
 }
 
-impl Read for ReadableFile {
+impl Read for AsyncReadableFile {
     fn poll_read(
         self: Pin<&mut Self>,
         _cx: &mut Context<'_>,
@@ -136,7 +136,7 @@ impl Read for ReadableFile {
     }
 }
 
-impl Seek for ReadableFile {
+impl Seek for AsyncReadableFile {
     fn poll_seek(
         self: Pin<&mut Self>,
         _cx: &mut Context<'_>,
@@ -161,7 +161,7 @@ impl Seek for ReadableFile {
 }
 
 #[async_trait]
-impl FileSystem for MemoryFS {
+impl AsyncFileSystem for AsyncMemoryFS {
     async fn read_dir(
         &self,
         path: &str,
@@ -206,7 +206,7 @@ impl FileSystem for MemoryFS {
             Entry::Vacant(_) => {
                 map.insert(
                     path.to_string(),
-                    MemoryFile {
+                    AsyncMemoryFile {
                         file_type: VfsFileType::Directory,
                         content: Default::default(),
                     },
@@ -220,7 +220,7 @@ impl FileSystem for MemoryFS {
         let handle = self.handle.read().await;
         let file = handle.files.get(path).ok_or(VfsErrorKind::FileNotFound)?;
         ensure_file(file)?;
-        Ok(Box::new(ReadableFile {
+        Ok(Box::new(AsyncReadableFile {
             content: file.content.clone(),
             cursor_pos: 0,
         }))
@@ -231,12 +231,12 @@ impl FileSystem for MemoryFS {
         let content = Arc::new(Vec::<u8>::new());
         self.handle.write().await.files.insert(
             path.to_string(),
-            MemoryFile {
+            AsyncMemoryFile {
                 file_type: VfsFileType::File,
                 content,
             },
         );
-        let writer = WritableFile {
+        let writer = AsyncWritableFile {
             content: Cursor::new(vec![]),
             destination: path.to_string(),
             fs: self.handle.clone(),
@@ -249,7 +249,7 @@ impl FileSystem for MemoryFS {
         let file = handle.files.get(path).ok_or(VfsErrorKind::FileNotFound)?;
         let mut content = Cursor::new(file.content.as_ref().clone());
         content.seek(SeekFrom::End(0)).await?;
-        let writer = WritableFile {
+        let writer = AsyncWritableFile {
             content,
             destination: path.to_string(),
             fs: self.handle.clone(),
@@ -294,17 +294,17 @@ impl FileSystem for MemoryFS {
 }
 
 #[derive(Debug)]
-struct MemoryFsImpl {
-    files: HashMap<String, MemoryFile>,
+struct AsyncMemoryFsImpl {
+    files: HashMap<String, AsyncMemoryFile>,
 }
 
-impl MemoryFsImpl {
+impl AsyncMemoryFsImpl {
     pub fn new() -> Self {
         let mut files = HashMap::new();
         // Add root directory
         files.insert(
             "".to_string(),
-            MemoryFile {
+            AsyncMemoryFile {
                 file_type: VfsFileType::Directory,
                 content: Arc::new(vec![]),
             },
@@ -314,7 +314,7 @@ impl MemoryFsImpl {
 }
 
 #[derive(Debug)]
-struct MemoryFile {
+struct AsyncMemoryFile {
     file_type: VfsFileType,
     #[allow(clippy::rc_buffer)] // to allow accessing the same object as writable
     content: Arc<Vec<u8>>,
@@ -323,13 +323,13 @@ struct MemoryFile {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::async_vfs::VfsPath;
+    use crate::async_vfs::AsyncVfsPath;
     use async_std::io::{ReadExt, WriteExt};
-    test_async_vfs!(MemoryFS::new());
+    test_async_vfs!(AsyncMemoryFS::new());
 
     #[tokio::test]
     async fn write_and_read_file() -> VfsResult<()> {
-        let root = VfsPath::new(MemoryFS::new());
+        let root = AsyncVfsPath::new(AsyncMemoryFS::new());
         let path = root.join("foobar.txt").unwrap();
         let _send = &path as &dyn Send;
         {
@@ -353,7 +353,7 @@ mod tests {
 
     #[tokio::test]
     async fn append_file() {
-        let root = VfsPath::new(MemoryFS::new());
+        let root = AsyncVfsPath::new(AsyncMemoryFS::new());
         let _string = String::new();
         let path = root.join("test_append.txt").unwrap();
         path.create_file()
@@ -378,7 +378,7 @@ mod tests {
 
     #[tokio::test]
     async fn create_dir() {
-        let root = VfsPath::new(MemoryFS::new());
+        let root = AsyncVfsPath::new(AsyncMemoryFS::new());
         let _string = String::new();
         let path = root.join("foo").unwrap();
         path.create_dir().await.unwrap();
@@ -388,7 +388,7 @@ mod tests {
 
     #[tokio::test]
     async fn remove_dir_error_message() {
-        let root = VfsPath::new(MemoryFS::new());
+        let root = AsyncVfsPath::new(AsyncMemoryFS::new());
         let path = root.join("foo").unwrap();
         let result = path.remove_dir().await;
         assert_eq!(
@@ -399,7 +399,7 @@ mod tests {
 
     #[tokio::test]
     async fn read_dir_error_message() {
-        let root = VfsPath::new(MemoryFS::new());
+        let root = AsyncVfsPath::new(AsyncMemoryFS::new());
         let path = root.join("foo").unwrap();
         let result = path.read_dir().await;
         match result {
@@ -415,8 +415,8 @@ mod tests {
 
     #[tokio::test]
     async fn copy_file_across_filesystems() -> VfsResult<()> {
-        let root_a = VfsPath::new(MemoryFS::new());
-        let root_b = VfsPath::new(MemoryFS::new());
+        let root_a = AsyncVfsPath::new(AsyncMemoryFS::new());
+        let root_b = AsyncVfsPath::new(AsyncMemoryFS::new());
         let src = root_a.join("a.txt")?;
         let dest = root_b.join("b.txt")?;
         src.create_file().await?.write_all(b"Hello World").await?;
@@ -426,7 +426,7 @@ mod tests {
     }
 }
 
-fn ensure_file(file: &MemoryFile) -> VfsResult<()> {
+fn ensure_file(file: &AsyncMemoryFile) -> VfsResult<()> {
     if file.file_type != VfsFileType::File {
         return Err(VfsErrorKind::Other("Not a file".into()).into());
     }
