@@ -5,6 +5,7 @@
 
 use crate::async_vfs::AsyncFileSystem;
 use crate::error::{VfsError, VfsErrorKind};
+use crate::path::PathLike;
 use crate::path::VfsFileType;
 use crate::{VfsMetadata, VfsResult};
 
@@ -30,6 +31,12 @@ struct AsyncVFS {
 pub struct AsyncVfsPath {
     path: String,
     fs: Arc<AsyncVFS>,
+}
+
+impl PathLike for AsyncVfsPath {
+    fn get_path(&self) -> String {
+        self.path.clone()
+    }
 }
 
 impl PartialEq for AsyncVfsPath {
@@ -88,45 +95,9 @@ impl AsyncVfsPath {
     /// # Ok::<(), VfsError>(())
     /// ```
     pub fn join(&self, path: impl AsRef<str>) -> VfsResult<Self> {
-        self.join_internal(path.as_ref())
-    }
-
-    /// Appends a path segment to this path, returning the result
-    fn join_internal(&self, path: &str) -> VfsResult<Self> {
-        if path.is_empty() {
-            return Ok(self.clone());
-        }
-        let mut new_components: Vec<&str> = vec![];
-        let mut base_path = if path.starts_with('/') {
-            self.root()
-        } else {
-            self.clone()
-        };
-        // Prevent paths from ending in slashes unless this is just the root directory.
-        if path.len() > 1 && path.ends_with('/') {
-            return Err(VfsError::from(VfsErrorKind::InvalidPath).with_path(path));
-        }
-        for component in path.split('/') {
-            if component == "." || component.is_empty() {
-                continue;
-            }
-            if component == ".." {
-                if !new_components.is_empty() {
-                    new_components.truncate(new_components.len() - 1);
-                } else {
-                    base_path = base_path.parent();
-                }
-            } else {
-                new_components.push(component);
-            }
-        }
-        let mut path = base_path.path;
-        for component in new_components {
-            path += "/";
-            path += component
-        }
-        Ok(AsyncVfsPath {
-            path,
+        let new_path = self.join_internal(&self.path, path.as_ref())?;
+        Ok(Self {
+            path: new_path,
             fs: self.fs.clone(),
         })
     }
@@ -580,8 +551,7 @@ impl AsyncVfsPath {
     ///
     /// # Ok::<(), VfsError>(())
     pub fn filename(&self) -> String {
-        let index = self.path.rfind('/').map(|x| x + 1).unwrap_or(0);
-        self.path[index..].to_string()
+        self.filename_internal()
     }
 
     /// Returns the extension portion of this path
@@ -597,14 +567,7 @@ impl AsyncVfsPath {
     ///
     /// # Ok::<(), VfsError>(())
     pub fn extension(&self) -> Option<String> {
-        let filename = self.filename();
-        let mut parts = filename.rsplitn(2, '.');
-        let after = parts.next();
-        let before = parts.next();
-        match before {
-            None | Some("") => None,
-            _ => after.map(|x| x.to_string()),
-        }
+        self.extension_internal()
     }
 
     /// Returns the parent path of this portion of this path
@@ -622,13 +585,11 @@ impl AsyncVfsPath {
     ///
     /// # Ok::<(), VfsError>(())
     pub fn parent(&self) -> Self {
-        let index = self.path.rfind('/');
-        index
-            .map(|idx| AsyncVfsPath {
-                path: self.path[..idx].to_string(),
-                fs: self.fs.clone(),
-            })
-            .unwrap_or_else(|| self.root())
+        let parent_path = self.parent_internal(&self.path);
+        Self {
+            path: parent_path,
+            fs: self.fs.clone(),
+        }
     }
 
     /// Recursively iterates over all the directories and files at this path
