@@ -26,7 +26,7 @@ Comments and pull-requests welcome!
 
 ### 0.10.0 (2023-09-08)
 * Added async port of the crate, in a new module `async_vfs`.
-The module is behind the `async-vfs` feature flag which is not enabled by default.
+The module is behind the `async-vfs` feature flag which is not enabled by default. Huge thank you to [@Fredrik Reinholdsen](https://github.com/Fredrik-Reinholdsen)!
 * Ported all synchronous tests and doc-tests to async
 * Updated minimum supported Rust version to 1.61.0, needed for the async port.
 * Updated Rust edition from *2018* to *2021*, needed for the async port.
