@@ -14,6 +14,70 @@ pub trait SeekAndRead: Seek + Read {}
 
 impl<T> SeekAndRead for T where T: Seek + Read {}
 
+/// A trait for common non-async behaviour of both sync and async paths
+pub(crate) trait PathLike: Clone {
+    fn get_path(&self) -> String;
+    fn filename_internal(&self) -> String {
+        let path = self.get_path();
+        let index = path.rfind('/').map(|x| x + 1).unwrap_or(0);
+        path[index..].to_string()
+    }
+
+    fn extension_internal(&self) -> Option<String> {
+        let filename = self.filename_internal();
+        let mut parts = filename.rsplitn(2, '.');
+        let after = parts.next();
+        let before = parts.next();
+        match before {
+            None | Some("") => None,
+            _ => after.map(|x| x.to_string()),
+        }
+    }
+
+    fn parent_internal(&self, path: &str) -> String {
+        let index = path.rfind('/');
+        index
+            .map(|idx| path[..idx].to_string())
+            .unwrap_or_else(|| "".to_string())
+    }
+
+    fn join_internal(&self, in_path: &str, path: &str) -> VfsResult<String> {
+        if path.is_empty() {
+            return Ok(in_path.to_string());
+        }
+        let mut new_components: Vec<&str> = vec![];
+        let mut base_path = if path.starts_with('/') {
+            "".to_string()
+        } else {
+            in_path.to_string()
+        };
+        // Prevent paths from ending in slashes unless this is just the root directory.
+        if path.len() > 1 && path.ends_with('/') {
+            return Err(VfsError::from(VfsErrorKind::InvalidPath).with_path(path));
+        }
+        for component in path.split('/') {
+            if component == "." || component.is_empty() {
+                continue;
+            }
+            if component == ".." {
+                if !new_components.is_empty() {
+                    new_components.truncate(new_components.len() - 1);
+                } else {
+                    base_path = self.parent_internal(&base_path);
+                }
+            } else {
+                new_components.push(component);
+            }
+        }
+        let mut path = base_path;
+        for component in new_components {
+            path += "/";
+            path += component
+        }
+        Ok(path)
+    }
+}
+
 /// Type of file
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum VfsFileType {
@@ -42,6 +106,12 @@ struct VFS {
 pub struct VfsPath {
     path: String,
     fs: Arc<VFS>,
+}
+
+impl PathLike for VfsPath {
+    fn get_path(&self) -> String {
+        self.path.to_string()
+    }
 }
 
 impl PartialEq for VfsPath {
@@ -98,45 +168,9 @@ impl VfsPath {
     /// # Ok::<(), VfsError>(())
     /// ```
     pub fn join(&self, path: impl AsRef<str>) -> VfsResult<Self> {
-        self.join_internal(path.as_ref())
-    }
-
-    /// Appends a path segment to this path, returning the result
-    fn join_internal(&self, path: &str) -> VfsResult<Self> {
-        if path.is_empty() {
-            return Ok(self.clone());
-        }
-        let mut new_components: Vec<&str> = vec![];
-        let mut base_path = if path.starts_with('/') {
-            self.root()
-        } else {
-            self.clone()
-        };
-        // Prevent paths from ending in slashes unless this is just the root directory.
-        if path.len() > 1 && path.ends_with('/') {
-            return Err(VfsError::from(VfsErrorKind::InvalidPath).with_path(path));
-        }
-        for component in path.split('/') {
-            if component == "." || component.is_empty() {
-                continue;
-            }
-            if component == ".." {
-                if !new_components.is_empty() {
-                    new_components.truncate(new_components.len() - 1);
-                } else {
-                    base_path = base_path.parent();
-                }
-            } else {
-                new_components.push(component);
-            }
-        }
-        let mut path = base_path.path;
-        for component in new_components {
-            path += "/";
-            path += component
-        }
-        Ok(VfsPath {
-            path,
+        let new_path = self.join_internal(&self.path, path.as_ref())?;
+        Ok(Self {
+            path: new_path,
             fs: self.fs.clone(),
         })
     }
@@ -546,8 +580,7 @@ impl VfsPath {
     ///
     /// # Ok::<(), VfsError>(())
     pub fn filename(&self) -> String {
-        let index = self.path.rfind('/').map(|x| x + 1).unwrap_or(0);
-        self.path[index..].to_string()
+        self.filename_internal()
     }
 
     /// Returns the extension portion of this path
@@ -563,14 +596,7 @@ impl VfsPath {
     ///
     /// # Ok::<(), VfsError>(())
     pub fn extension(&self) -> Option<String> {
-        let filename = self.filename();
-        let mut parts = filename.rsplitn(2, '.');
-        let after = parts.next();
-        let before = parts.next();
-        match before {
-            None | Some("") => None,
-            _ => after.map(|x| x.to_string()),
-        }
+        self.extension_internal()
     }
 
     /// Returns the parent path of this portion of this path
@@ -588,13 +614,11 @@ impl VfsPath {
     ///
     /// # Ok::<(), VfsError>(())
     pub fn parent(&self) -> Self {
-        let index = self.path.rfind('/');
-        index
-            .map(|idx| VfsPath {
-                path: self.path[..idx].to_string(),
-                fs: self.fs.clone(),
-            })
-            .unwrap_or_else(|| self.root())
+        let parent_path = self.parent_internal(&self.path);
+        Self {
+            path: parent_path,
+            fs: self.fs.clone(),
+        }
     }
 
     /// Recursively iterates over all the directories and files at this path

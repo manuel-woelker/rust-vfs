@@ -45,7 +45,7 @@ where
             children.insert(path);
         }
         EmbeddedFS {
-            p: PhantomData::default(),
+            p: PhantomData,
             directory_map,
             files,
         }

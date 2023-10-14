@@ -46,9 +46,11 @@
 //! # }
 //! ```
 //!
-
+//!
 #![allow(unknown_lints)]
 #![allow(clippy::upper_case_acronyms)]
+#![allow(clippy::redundant_async_block)]
+#![allow(clippy::type_complexity)]
 
 #[cfg(any(test, feature = "export-test-macros"))]
 #[macro_use]
@@ -58,6 +60,9 @@ pub mod error;
 pub mod filesystem;
 pub mod impls;
 pub mod path;
+
+#[cfg(feature = "async-vfs")]
+pub mod async_vfs;
 
 pub use error::{VfsError, VfsResult};
 pub use filesystem::FileSystem;
