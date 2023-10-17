@@ -31,7 +31,9 @@ impl S3FS {
 }
 
 struct S3File {
-    contents: ByteStream
+    contents: ByteStream,
+    bucket: String,
+    key: String
 }
 
 impl Read for S3File {
@@ -112,6 +114,8 @@ impl AsyncFileSystem for S3FS {
         let body = s3_rez.unwrap().body;
         Ok(Box::new(S3File {
             contents: s3_rez.unwrap().body,
+            bucket: self.bucket.clone(),
+            key: path.to_string().clone(),
         }))
     }
 
@@ -129,6 +133,8 @@ impl AsyncFileSystem for S3FS {
         let body = s3_rez.unwrap().body;
         Ok(Box::new(S3File {
             contents: body,
+            bucket: self.bucket.clone(),
+            key: path.to_string().clone(),
         }))
     }
 
