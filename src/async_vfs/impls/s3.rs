@@ -8,6 +8,7 @@ use aws_sdk_s3::error::SdkError;
 use aws_sdk_s3::primitives::ByteStream;
 use aws_sdk_s3::Client;
 use futures::{AsyncRead, AsyncSeek, AsyncWrite, StreamExt, TryStreamExt};
+use std::fmt::Display;
 use std::io::{IoSliceMut, SeekFrom, Write};
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -87,10 +88,13 @@ impl Write for S3File {
     }
 }
 
+fn make_s3_error(cause: impl Display) -> VfsError {
+    VfsErrorKind::Other(format!("S3 error: {cause}")).into()
+}
+
 impl<E> From<SdkError<E>> for VfsError {
     fn from(value: SdkError<E>) -> Self {
-        let cause = value.to_string();
-        VfsErrorKind::Other(format!("S3 error: {cause}")).into()
+        make_s3_error(value.to_string())
     }
 }
 
@@ -107,14 +111,23 @@ impl AsyncFileSystem for S3FS {
             .prefix(path)
             .send()
             .await?;
-        let entries = Box::new(
-            s3_rez
-                .contents()
-                .unwrap()
-                .iter()
-                .map(|x| x.key.unwrap().to_string()),
-        );
-        Ok(Box::new(futures::stream::iter(entries)))
+
+        let entries = s3_rez
+            .contents()
+            .ok_or(make_s3_error("Cannot read list content"))?;
+        let mut result = Vec::new();
+
+        for entry in entries {
+            result.push(
+                entry
+                    .key
+                    .as_ref()
+                    .ok_or(make_s3_error("Cannot read entry"))?
+                    .to_owned(),
+            );
+        }
+
+        Ok(Box::new(futures::stream::iter(result)))
     }
 
     async fn create_dir(&self, path: &str) -> VfsResult<()> {
