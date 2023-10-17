@@ -106,10 +106,9 @@ impl AsyncFileSystem for S3FS {
             .bucket(&self.bucket)
             .prefix(path)
             .send()
-            .await;
+            .await?;
         let entries = Box::new(
             s3_rez
-                .unwrap()
                 .contents()
                 .unwrap()
                 .iter()
@@ -136,9 +135,8 @@ impl AsyncFileSystem for S3FS {
             .bucket(&self.bucket)
             .key(path)
             .send()
-            .await;
-        // TODO: Bubble up the error
-        let body = s3_rez.unwrap().body;
+            .await?;
+        let body = s3_rez.body;
         Ok(Box::new(S3File {
             contents: body,
             bucket: self.bucket.clone(),
@@ -153,15 +151,15 @@ impl AsyncFileSystem for S3FS {
             .bucket(&self.bucket)
             .key(path)
             .send()
-            .await;
+            .await?;
         let s3_rez = self
             .s3_client
             .get_object()
             .bucket(&self.bucket)
             .key(path)
             .send()
-            .await;
-        let body = s3_rez.unwrap().body;
+            .await?;
+        let body = s3_rez.body;
         Ok(Box::new(S3File {
             contents: body,
             bucket: self.bucket.clone(),
@@ -180,11 +178,11 @@ impl AsyncFileSystem for S3FS {
             .bucket(&self.bucket)
             .key(path)
             .send()
-            .await;
+            .await?;
 
         Ok(VfsMetadata {
             file_type: VfsFileType::File,
-            len: s3_rez.unwrap().content_length as u64,
+            len: s3_rez.content_length as u64,
         })
     }
 
@@ -203,13 +201,12 @@ impl AsyncFileSystem for S3FS {
     }
 
     async fn remove_file(&self, path: &str) -> VfsResult<()> {
-        let _ = self
-            .s3_client
+        self.s3_client
             .delete_object()
             .bucket(&self.bucket)
             .key(path)
             .send()
-            .await;
+            .await?;
         Ok(())
     }
 
@@ -223,14 +220,13 @@ impl AsyncFileSystem for S3FS {
     }
 
     async fn copy_file(&self, _src: &str, _dest: &str) -> VfsResult<()> {
-        let _ = self
-            .s3_client
+        self.s3_client
             .copy_object()
             .bucket(&self.bucket)
             .key(_dest)
             .copy_source(_src)
             .send()
-            .await;
+            .await?;
         Ok(())
     }
 
