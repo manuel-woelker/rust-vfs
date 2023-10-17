@@ -111,15 +111,16 @@ impl AsyncFileSystem for S3FS {
             .key(path)
             .send()
             .await;
+        // TODO: Bubble up the error
         let body = s3_rez.unwrap().body;
         Ok(Box::new(S3File {
-            contents: s3_rez.unwrap().body,
+            contents: body,
             bucket: self.bucket.clone(),
             key: path.to_string().clone(),
         }))
     }
 
-    async fn create_file(&self, path: &str) -> VfsResult<Box<dyn Write + Send + Unpin>> {
+    async fn create_file(&self, path: &str) -> VfsResult<Box<dyn AsyncWrite + Send + Unpin>> {
         let _s3_rez = self.s3_client.put_object()
             .bucket(&self.bucket)
             .key(path)
@@ -138,7 +139,7 @@ impl AsyncFileSystem for S3FS {
         }))
     }
 
-    async fn append_file(&self, path: &str) -> VfsResult<Box<dyn Write + Send + Unpin>> {
+    async fn append_file(&self, path: &str) -> VfsResult<Box<dyn AsyncWrite + Send + Unpin>> {
         todo!()
     }
 
@@ -176,8 +177,11 @@ impl AsyncFileSystem for S3FS {
     }
 
     async fn remove_dir(&self, path: &str) -> VfsResult<()> {
-        let _ = self.read_dir(path).await?
-            .map(|f| self.remove_file(f.as_str()));
+        let mut path_stream = self.read_dir(path).await?;
+        while let Some(file_path) = path_stream.next().await {
+            self.remove_file(&file_path);
+        }
+
         Ok(())
     }
 
