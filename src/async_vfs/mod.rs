@@ -61,4 +61,5 @@ pub use impls::altroot::AsyncAltrootFS;
 pub use impls::memory::AsyncMemoryFS;
 pub use impls::overlay::AsyncOverlayFS;
 pub use impls::physical::AsyncPhysicalFS;
+pub use impls::s3::S3FS;
 pub use path::*;

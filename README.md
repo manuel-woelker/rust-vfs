@@ -17,6 +17,7 @@ This crate currently has the following implementations:
  * **AltrootFS** - a file system with its root in a particular directory of another filesystem
  * **OverlayFS** - an overlay file system combining two filesystems, an upper layer with read/write access and a lower layer with only read access
  * **EmbeddedFS** - a read-only file system embedded in the executable, requires `embedded-fs` feature, no async version available
+ * **S3FS** - a file system backed by an s3 bucket.
  
 The minimum supported Rust version is 1.61.0.
  
