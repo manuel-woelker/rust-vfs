@@ -20,9 +20,9 @@ pub struct S3FS {
 }
 
 impl S3FS {
-    pub async fn new(s3_client: Client, bucket: String) -> S3FS {
-        let _ = s3_client.create_bucket().bucket(&bucket).send().await;
-        S3FS { s3_client, bucket }
+    pub async fn new(s3_client: Client, bucket: String) -> VfsResult<Self> {
+        s3_client.create_bucket().bucket(&bucket).send().await?;
+        Ok(Self { s3_client, bucket })
     }
 }
 
@@ -131,13 +131,12 @@ impl AsyncFileSystem for S3FS {
     }
 
     async fn create_dir(&self, path: &str) -> VfsResult<()> {
-        let _rez = self
-            .s3_client
+        self.s3_client
             .put_object()
             .bucket(&self.bucket)
             .key(path)
             .send()
-            .await;
+            .await?;
         Ok(())
     }
 
@@ -158,8 +157,7 @@ impl AsyncFileSystem for S3FS {
     }
 
     async fn create_file(&self, path: &str) -> VfsResult<Box<dyn AsyncWrite + Send + Unpin>> {
-        let _s3_rez = self
-            .s3_client
+        self.s3_client
             .put_object()
             .bucket(&self.bucket)
             .key(path)
@@ -226,7 +224,7 @@ impl AsyncFileSystem for S3FS {
     async fn remove_dir(&self, path: &str) -> VfsResult<()> {
         let mut path_stream = self.read_dir(path).await?;
         while let Some(file_path) = path_stream.next().await {
-            self.remove_file(&file_path);
+            self.remove_file(&file_path).await?;
         }
 
         Ok(())
@@ -267,15 +265,16 @@ mod tests {
             .profile_name("test_aws_config")
             .load()
             .await;
-        AsyncVfsPath::new(S3FS::new(
-            Client::new(&sdk_config),
-            "test_s3_vfs_bucket".to_string(),
-        ))
+        AsyncVfsPath::new(
+            S3FS::new(Client::new(&sdk_config), "test_s3_vfs_bucket".to_string())
+                .await
+                .unwrap(),
+        )
     }
 
     #[tokio::test]
     async fn create_file() {
-        let root = create_root();
+        let root = create_root().await;
         let contents = b"derp";
         root.join("test_file.txt")
             .unwrap()
