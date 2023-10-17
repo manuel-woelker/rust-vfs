@@ -1,8 +1,10 @@
 use crate::async_vfs::{AsyncFileSystem, SeekAndRead};
-use crate::{VfsFileType, VfsMetadata, VfsResult};
+use crate::error::VfsErrorKind;
+use crate::{VfsError, VfsFileType, VfsMetadata, VfsResult};
 use async_std::io::{prelude::*, ReadExt, Seek};
 use async_std::prelude::Stream;
 use async_trait::async_trait;
+use aws_sdk_s3::error::SdkError;
 use aws_sdk_s3::primitives::ByteStream;
 use aws_sdk_s3::Client;
 use futures::{AsyncRead, AsyncSeek, AsyncWrite, StreamExt, TryStreamExt};
@@ -82,6 +84,13 @@ impl Write for S3File {
 
     fn flush(&mut self) -> std::io::Result<()> {
         todo!()
+    }
+}
+
+impl<E> From<SdkError<E>> for VfsError {
+    fn from(value: SdkError<E>) -> Self {
+        let cause = value.to_string();
+        VfsErrorKind::Other(format!("S3 error: {cause}")).into()
     }
 }
 
