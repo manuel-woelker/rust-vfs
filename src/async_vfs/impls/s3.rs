@@ -10,26 +10,39 @@ use aws_sdk_s3::Client;
 use futures::{AsyncRead, AsyncSeek, AsyncWrite, StreamExt, TryStreamExt};
 use std::fmt::Display;
 use std::io::{IoSliceMut, SeekFrom, Write};
+use std::ops::Deref;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::{Context, Poll};
 
 #[derive(Debug)]
-pub struct S3FS {
+pub struct S3FSImpl {
     s3_client: Client,
     bucket: String,
 }
 
+#[derive(Clone, Debug)]
+pub struct S3FS(Arc<S3FSImpl>);
+
 impl S3FS {
     pub async fn new(s3_client: Client, bucket: String) -> VfsResult<Self> {
         s3_client.create_bucket().bucket(&bucket).send().await?;
-        Ok(Self { s3_client, bucket })
+        Ok(Self(Arc::new(S3FSImpl { s3_client, bucket })))
+    }
+}
+
+impl Deref for S3FS {
+    type Target = S3FSImpl;
+
+    fn deref(&self) -> &Self::Target {
+        self.0.as_ref()
     }
 }
 
 struct S3File {
-    contents: ByteStream,
-    bucket: String,
+    fs: S3FS,
     key: String,
+    contents: ByteStream,
 }
 
 impl Read for S3File {
@@ -150,9 +163,9 @@ impl AsyncFileSystem for S3FS {
             .await?;
         let body = s3_rez.body;
         Ok(Box::new(S3File {
-            contents: body,
-            bucket: self.bucket.clone(),
+            fs: self.clone(),
             key: path.to_string().clone(),
+            contents: body,
         }))
     }
 
@@ -172,9 +185,9 @@ impl AsyncFileSystem for S3FS {
             .await?;
         let body = s3_rez.body;
         Ok(Box::new(S3File {
-            contents: body,
-            bucket: self.bucket.clone(),
+            fs: self.clone(),
             key: path.to_string().clone(),
+            contents: body,
         }))
     }
 
