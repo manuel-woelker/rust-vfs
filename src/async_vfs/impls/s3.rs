@@ -5,6 +5,7 @@ use async_std::io::{prelude::*, ReadExt, Seek};
 use async_std::prelude::Stream;
 use async_trait::async_trait;
 use aws_sdk_s3::error::SdkError;
+use aws_sdk_s3::operation::get_object::GetObjectOutput;
 use aws_sdk_s3::primitives::ByteStream;
 use aws_sdk_s3::Client;
 use futures::{AsyncRead, AsyncSeek, AsyncWrite, StreamExt, TryStreamExt};
@@ -36,6 +37,90 @@ impl Deref for S3FS {
 
     fn deref(&self) -> &Self::Target {
         self.0.as_ref()
+    }
+}
+
+struct S3FileReader {
+    object: GetObjectOutput,
+    buffer: Vec<u8>,
+    position: u64,
+}
+
+impl S3FileReader {
+    fn new(object: GetObjectOutput) -> Self {
+        Self {
+            object,
+            buffer: Vec::new(),
+            position: 0,
+        }
+    }
+
+    fn content_length(&self) -> u64 {
+        self.object.content_length as _
+    }
+
+    async fn fill_buffer(&mut self, upper_bound: u64) -> VfsResult<()> {
+        let desired_buffer_size = upper_bound.min(self.content_length());
+
+        // TODO: Implement a way to avoid infinite loops
+        while (self.buffer.len() as u64) < desired_buffer_size {
+            if let Some(bytes) = self
+                .object
+                .body
+                .try_next()
+                .await
+                .map_err(|_| make_s3_error("Cannot read file"))?
+            {
+                self.buffer.extend(bytes);
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn async_read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let bytes_left = self.content_length() - self.position;
+        if bytes_left == 0 {
+            return Ok(0);
+        }
+
+        let bytes_read = bytes_left.min(buf.len() as u64);
+        let end_position = self.position + bytes_read;
+        let buffered_remaining = (self.buffer.len() as u64) - self.position;
+        if bytes_read > buffered_remaining {
+            self.fill_buffer(end_position).await;
+        }
+
+        buf[..bytes_read as usize].copy_from_slice(
+            &self.buffer[self.position as usize..(self.position + bytes_read) as usize],
+        );
+        self.position += bytes_read;
+
+        Ok(0)
+    }
+}
+
+impl AsyncSeek for S3FileReader {
+    fn poll_seek(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        pos: SeekFrom,
+    ) -> Poll<std::io::Result<u64>> {
+        todo!()
+    }
+}
+
+impl AsyncRead for S3FileReader {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<std::io::Result<usize>> {
+        let this = self.get_mut();
+        match this.async_read(buf).poll_unpin(cx) {
+            Poll::Ready(res) => Poll::Ready(res),
+            Poll::Pending => Poll::Pending,
+        }
     }
 }
 
@@ -154,19 +239,15 @@ impl AsyncFileSystem for S3FS {
     }
 
     async fn open_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndRead + Send + Unpin>> {
-        let s3_rez = self
+        let object = self
             .s3_client
             .get_object()
             .bucket(&self.bucket)
             .key(path)
             .send()
             .await?;
-        let body = s3_rez.body;
-        Ok(Box::new(S3File {
-            fs: self.clone(),
-            key: path.to_string().clone(),
-            contents: body,
-        }))
+
+        Ok(Box::new(S3FileReader::new(object)))
     }
 
     async fn create_file(&self, path: &str) -> VfsResult<Box<dyn AsyncWrite + Send + Unpin>> {
