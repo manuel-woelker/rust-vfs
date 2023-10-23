@@ -8,11 +8,11 @@ use aws_sdk_s3::error::SdkError;
 use aws_sdk_s3::operation::get_object::GetObjectOutput;
 use aws_sdk_s3::primitives::ByteStream;
 use aws_sdk_s3::Client;
-use futures::{AsyncRead, AsyncSeek, AsyncWrite, StreamExt, TryStreamExt};
+use futures::{AsyncRead, AsyncSeek, AsyncWrite, FutureExt, StreamExt, TryStreamExt};
 use std::fmt::Display;
 use std::io::{IoSliceMut, SeekFrom, Write};
 use std::ops::Deref;
-use std::pin::Pin;
+use std::pin::{pin, Pin};
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
@@ -117,7 +117,8 @@ impl AsyncRead for S3FileReader {
         buf: &mut [u8],
     ) -> Poll<std::io::Result<usize>> {
         let this = self.get_mut();
-        match this.async_read(buf).poll_unpin(cx) {
+        let mut fut = pin!(this.async_read(buf));
+        match fut.poll_unpin(cx) {
             Poll::Ready(res) => Poll::Ready(res),
             Poll::Pending => Poll::Pending,
         }
