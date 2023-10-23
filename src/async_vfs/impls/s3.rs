@@ -1,22 +1,25 @@
-use crate::async_vfs::{AsyncFileSystem, SeekAndRead};
-use crate::error::VfsErrorKind;
-use crate::{VfsError, VfsFileType, VfsMetadata, VfsResult};
-use async_std::io::{prelude::*, ReadExt, Seek};
-use async_std::prelude::Stream;
+use crate::{
+    async_vfs::{AsyncFileSystem, SeekAndRead},
+    error::VfsErrorKind,
+    VfsError, VfsFileType, VfsMetadata, VfsResult,
+};
+use async_std::{io::prelude::*, prelude::Stream};
 use async_trait::async_trait;
-use aws_sdk_s3::error::SdkError;
-use aws_sdk_s3::operation::get_object::GetObjectOutput;
-use aws_sdk_s3::primitives::ByteStream;
-use aws_sdk_s3::Client;
+use aws_config::SdkConfig;
+use aws_sdk_s3::{
+    error::SdkError, operation::get_object::GetObjectOutput, primitives::ByteStream, Client,
+};
 use futures::{
     executor::block_on, AsyncRead, AsyncSeek, AsyncWrite, FutureExt, StreamExt, TryStreamExt,
 };
-use std::fmt::Display;
-use std::io::{IoSliceMut, SeekFrom, Write};
-use std::ops::Deref;
-use std::pin::{pin, Pin};
-use std::sync::Arc;
-use std::task::{Context, Poll};
+use std::{
+    fmt::Display,
+    io::SeekFrom,
+    ops::Deref,
+    pin::{pin, Pin},
+    sync::Arc,
+    task::{Context, Poll},
+};
 
 #[derive(Debug)]
 pub struct S3FSImpl {
@@ -28,7 +31,9 @@ pub struct S3FSImpl {
 pub struct S3FS(Arc<S3FSImpl>);
 
 impl S3FS {
-    pub async fn new(client: Client, bucket_name: &str) -> VfsResult<Self> {
+    // TODO: Change constructor signature so that caller does not need to import AWS SDK
+    pub async fn new(config: &SdkConfig, bucket_name: &str) -> VfsResult<Self> {
+        let client = Client::new(config);
         client.create_bucket().bucket(bucket_name).send().await?;
         Ok(Self(Arc::new(S3FSImpl {
             client,
@@ -102,8 +107,8 @@ impl S3FileReader {
 impl AsyncSeek for S3FileReader {
     fn poll_seek(
         self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        pos: SeekFrom,
+        _cx: &mut Context<'_>,
+        _pos: SeekFrom,
     ) -> Poll<std::io::Result<u64>> {
         todo!()
     }
@@ -191,68 +196,6 @@ impl Drop for S3FileWriter {
     }
 }
 
-struct S3File {
-    fs: S3FS,
-    key: String,
-    contents: ByteStream,
-}
-
-impl Read for S3File {
-    fn poll_read(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<std::io::Result<usize>> {
-        todo!()
-    }
-
-    fn poll_read_vectored(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        bufs: &mut [IoSliceMut<'_>],
-    ) -> Poll<std::io::Result<usize>> {
-        todo!()
-    }
-}
-
-impl AsyncSeek for S3File {
-    fn poll_seek(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        pos: SeekFrom,
-    ) -> Poll<std::io::Result<u64>> {
-        todo!()
-    }
-}
-
-impl AsyncWrite for S3File {
-    fn poll_write(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<std::io::Result<usize>> {
-        todo!()
-    }
-
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
-        todo!()
-    }
-
-    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
-        todo!()
-    }
-}
-
-impl Write for S3File {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        todo!()
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        todo!()
-    }
-}
-
 fn make_s3_error(cause: impl Display) -> VfsError {
     VfsErrorKind::Other(format!("S3 error: {cause}")).into()
 }
@@ -321,7 +264,7 @@ impl AsyncFileSystem for S3FS {
         Ok(Box::new(S3FileWriter::new(self, path)))
     }
 
-    async fn append_file(&self, path: &str) -> VfsResult<Box<dyn AsyncWrite + Send + Unpin>> {
+    async fn append_file(&self, _path: &str) -> VfsResult<Box<dyn AsyncWrite + Send + Unpin>> {
         todo!()
     }
 
@@ -397,22 +340,15 @@ impl AsyncFileSystem for S3FS {
 
 #[cfg(test)]
 mod tests {
-    use crate::async_vfs::impls::s3::S3FS;
+    use super::*;
     use crate::async_vfs::AsyncVfsPath;
-    /// It's important to note that you may be charged for running these tests.
-    use async_std::prelude::FutureExt;
-    use aws_sdk_s3::Client;
 
     async fn create_root() -> AsyncVfsPath {
         let sdk_config = aws_config::from_env()
             .profile_name("test_aws_config")
             .load()
             .await;
-        AsyncVfsPath::new(
-            S3FS::new(Client::new(&sdk_config), "test_s3_vfs_bucket")
-                .await
-                .unwrap(),
-        )
+        AsyncVfsPath::new(S3FS::new(&sdk_config, "test_s3_vfs_bucket").await.unwrap())
     }
 
     #[tokio::test]
@@ -430,6 +366,6 @@ mod tests {
         let read = async_std::fs::read_to_string("test_file.txt")
             .await
             .unwrap();
-        assert_eq!(read, contents);
+        assert_eq!(read.as_bytes(), contents);
     }
 }
