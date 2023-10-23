@@ -110,7 +110,7 @@ impl AsyncSeek for S3FileReader {
         _cx: &mut Context<'_>,
         _pos: SeekFrom,
     ) -> Poll<std::io::Result<u64>> {
-        todo!()
+        Poll::Ready(Err(std::io::ErrorKind::Unsupported.into()))
     }
 }
 
@@ -212,7 +212,7 @@ impl AsyncFileSystem for S3FS {
         &self,
         path: &str,
     ) -> VfsResult<Box<dyn Unpin + Stream<Item = String> + Send>> {
-        let s3_rez = self
+        let objects = self
             .client
             .list_objects_v2()
             .bucket(&self.bucket_name)
@@ -220,7 +220,7 @@ impl AsyncFileSystem for S3FS {
             .send()
             .await?;
 
-        let entries = s3_rez
+        let entries = objects
             .contents()
             .ok_or(make_s3_error("Cannot read list content"))?;
         let mut result = Vec::new();
@@ -238,14 +238,8 @@ impl AsyncFileSystem for S3FS {
         Ok(Box::new(futures::stream::iter(result)))
     }
 
-    async fn create_dir(&self, path: &str) -> VfsResult<()> {
-        self.client
-            .put_object()
-            .bucket(&self.bucket_name)
-            .key(path)
-            .send()
-            .await?;
-        Ok(())
+    async fn create_dir(&self, _path: &str) -> VfsResult<()> {
+        Err(VfsErrorKind::NotSupported.into())
     }
 
     async fn open_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndRead + Send + Unpin>> {
@@ -265,11 +259,11 @@ impl AsyncFileSystem for S3FS {
     }
 
     async fn append_file(&self, _path: &str) -> VfsResult<Box<dyn AsyncWrite + Send + Unpin>> {
-        todo!()
+        Err(VfsErrorKind::NotSupported.into())
     }
 
     async fn metadata(&self, path: &str) -> VfsResult<VfsMetadata> {
-        let s3_rez = self
+        let object = self
             .client
             .head_object()
             .bucket(&self.bucket_name)
@@ -279,22 +273,19 @@ impl AsyncFileSystem for S3FS {
 
         Ok(VfsMetadata {
             file_type: VfsFileType::File,
-            len: s3_rez.content_length as u64,
+            len: object.content_length as u64,
         })
     }
 
     async fn exists(&self, path: &str) -> VfsResult<bool> {
-        match self
+        Ok(self
             .client
             .head_object()
             .bucket(&self.bucket_name)
             .key(path)
             .send()
             .await
-        {
-            Ok(_) => Ok(true),
-            Err(_) => Ok(false),
-        }
+            .is_ok())
     }
 
     async fn remove_file(&self, path: &str) -> VfsResult<()> {
@@ -316,25 +307,25 @@ impl AsyncFileSystem for S3FS {
         Ok(())
     }
 
-    async fn copy_file(&self, _src: &str, _dest: &str) -> VfsResult<()> {
+    async fn copy_file(&self, src: &str, dest: &str) -> VfsResult<()> {
         self.client
             .copy_object()
             .bucket(&self.bucket_name)
-            .key(_dest)
-            .copy_source(_src)
+            .key(dest)
+            .copy_source(src)
             .send()
             .await?;
         Ok(())
     }
 
-    async fn move_file(&self, _src: &str, _dest: &str) -> VfsResult<()> {
-        self.copy_file(_src, _dest).await?;
-        self.remove_file(_src).await?;
+    async fn move_file(&self, src: &str, dest: &str) -> VfsResult<()> {
+        self.copy_file(src, dest).await?;
+        self.remove_file(src).await?;
         Ok(())
     }
 
     async fn move_dir(&self, _src: &str, _dest: &str) -> VfsResult<()> {
-        todo!()
+        Err(VfsErrorKind::NotSupported.into())
     }
 }
 
