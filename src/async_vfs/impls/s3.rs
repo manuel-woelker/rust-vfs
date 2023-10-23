@@ -8,7 +8,9 @@ use aws_sdk_s3::error::SdkError;
 use aws_sdk_s3::operation::get_object::GetObjectOutput;
 use aws_sdk_s3::primitives::ByteStream;
 use aws_sdk_s3::Client;
-use futures::{AsyncRead, AsyncSeek, AsyncWrite, FutureExt, StreamExt, TryStreamExt};
+use futures::{
+    executor::block_on, AsyncRead, AsyncSeek, AsyncWrite, FutureExt, StreamExt, TryStreamExt,
+};
 use std::fmt::Display;
 use std::io::{IoSliceMut, SeekFrom, Write};
 use std::ops::Deref;
@@ -18,17 +20,20 @@ use std::task::{Context, Poll};
 
 #[derive(Debug)]
 pub struct S3FSImpl {
-    s3_client: Client,
-    bucket: String,
+    client: Client,
+    bucket_name: String,
 }
 
 #[derive(Clone, Debug)]
 pub struct S3FS(Arc<S3FSImpl>);
 
 impl S3FS {
-    pub async fn new(s3_client: Client, bucket: String) -> VfsResult<Self> {
-        s3_client.create_bucket().bucket(&bucket).send().await?;
-        Ok(Self(Arc::new(S3FSImpl { s3_client, bucket })))
+    pub async fn new(client: Client, bucket_name: &str) -> VfsResult<Self> {
+        client.create_bucket().bucket(bucket_name).send().await?;
+        Ok(Self(Arc::new(S3FSImpl {
+            client,
+            bucket_name: bucket_name.to_owned(),
+        })))
     }
 }
 
@@ -59,18 +64,12 @@ impl S3FileReader {
         self.object.content_length as _
     }
 
-    async fn fill_buffer(&mut self, upper_bound: u64) -> VfsResult<()> {
+    async fn fill_buffer(&mut self, upper_bound: u64) -> std::io::Result<()> {
         let desired_buffer_size = upper_bound.min(self.content_length());
 
         // TODO: Implement a way to avoid infinite loops
         while (self.buffer.len() as u64) < desired_buffer_size {
-            if let Some(bytes) = self
-                .object
-                .body
-                .try_next()
-                .await
-                .map_err(|_| make_s3_error("Cannot read file"))?
-            {
+            if let Some(bytes) = self.object.body.try_next().await? {
                 self.buffer.extend(bytes);
             }
         }
@@ -88,7 +87,7 @@ impl S3FileReader {
         let end_position = self.position + bytes_read;
         let buffered_remaining = (self.buffer.len() as u64) - self.position;
         if bytes_read > buffered_remaining {
-            self.fill_buffer(end_position).await;
+            self.fill_buffer(end_position).await?;
         }
 
         buf[..bytes_read as usize].copy_from_slice(
@@ -122,6 +121,73 @@ impl AsyncRead for S3FileReader {
             Poll::Ready(res) => Poll::Ready(res),
             Poll::Pending => Poll::Pending,
         }
+    }
+}
+
+struct S3FileWriter {
+    fs: S3FS,
+    key: String,
+    buffer: Vec<u8>,
+}
+
+impl S3FileWriter {
+    fn new(fs: &S3FS, key: &str) -> Self {
+        Self {
+            fs: fs.clone(),
+            key: key.to_owned(),
+            buffer: Vec::new(),
+        }
+    }
+
+    async fn async_flush(&self) -> std::io::Result<()> {
+        let body = ByteStream::from(self.buffer.clone());
+        self.fs
+            .client
+            .put_object()
+            .bucket(&self.fs.bucket_name)
+            .key(&self.key)
+            .body(body)
+            .send()
+            .await
+            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
+
+        Ok(())
+    }
+}
+
+impl AsyncWrite for S3FileWriter {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<std::io::Result<usize>> {
+        let this = self.get_mut();
+        let mut fut = pin!(this.write(buf));
+
+        match fut.poll_unpin(cx) {
+            Poll::Ready(res) => Poll::Ready(res),
+            Poll::Pending => Poll::Pending,
+        }
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        let this = self.get_mut();
+        let mut fut = pin!(this.async_flush());
+
+        match fut.poll_unpin(cx) {
+            Poll::Ready(res) => Poll::Ready(res),
+            Poll::Pending => Poll::Pending,
+        }
+    }
+}
+
+impl Drop for S3FileWriter {
+    fn drop(&mut self) {
+        let _ = block_on(self.async_flush());
     }
 }
 
@@ -204,9 +270,9 @@ impl AsyncFileSystem for S3FS {
         path: &str,
     ) -> VfsResult<Box<dyn Unpin + Stream<Item = String> + Send>> {
         let s3_rez = self
-            .s3_client
+            .client
             .list_objects_v2()
-            .bucket(&self.bucket)
+            .bucket(&self.bucket_name)
             .prefix(path)
             .send()
             .await?;
@@ -230,9 +296,9 @@ impl AsyncFileSystem for S3FS {
     }
 
     async fn create_dir(&self, path: &str) -> VfsResult<()> {
-        self.s3_client
+        self.client
             .put_object()
-            .bucket(&self.bucket)
+            .bucket(&self.bucket_name)
             .key(path)
             .send()
             .await?;
@@ -241,9 +307,9 @@ impl AsyncFileSystem for S3FS {
 
     async fn open_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndRead + Send + Unpin>> {
         let object = self
-            .s3_client
+            .client
             .get_object()
-            .bucket(&self.bucket)
+            .bucket(&self.bucket_name)
             .key(path)
             .send()
             .await?;
@@ -252,25 +318,7 @@ impl AsyncFileSystem for S3FS {
     }
 
     async fn create_file(&self, path: &str) -> VfsResult<Box<dyn AsyncWrite + Send + Unpin>> {
-        self.s3_client
-            .put_object()
-            .bucket(&self.bucket)
-            .key(path)
-            .send()
-            .await?;
-        let s3_rez = self
-            .s3_client
-            .get_object()
-            .bucket(&self.bucket)
-            .key(path)
-            .send()
-            .await?;
-        let body = s3_rez.body;
-        Ok(Box::new(S3File {
-            fs: self.clone(),
-            key: path.to_string().clone(),
-            contents: body,
-        }))
+        Ok(Box::new(S3FileWriter::new(self, path)))
     }
 
     async fn append_file(&self, path: &str) -> VfsResult<Box<dyn AsyncWrite + Send + Unpin>> {
@@ -279,9 +327,9 @@ impl AsyncFileSystem for S3FS {
 
     async fn metadata(&self, path: &str) -> VfsResult<VfsMetadata> {
         let s3_rez = self
-            .s3_client
+            .client
             .head_object()
-            .bucket(&self.bucket)
+            .bucket(&self.bucket_name)
             .key(path)
             .send()
             .await?;
@@ -294,9 +342,9 @@ impl AsyncFileSystem for S3FS {
 
     async fn exists(&self, path: &str) -> VfsResult<bool> {
         match self
-            .s3_client
+            .client
             .head_object()
-            .bucket(&self.bucket)
+            .bucket(&self.bucket_name)
             .key(path)
             .send()
             .await
@@ -307,9 +355,9 @@ impl AsyncFileSystem for S3FS {
     }
 
     async fn remove_file(&self, path: &str) -> VfsResult<()> {
-        self.s3_client
+        self.client
             .delete_object()
-            .bucket(&self.bucket)
+            .bucket(&self.bucket_name)
             .key(path)
             .send()
             .await?;
@@ -326,9 +374,9 @@ impl AsyncFileSystem for S3FS {
     }
 
     async fn copy_file(&self, _src: &str, _dest: &str) -> VfsResult<()> {
-        self.s3_client
+        self.client
             .copy_object()
-            .bucket(&self.bucket)
+            .bucket(&self.bucket_name)
             .key(_dest)
             .copy_source(_src)
             .send()
@@ -361,7 +409,7 @@ mod tests {
             .load()
             .await;
         AsyncVfsPath::new(
-            S3FS::new(Client::new(&sdk_config), "test_s3_vfs_bucket".to_string())
+            S3FS::new(Client::new(&sdk_config), "test_s3_vfs_bucket")
                 .await
                 .unwrap(),
         )
