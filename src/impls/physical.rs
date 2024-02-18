@@ -66,7 +66,6 @@ impl FileSystem for PhysicalFS {
     fn append_file(&self, path: &str) -> VfsResult<Box<dyn Write + Send>> {
         Ok(Box::new(
             OpenOptions::new()
-                .write(true)
                 .append(true)
                 .open(self.get_path(path))?,
         ))

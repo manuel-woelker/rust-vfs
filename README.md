@@ -18,7 +18,7 @@ This crate currently has the following implementations:
  * **OverlayFS** - an overlay file system combining two filesystems, an upper layer with read/write access and a lower layer with only read access
  * **EmbeddedFS** - a read-only file system embedded in the executable, requires `embedded-fs` feature, no async version available
  
-The minimum supported Rust version is 1.61.0.
+The minimum supported Rust version (MSRV) is 1.63.
  
 Comments and pull-requests welcome!
 
