@@ -2,9 +2,8 @@
 
 [![Crate](https://img.shields.io/crates/v/vfs.svg)](https://crates.io/crates/vfs)
 [![API](https://docs.rs/vfs/badge.svg)](https://docs.rs/vfs)
-![Minimum rustc version](https://img.shields.io/badge/rustc-1.61.0+-green.svg)
+![Minimum rustc version](https://img.shields.io/badge/rustc-1.63.0+-green.svg)
 [![Actions Status](https://github.com/manuel-woelker/rust-vfs/workflows/Continuous%20integration/badge.svg)](https://github.com/manuel-woelker/rust-vfs/actions?query=workflow%3A%22Continuous+integration%22)
-[![Build Status](https://travis-ci.org/manuel-woelker/rust-vfs.svg?branch=master)](https://travis-ci.org/manuel-woelker/rust-vfs)
 
 A virtual filesystem for Rust
 
@@ -23,6 +22,12 @@ The minimum supported Rust version (MSRV) is 1.63.
 Comments and pull-requests welcome!
 
 ## Changelog
+
+### 0.11.0 (2024-02-18)
+* Updated minimum supported Rust version to 1.63.
+* Updated rust-embed dependency to 8.0 - thanks [@NickAcPT](https://github.com/NickAcPT)!
+* Unlocked tokio crate version to work with newer versions - thanks [@Fredrik-Reinholdsen](https://github.com/Fredrik-Reinholdsen)!
+* use `Arc<str>` for paths internally to reduce string allocations - thanks [@BrettMayson](https://github.com/BrettMayson)!
 
 ### 0.10.0 (2023-09-08)
 * Added async port of the crate, in a new module `async_vfs`.
