@@ -616,7 +616,6 @@ impl VfsPath {
     pub fn parent(&self) -> Self {
         let parent_path = self.parent_internal(&self.path);
         Self {
-            // path: parent_path,
             path: Arc::from(parent_path),
             fs: self.fs.clone(),
         }
