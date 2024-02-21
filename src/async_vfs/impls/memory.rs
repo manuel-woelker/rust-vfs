@@ -264,6 +264,9 @@ impl AsyncFileSystem for AsyncMemoryFS {
         Ok(VfsMetadata {
             file_type: file.file_type,
             len: file.content.len() as u64,
+            modified: None,
+            created: None,
+            accessed: None,
         })
     }
 

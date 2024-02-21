@@ -89,11 +89,17 @@ impl AsyncFileSystem for AsyncPhysicalFS {
             VfsMetadata {
                 file_type: VfsFileType::Directory,
                 len: 0,
+                modified: metadata.modified().ok(),
+                created: metadata.created().ok(),
+                accessed: metadata.accessed().ok(),
             }
         } else {
             VfsMetadata {
                 file_type: VfsFileType::File,
                 len: metadata.len(),
+                modified: metadata.modified().ok(),
+                created: metadata.created().ok(),
+                accessed: metadata.accessed().ok(),
             }
         })
     }

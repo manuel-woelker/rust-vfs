@@ -120,12 +120,18 @@ where
             return Ok(VfsMetadata {
                 file_type: VfsFileType::File,
                 len: *len,
+                modified: None,
+                created: None,
+                accessed: None,
             });
         }
         if self.directory_map.contains_key(normalized_path) {
             return Ok(VfsMetadata {
                 file_type: VfsFileType::Directory,
                 len: 0,
+                modified: None,
+                created: None,
+                accessed: None,
             });
         }
         Err(VfsErrorKind::FileNotFound.into())

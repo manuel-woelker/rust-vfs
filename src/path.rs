@@ -94,6 +94,12 @@ pub struct VfsMetadata {
     pub file_type: VfsFileType,
     /// Length of the file in bytes, 0 for directories
     pub len: u64,
+    /// Modification time of the file, if supported by the vfs implementation
+    pub modified: Option<std::time::SystemTime>,
+    /// Creation time of the file, if supported by the vfs implementation
+    pub created:  Option<std::time::SystemTime>,
+    /// Access time of the file, if supported by the vfs implementation
+    pub accessed: Option<std::time::SystemTime>,
 }
 
 #[derive(Debug)]
