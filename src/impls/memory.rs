@@ -222,7 +222,7 @@ impl FileSystem for MemoryFS {
             len: file.content.len() as u64,
             modified: None,
             created: None,
-            accessed: None
+            accessed: None,
         })
     }
 

@@ -97,7 +97,7 @@ pub struct VfsMetadata {
     /// Modification time of the file, if supported by the vfs implementation
     pub modified: Option<std::time::SystemTime>,
     /// Creation time of the file, if supported by the vfs implementation
-    pub created:  Option<std::time::SystemTime>,
+    pub created: Option<std::time::SystemTime>,
     /// Access time of the file, if supported by the vfs implementation
     pub accessed: Option<std::time::SystemTime>,
 }
