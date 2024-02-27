@@ -1,4 +1,5 @@
 //! An async implementation of a "physical" file system implementation using the underlying OS file system
+use std::fs::FileTimes;
 use crate::async_vfs::{AsyncFileSystem, SeekAndRead};
 use crate::error::VfsErrorKind;
 use crate::path::VfsFileType;
@@ -10,6 +11,7 @@ use async_std::path::{Path, PathBuf};
 use async_trait::async_trait;
 use futures::stream::{Stream, StreamExt};
 use std::pin::Pin;
+use std::time::SystemTime;
 
 /// A physical filesystem implementation using the underlying OS file system
 #[derive(Debug)]

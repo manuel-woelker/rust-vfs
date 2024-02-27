@@ -509,7 +509,7 @@ impl VfsPath {
         })
     }
 
-    /// Returns the file metadata for the file at this path
+    /// Sets the files creation timestamp at this path
     ///
     /// ```
     /// # use std::io::Read;
@@ -536,7 +536,7 @@ impl VfsPath {
             })
     }
 
-    /// Returns the file metadata for the file at this path
+    /// Sets the files modification timestamp at this path
     ///
     /// ```
     /// # use std::io::Read;
@@ -563,7 +563,7 @@ impl VfsPath {
             })
     }
 
-    /// Returns the file metadata for the file at this path
+    /// Sets the files access timestamp at this path
     ///
     /// ```
     /// # use std::io::Read;

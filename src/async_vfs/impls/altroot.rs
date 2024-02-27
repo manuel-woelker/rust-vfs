@@ -1,5 +1,6 @@
 //! A file system with its root in a particular directory of another filesystem
 
+use std::time::SystemTime;
 use crate::async_vfs::{AsyncFileSystem, AsyncVfsPath, SeekAndRead};
 use crate::{error::VfsErrorKind, VfsMetadata, VfsResult};
 
@@ -70,6 +71,19 @@ impl AsyncFileSystem for AsyncAltrootFS {
     async fn metadata(&self, path: &str) -> VfsResult<VfsMetadata> {
         self.path(path)?.metadata().await
     }
+
+    async fn set_creation_time(&self, path: &str, time: SystemTime) -> VfsResult<()> {
+        self.path(path)?.set_creation_time(time).await
+    }
+
+    async fn set_modification_time(&self, path: &str, time: SystemTime) -> VfsResult<()> {
+        self.path(path)?.set_modification_time(time).await
+    }
+
+    async fn set_access_time(&self, path: &str, time: SystemTime) -> VfsResult<()> {
+        self.path(path)?.set_access_time(time).await
+    }
+
 
     async fn exists(&self, path: &str) -> VfsResult<bool> {
         match self.path(path) {

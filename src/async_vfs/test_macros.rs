@@ -11,6 +11,7 @@ macro_rules! test_async_vfs {
             use $crate::VfsResult;
             use futures::stream::StreamExt;
             use async_std::io::{WriteExt, ReadExt};
+            use std::time::SystemTime;
 
             fn create_root() -> AsyncVfsPath {
                 $root.into()
@@ -19,6 +20,78 @@ macro_rules! test_async_vfs {
             #[tokio::test]
             async fn vfs_can_be_created() {
                 create_root();
+            }
+
+            #[tokio::test]
+            async fn set_and_query_creation_timestamp() -> VfsResult<()> {
+                let root = create_root();
+                let path = root.join("foobar.txt").unwrap();
+                drop( path.create_file().await.unwrap() );
+
+                let time = SystemTime::now();
+                let result = path.set_creation_time(time).await;
+
+                match result {
+                    Err(err) => {
+                        if let VfsErrorKind::NotSupported = err.kind() {
+                            println!("Skipping creation time test: set_creation_time unsupported!");
+                        } else {
+                            return Err(err);
+                        }
+                    },
+                    _ => {
+                        assert_eq!(path.metadata().await?.created, Some(time));
+                    }
+                }
+                Ok(())
+            }
+
+            #[tokio::test]
+            async fn set_and_query_modification_timestamp() -> VfsResult<()> {
+                let root = create_root();
+                let path = root.join("foobar.txt").unwrap();
+                drop( path.create_file().await.unwrap() );
+
+                let time = SystemTime::now();
+                let result = path.set_modification_time(time).await;
+
+                match result {
+                    Err(err) => {
+                        if let VfsErrorKind::NotSupported = err.kind() {
+                            println!("Skipping creation time test: set_modification_time unsupported!");
+                        } else {
+                            return Err(err);
+                        }
+                    },
+                    _ => {
+                        assert_eq!(path.metadata().await?.modified, Some(time));
+                    }
+                }
+                Ok(())
+            }
+
+            #[tokio::test]
+            async fn set_and_query_access_timestamp() -> VfsResult<()> {
+                let root = create_root();
+                let path = root.join("foobar.txt").unwrap();
+                drop( path.create_file().await.unwrap() );
+
+                let time = SystemTime::now();
+                let result = path.set_access_time(time).await;
+
+                match result {
+                    Err(err) => {
+                        if let VfsErrorKind::NotSupported = err.kind() {
+                            println!("Skipping access time test: set_access_time unsupported!");
+                        } else {
+                            return Err(err);
+                        }
+                    },
+                    _ => {
+                        assert_eq!(path.metadata().await?.accessed, Some(time));
+                    }
+                }
+                Ok(())
             }
 
             #[tokio::test]
