@@ -490,7 +490,8 @@ impl AsyncVfsPath {
     pub async fn set_creation_time(&self, time: SystemTime) -> VfsResult<()> {
         self.fs
             .fs
-            .set_creation_time(&self.path, time).await
+            .set_creation_time(&self.path, time)
+            .await
             .map_err(|err| {
                 err.with_path(&*self.path)
                     .with_context(|| "Could not set creation timestamp.")
@@ -519,7 +520,8 @@ impl AsyncVfsPath {
     pub async fn set_modification_time(&self, time: SystemTime) -> VfsResult<()> {
         self.fs
             .fs
-            .set_modification_time(&self.path, time).await
+            .set_modification_time(&self.path, time)
+            .await
             .map_err(|err| {
                 err.with_path(&*self.path)
                     .with_context(|| "Could not set modification timestamp.")
@@ -548,7 +550,8 @@ impl AsyncVfsPath {
     pub async fn set_access_time(&self, time: SystemTime) -> VfsResult<()> {
         self.fs
             .fs
-            .set_access_time(&self.path, time).await
+            .set_access_time(&self.path, time)
+            .await
             .map_err(|err| {
                 err.with_path(&*self.path)
                     .with_context(|| "Could not set access timestamp.")
