@@ -12,6 +12,7 @@ use std::fmt::{Debug, Formatter};
 use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 use std::mem::swap;
 use std::sync::{Arc, RwLock};
+use std::time::SystemTime;
 
 type MemoryFsHandle = Arc<RwLock<MemoryFsImpl>>;
 
@@ -71,12 +72,22 @@ impl Drop for WritableFile {
     fn drop(&mut self) {
         let mut content = vec![];
         swap(&mut content, self.content.get_mut());
-        self.fs.write().unwrap().files.insert(
+        let mut handle = self.fs.write().unwrap();
+        let previous_file = handle.files.get(
+            &self.destination
+        );
+
+        let new_file = MemoryFile {
+            file_type: VfsFileType::File,
+            content: Arc::new(content),
+            created: previous_file.map(|file| file.created).unwrap_or(SystemTime::now()),
+            modified: Some(SystemTime::now()),
+            accessed: previous_file.map(|file| file.accessed).unwrap_or(None)
+        };
+
+        handle.files.insert(
             self.destination.clone(),
-            MemoryFile {
-                file_type: VfsFileType::File,
-                content: Arc::new(content),
-            },
+            new_file,
         );
     }
 }
@@ -165,6 +176,9 @@ impl FileSystem for MemoryFS {
                     MemoryFile {
                         file_type: VfsFileType::Directory,
                         content: Default::default(),
+                        created: SystemTime::now(),
+                        modified: None,
+                        accessed: None,
                     },
                 );
             }
@@ -173,6 +187,8 @@ impl FileSystem for MemoryFS {
     }
 
     fn open_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndRead + Send>> {
+        self.set_access_time(path, SystemTime::now())?;
+
         let handle = self.handle.read().unwrap();
         let file = handle.files.get(path).ok_or(VfsErrorKind::FileNotFound)?;
         ensure_file(file)?;
@@ -190,6 +206,9 @@ impl FileSystem for MemoryFS {
             MemoryFile {
                 file_type: VfsFileType::File,
                 content,
+                created: SystemTime::now(),
+                modified: Some(SystemTime::now()),
+                accessed: Some(SystemTime::now())
             },
         );
         let writer = WritableFile {
@@ -220,10 +239,40 @@ impl FileSystem for MemoryFS {
         Ok(VfsMetadata {
             file_type: file.file_type,
             len: file.content.len() as u64,
-            modified: None,
-            created: None,
-            accessed: None,
+            modified: file.modified,
+            created: Some(file.created),
+            accessed: file.accessed,
         })
+    }
+
+    fn set_creation_time(&self, path: &str, time: SystemTime) -> VfsResult<()> {
+        let mut guard = self.handle.write().unwrap();
+        let files = &mut guard.files;
+        let file = files.get_mut(path).ok_or(VfsErrorKind::FileNotFound)?;
+
+        file.created = time;
+
+        Ok(())
+    }
+
+    fn set_modification_time(&self, path: &str, time: SystemTime) -> VfsResult<()> {
+        let mut guard = self.handle.write().unwrap();
+        let files = &mut guard.files;
+        let file = files.get_mut(path).ok_or(VfsErrorKind::FileNotFound)?;
+
+        file.modified = Some(time);
+
+        Ok(())
+    }
+
+    fn set_access_time(&self, path: &str, time: SystemTime) -> VfsResult<()> {
+        let mut guard = self.handle.write().unwrap();
+        let files = &mut guard.files;
+        let file = files.get_mut(path).ok_or(VfsErrorKind::FileNotFound)?;
+
+        file.accessed = Some(time);
+
+        Ok(())
     }
 
     fn exists(&self, path: &str) -> VfsResult<bool> {
@@ -265,6 +314,9 @@ impl MemoryFsImpl {
             MemoryFile {
                 file_type: VfsFileType::Directory,
                 content: Arc::new(vec![]),
+                created: SystemTime::now(),
+                modified: None,
+                accessed: None,
             },
         );
         Self { files }
@@ -275,6 +327,10 @@ struct MemoryFile {
     file_type: VfsFileType,
     #[allow(clippy::rc_buffer)] // to allow accessing the same object as writable
     content: Arc<Vec<u8>>,
+
+    created: SystemTime,
+    modified: Option<SystemTime>,
+    accessed: Option<SystemTime>,
 }
 
 #[cfg(test)]

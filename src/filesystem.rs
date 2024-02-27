@@ -1,9 +1,10 @@
 //! The filesystem trait definitions needed to implement new virtual filesystems
 
 use crate::error::VfsErrorKind;
-use crate::{SeekAndRead, VfsMetadata, VfsPath, VfsResult};
+use crate::{SeekAndRead, VfsError, VfsMetadata, VfsPath, VfsResult};
 use std::fmt::Debug;
 use std::io::Write;
+use std::time::SystemTime;
 
 /// File system implementations must implement this trait
 /// All path parameters are absolute, starting with '/', except for the root directory
@@ -28,6 +29,18 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
     fn append_file(&self, path: &str) -> VfsResult<Box<dyn Write + Send>>;
     /// Returns the file metadata for the file at this path
     fn metadata(&self, path: &str) -> VfsResult<VfsMetadata>;
+    /// Sets the files creation timestamp, if the implementation supports it
+    fn set_creation_time(&self, _path: &str, _time: SystemTime) -> VfsResult<()> {
+        Err(VfsError::from(VfsErrorKind::NotSupported))
+    }
+    /// Sets the files modification timestamp, if the implementation supports it
+    fn set_modification_time(&self, _path: &str, _time: SystemTime) -> VfsResult<()> {
+        Err(VfsError::from(VfsErrorKind::NotSupported))
+    }
+    /// Sets the files access timestamp, if the implementation supports it
+    fn set_access_time(&self, _path: &str, _time: SystemTime) -> VfsResult<()> {
+        Err(VfsError::from(VfsErrorKind::NotSupported))
+    }
     /// Returns true if a file or directory at path exists, false otherwise
     fn exists(&self, path: &str) -> VfsResult<bool>;
     /// Removes the file at this path

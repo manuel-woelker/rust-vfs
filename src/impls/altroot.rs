@@ -2,6 +2,7 @@
 
 use crate::{error::VfsErrorKind, FileSystem, SeekAndRead, VfsMetadata, VfsPath, VfsResult};
 use std::io::Write;
+use std::time::SystemTime;
 
 /// Similar to a chroot but done purely by path manipulation
 ///
@@ -60,6 +61,18 @@ impl FileSystem for AltrootFS {
 
     fn metadata(&self, path: &str) -> VfsResult<VfsMetadata> {
         self.path(path)?.metadata()
+    }
+
+    fn set_creation_time(&self, path: &str, time: SystemTime) -> VfsResult<()> {
+        self.path(path)?.set_creation_time(time)
+    }
+
+    fn set_modification_time(&self, path: &str, time: SystemTime) -> VfsResult<()> {
+        self.path(path)?.set_modification_time(time)
+    }
+
+    fn set_access_time(&self, path: &str, time: SystemTime) -> VfsResult<()> {
+        self.path(path)?.set_access_time(time)
     }
 
     fn exists(&self, path: &str) -> VfsResult<bool> {

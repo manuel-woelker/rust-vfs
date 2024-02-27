@@ -5,6 +5,7 @@
 
 use std::io::{Read, Seek, Write};
 use std::sync::Arc;
+use std::time::SystemTime;
 
 use crate::error::VfsErrorKind;
 use crate::{FileSystem, VfsError, VfsResult};
@@ -94,12 +95,12 @@ pub struct VfsMetadata {
     pub file_type: VfsFileType,
     /// Length of the file in bytes, 0 for directories
     pub len: u64,
-    /// Modification time of the file, if supported by the vfs implementation
-    pub modified: Option<std::time::SystemTime>,
     /// Creation time of the file, if supported by the vfs implementation
-    pub created: Option<std::time::SystemTime>,
+    pub created: Option<SystemTime>,
+    /// Modification time of the file, if supported by the vfs implementation
+    pub modified: Option<SystemTime>,
     /// Access time of the file, if supported by the vfs implementation
-    pub accessed: Option<std::time::SystemTime>,
+    pub accessed: Option<SystemTime>,
 }
 
 #[derive(Debug)]
@@ -505,6 +506,78 @@ impl VfsPath {
         self.fs.fs.metadata(&self.path).map_err(|err| {
             err.with_path(&*self.path)
                 .with_context(|| "Could not get metadata")
+        })
+    }
+
+    /// Returns the file metadata for the file at this path
+    ///
+    /// ```
+    /// # use std::io::Read;
+    /// use std::time::SystemTime;
+    /// use vfs::{MemoryFS, VfsError, VfsFileType, VfsMetadata, VfsPath};
+    /// let path = VfsPath::new(MemoryFS::new());
+    /// let file = path.join("foo.txt")?;
+    /// file.create_file();
+    ///
+    /// let time = SystemTime::now();
+    /// file.set_creation_time(time);
+    ///
+    /// assert_eq!(file.metadata()?.len, 0);
+    /// assert_eq!(file.metadata()?.created, Some(time));
+    ///
+    /// # Ok::<(), VfsError>(())
+    pub fn set_creation_time(&self, time: SystemTime) -> VfsResult<()> {
+        self.fs.fs.set_creation_time(&self.path, time).map_err(|err| {
+            err.with_path(&*self.path)
+                .with_context(|| "Could not set creation timestamp.")
+        })
+    }
+
+    /// Returns the file metadata for the file at this path
+    ///
+    /// ```
+    /// # use std::io::Read;
+    /// use std::time::SystemTime;
+    /// use vfs::{MemoryFS, VfsError, VfsFileType, VfsMetadata, VfsPath};
+    /// let path = VfsPath::new(MemoryFS::new());
+    /// let file = path.join("foo.txt")?;
+    /// file.create_file();
+    ///
+    /// let time = SystemTime::now();
+    /// file.set_modification_time(time);
+    ///
+    /// assert_eq!(file.metadata()?.len, 0);
+    /// assert_eq!(file.metadata()?.modified, Some(time));
+    ///
+    /// # Ok::<(), VfsError>(())
+    pub fn set_modification_time(&self, time: SystemTime) -> VfsResult<()> {
+        self.fs.fs.set_modification_time(&self.path, time).map_err(|err| {
+            err.with_path(&*self.path)
+                .with_context(|| "Could not set modification timestamp.")
+        })
+    }
+
+    /// Returns the file metadata for the file at this path
+    ///
+    /// ```
+    /// # use std::io::Read;
+    /// use std::time::SystemTime;
+    /// use vfs::{MemoryFS, VfsError, VfsFileType, VfsMetadata, VfsPath};
+    /// let path = VfsPath::new(MemoryFS::new());
+    /// let file = path.join("foo.txt")?;
+    /// file.create_file();
+    ///
+    /// let time = SystemTime::now();
+    /// file.set_access_time(time);
+    ///
+    /// assert_eq!(file.metadata()?.len, 0);
+    /// assert_eq!(file.metadata()?.accessed, Some(time));
+    ///
+    /// # Ok::<(), VfsError>(())
+    pub fn set_access_time(&self, time: SystemTime) -> VfsResult<()> {
+        self.fs.fs.set_access_time(&self.path, time).map_err(|err| {
+            err.with_path(&*self.path)
+                .with_context(|| "Could not set access timestamp.")
         })
     }
 
