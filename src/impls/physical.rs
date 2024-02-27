@@ -92,22 +92,16 @@ impl FileSystem for PhysicalFS {
     }
 
     fn set_modification_time(&self, path: &str, time: SystemTime) -> VfsResult<()> {
-        let dest = File::options().write(true).open(
-            self.get_path(path)
-        )?;
-        let times = FileTimes::new()
-            .set_modified(time);
+        let dest = File::options().write(true).open(self.get_path(path))?;
+        let times = FileTimes::new().set_modified(time);
         dest.set_times(times)?;
 
         Ok(())
     }
 
     fn set_access_time(&self, path: &str, time: SystemTime) -> VfsResult<()> {
-        let dest = File::options().write(true).open(
-            self.get_path(path)
-        )?;
-        let times = FileTimes::new()
-            .set_accessed(time);
+        let dest = File::options().write(true).open(self.get_path(path))?;
+        let times = FileTimes::new().set_accessed(time);
         dest.set_times(times)?;
 
         Ok(())

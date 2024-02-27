@@ -73,22 +73,19 @@ impl Drop for WritableFile {
         let mut content = vec![];
         swap(&mut content, self.content.get_mut());
         let mut handle = self.fs.write().unwrap();
-        let previous_file = handle.files.get(
-            &self.destination
-        );
+        let previous_file = handle.files.get(&self.destination);
 
         let new_file = MemoryFile {
             file_type: VfsFileType::File,
             content: Arc::new(content),
-            created: previous_file.map(|file| file.created).unwrap_or(SystemTime::now()),
+            created: previous_file
+                .map(|file| file.created)
+                .unwrap_or(SystemTime::now()),
             modified: Some(SystemTime::now()),
-            accessed: previous_file.map(|file| file.accessed).unwrap_or(None)
+            accessed: previous_file.map(|file| file.accessed).unwrap_or(None),
         };
 
-        handle.files.insert(
-            self.destination.clone(),
-            new_file,
-        );
+        handle.files.insert(self.destination.clone(), new_file);
     }
 }
 
@@ -208,7 +205,7 @@ impl FileSystem for MemoryFS {
                 content,
                 created: SystemTime::now(),
                 modified: Some(SystemTime::now()),
-                accessed: Some(SystemTime::now())
+                accessed: Some(SystemTime::now()),
             },
         );
         let writer = WritableFile {

@@ -527,10 +527,13 @@ impl VfsPath {
     ///
     /// # Ok::<(), VfsError>(())
     pub fn set_creation_time(&self, time: SystemTime) -> VfsResult<()> {
-        self.fs.fs.set_creation_time(&self.path, time).map_err(|err| {
-            err.with_path(&*self.path)
-                .with_context(|| "Could not set creation timestamp.")
-        })
+        self.fs
+            .fs
+            .set_creation_time(&self.path, time)
+            .map_err(|err| {
+                err.with_path(&*self.path)
+                    .with_context(|| "Could not set creation timestamp.")
+            })
     }
 
     /// Returns the file metadata for the file at this path
@@ -551,10 +554,13 @@ impl VfsPath {
     ///
     /// # Ok::<(), VfsError>(())
     pub fn set_modification_time(&self, time: SystemTime) -> VfsResult<()> {
-        self.fs.fs.set_modification_time(&self.path, time).map_err(|err| {
-            err.with_path(&*self.path)
-                .with_context(|| "Could not set modification timestamp.")
-        })
+        self.fs
+            .fs
+            .set_modification_time(&self.path, time)
+            .map_err(|err| {
+                err.with_path(&*self.path)
+                    .with_context(|| "Could not set modification timestamp.")
+            })
     }
 
     /// Returns the file metadata for the file at this path
