@@ -3,7 +3,6 @@
 use crate::error::VfsErrorKind;
 use crate::{SeekAndRead, SeekAndWrite, VfsMetadata, VfsPath, VfsResult};
 use std::fmt::Debug;
-use std::io::Write;
 
 /// File system implementations must implement this trait
 /// All path parameters are absolute, starting with '/', except for the root directory

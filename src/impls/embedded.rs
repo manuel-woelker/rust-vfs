@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
-use std::io::{Cursor, Write};
+use std::io::Cursor;
 use std::marker::PhantomData;
 
 use rust_embed::RustEmbed;

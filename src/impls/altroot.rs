@@ -3,7 +3,6 @@
 use crate::{
     error::VfsErrorKind, FileSystem, SeekAndRead, SeekAndWrite, VfsMetadata, VfsPath, VfsResult,
 };
-use std::io::Write;
 
 /// Similar to a chroot but done purely by path manipulation
 ///

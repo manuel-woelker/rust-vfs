@@ -5,7 +5,7 @@ use crate::{FileSystem, SeekAndWrite, VfsMetadata};
 use crate::{SeekAndRead, VfsFileType};
 use crate::{VfsError, VfsResult};
 use std::fs::{File, OpenOptions};
-use std::io::{ErrorKind, Write};
+use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
 /// A physical filesystem implementation using the underlying OS file system
