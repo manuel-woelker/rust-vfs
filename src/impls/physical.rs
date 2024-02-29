@@ -1,7 +1,7 @@
 //! A "physical" file system implementation using the underlying OS file system
 
 use crate::error::VfsErrorKind;
-use crate::{FileSystem, VfsMetadata};
+use crate::{FileSystem, SeekAndWrite, VfsMetadata};
 use crate::{SeekAndRead, VfsFileType};
 use crate::{VfsError, VfsResult};
 use std::fs::{File, OpenOptions};
@@ -59,11 +59,11 @@ impl FileSystem for PhysicalFS {
         Ok(Box::new(File::open(self.get_path(path))?))
     }
 
-    fn create_file(&self, path: &str) -> VfsResult<Box<dyn Write + Send>> {
+    fn create_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndWrite + Send>> {
         Ok(Box::new(File::create(self.get_path(path))?))
     }
 
-    fn append_file(&self, path: &str) -> VfsResult<Box<dyn Write + Send>> {
+    fn append_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndWrite + Send>> {
         Ok(Box::new(
             OpenOptions::new().append(true).open(self.get_path(path))?,
         ))

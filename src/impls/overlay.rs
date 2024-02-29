@@ -1,7 +1,7 @@
 //! An overlay file system combining two filesystems, an upper layer with read/write access and a lower layer with only read access
 
 use crate::error::VfsErrorKind;
-use crate::{FileSystem, SeekAndRead, VfsMetadata, VfsPath, VfsResult};
+use crate::{FileSystem, SeekAndRead, SeekAndWrite, VfsMetadata, VfsPath, VfsResult};
 use std::collections::HashSet;
 use std::io::Write;
 
@@ -121,7 +121,7 @@ impl FileSystem for OverlayFS {
         self.read_path(path)?.open_file()
     }
 
-    fn create_file(&self, path: &str) -> VfsResult<Box<dyn Write + Send>> {
+    fn create_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndWrite + Send>> {
         self.ensure_has_parent(path)?;
         let result = self.write_path(path)?.create_file()?;
         let whiteout_path = self.whiteout_path(path)?;
@@ -131,7 +131,7 @@ impl FileSystem for OverlayFS {
         Ok(result)
     }
 
-    fn append_file(&self, path: &str) -> VfsResult<Box<dyn Write + Send>> {
+    fn append_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndWrite + Send>> {
         let write_path = self.write_path(path)?;
         if !write_path.exists()? {
             self.ensure_has_parent(path)?;

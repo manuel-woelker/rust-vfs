@@ -1,9 +1,9 @@
 //! An ephemeral in-memory file system, intended mainly for unit tests
 
 use crate::error::VfsErrorKind;
-use crate::VfsResult;
 use crate::{FileSystem, VfsFileType};
 use crate::{SeekAndRead, VfsMetadata};
+use crate::{SeekAndWrite, VfsResult};
 use core::cmp;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -55,6 +55,12 @@ struct WritableFile {
     content: Cursor<Vec<u8>>,
     destination: String,
     fs: MemoryFsHandle,
+}
+
+impl Seek for WritableFile {
+    fn seek(&mut self, pos: SeekFrom) -> std::io::Result<u64> {
+        self.content.seek(pos)
+    }
 }
 
 impl Write for WritableFile {
@@ -182,7 +188,7 @@ impl FileSystem for MemoryFS {
         }))
     }
 
-    fn create_file(&self, path: &str) -> VfsResult<Box<dyn Write + Send>> {
+    fn create_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndWrite + Send>> {
         self.ensure_has_parent(path)?;
         let content = Arc::new(Vec::<u8>::new());
         self.handle.write().unwrap().files.insert(
@@ -200,7 +206,7 @@ impl FileSystem for MemoryFS {
         Ok(Box::new(writer))
     }
 
-    fn append_file(&self, path: &str) -> VfsResult<Box<dyn Write + Send>> {
+    fn append_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndWrite + Send>> {
         let handle = self.handle.write().unwrap();
         let file = handle.files.get(path).ok_or(VfsErrorKind::FileNotFound)?;
         let mut content = Cursor::new(file.content.as_ref().clone());
