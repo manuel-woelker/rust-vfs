@@ -9,7 +9,7 @@ macro_rules! test_vfs {
             use $crate::VfsFileType;
             use $crate::VfsPath;
             use $crate::VfsResult;
-            use $crate::VfsErrorKind;
+            use $crate::error::VfsErrorKind;
             use std::time::SystemTime;
 
             fn create_root() -> VfsPath {
