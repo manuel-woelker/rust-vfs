@@ -1,9 +1,9 @@
 //! An ephemeral in-memory file system, intended mainly for unit tests
 
 use crate::error::VfsErrorKind;
-use crate::VfsResult;
 use crate::{FileSystem, VfsFileType};
 use crate::{SeekAndRead, VfsMetadata};
+use crate::{SeekAndWrite, VfsResult};
 use core::cmp;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -55,6 +55,12 @@ struct WritableFile {
     content: Cursor<Vec<u8>>,
     destination: String,
     fs: MemoryFsHandle,
+}
+
+impl Seek for WritableFile {
+    fn seek(&mut self, pos: SeekFrom) -> std::io::Result<u64> {
+        self.content.seek(pos)
+    }
 }
 
 impl Write for WritableFile {
@@ -182,7 +188,7 @@ impl FileSystem for MemoryFS {
         }))
     }
 
-    fn create_file(&self, path: &str) -> VfsResult<Box<dyn Write + Send>> {
+    fn create_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndWrite + Send>> {
         self.ensure_has_parent(path)?;
         let content = Arc::new(Vec::<u8>::new());
         self.handle.write().unwrap().files.insert(
@@ -200,7 +206,7 @@ impl FileSystem for MemoryFS {
         Ok(Box::new(writer))
     }
 
-    fn append_file(&self, path: &str) -> VfsResult<Box<dyn Write + Send>> {
+    fn append_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndWrite + Send>> {
         let handle = self.handle.write().unwrap();
         let file = handle.files.get(path).ok_or(VfsErrorKind::FileNotFound)?;
         let mut content = Cursor::new(file.content.as_ref().clone());
@@ -305,6 +311,33 @@ mod tests {
     }
 
     #[test]
+    fn write_and_seek_and_read_file() -> VfsResult<()> {
+        let root = VfsPath::new(MemoryFS::new());
+        let path = root.join("foobar.txt").unwrap();
+        let _send = &path as &dyn Send;
+        {
+            let mut file = path.create_file().unwrap();
+            write!(file, "Hello world").unwrap();
+            write!(file, "!").unwrap();
+            write!(file, " Before seek!!").unwrap();
+            file.seek(SeekFrom::Current(-2)).unwrap();
+            write!(file, " After the Seek!").unwrap();
+        }
+        {
+            let mut file = path.open_file().unwrap();
+            let mut string: String = String::new();
+            file.read_to_string(&mut string).unwrap();
+            assert_eq!(string, "Hello world! Before seek After the Seek!");
+        }
+        assert!(path.exists()?);
+        assert!(!root.join("foo").unwrap().exists()?);
+        let metadata = path.metadata().unwrap();
+        assert_eq!(metadata.len, 40);
+        assert_eq!(metadata.file_type, VfsFileType::File);
+        Ok(())
+    }
+
+    #[test]
     fn append_file() {
         let root = VfsPath::new(MemoryFS::new());
         let _string = String::new();
@@ -316,6 +349,26 @@ mod tests {
             let mut string: String = String::new();
             file.read_to_string(&mut string).unwrap();
             assert_eq!(string, "Testing 1Testing 2");
+        }
+    }
+
+    #[test]
+    fn append_file_with_seek() {
+        let root = VfsPath::new(MemoryFS::new());
+        let _string = String::new();
+        let path = root.join("test_append.txt").unwrap();
+        path.create_file().unwrap().write_all(b"Testing 1").unwrap();
+        path.append_file().unwrap().write_all(b"Testing 2").unwrap();
+        {
+            let mut file = path.append_file().unwrap();
+            file.seek(SeekFrom::End(-1)).unwrap();
+            file.write_all(b"Testing 3").unwrap();
+        }
+        {
+            let mut file = path.open_file().unwrap();
+            let mut string: String = String::new();
+            file.read_to_string(&mut string).unwrap();
+            assert_eq!(string, "Testing 1Testing Testing 3");
         }
     }
 
