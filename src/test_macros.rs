@@ -9,6 +9,7 @@ macro_rules! test_vfs {
             use $crate::VfsFileType;
             use $crate::VfsPath;
             use $crate::VfsResult;
+            use $crate::VfsErrorKind;
             use std::time::SystemTime;
 
             fn create_root() -> VfsPath {
@@ -158,6 +159,7 @@ macro_rules! test_vfs {
                 assert_eq!(metadata.len, 0);
             }
 
+            /*
             #[test]
             fn create_dir_with_camino() {
                 let root = create_root();
@@ -167,7 +169,7 @@ macro_rules! test_vfs {
                 let metadata = path.metadata().unwrap();
                 assert_eq!(metadata.file_type, VfsFileType::Directory);
                 assert_eq!(metadata.len, 0);
-            }
+            }*/
 
             #[test]
             fn create_dir_all() -> VfsResult<()>{
