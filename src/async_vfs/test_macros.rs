@@ -9,6 +9,7 @@ macro_rules! test_async_vfs {
             use $crate::VfsFileType;
             use $crate::async_vfs::AsyncVfsPath;
             use $crate::VfsResult;
+            use $crate::error::VfsErrorKind;
             use futures::stream::StreamExt;
             use async_std::io::{WriteExt, ReadExt};
             use std::time::SystemTime;

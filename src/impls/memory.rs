@@ -174,8 +174,8 @@ impl FileSystem for MemoryFS {
                         file_type: VfsFileType::Directory,
                         content: Default::default(),
                         created: SystemTime::now(),
-                        modified: None,
-                        accessed: None,
+                        modified: Some(SystemTime::now()),
+                        accessed: Some(SystemTime::now()),
                     },
                 );
             }

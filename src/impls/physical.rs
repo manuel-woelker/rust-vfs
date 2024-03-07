@@ -8,6 +8,7 @@ use std::fs::{File, FileTimes, OpenOptions};
 use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
+use filetime::FileTime;
 
 /// A physical filesystem implementation using the underlying OS file system
 #[derive(Debug)]
@@ -92,18 +93,12 @@ impl FileSystem for PhysicalFS {
     }
 
     fn set_modification_time(&self, path: &str, time: SystemTime) -> VfsResult<()> {
-        let dest = File::options().write(true).open(self.get_path(path))?;
-        let times = FileTimes::new().set_modified(time);
-        dest.set_times(times)?;
-
+        filetime::set_file_mtime(self.get_path(path), FileTime::from(time))?;
         Ok(())
     }
 
     fn set_access_time(&self, path: &str, time: SystemTime) -> VfsResult<()> {
-        let dest = File::options().write(true).open(self.get_path(path))?;
-        let times = FileTimes::new().set_accessed(time);
-        dest.set_times(times)?;
-
+        filetime::set_file_atime(self.get_path(path), FileTime::from(time))?;
         Ok(())
     }
 

@@ -159,7 +159,6 @@ macro_rules! test_vfs {
                 assert_eq!(metadata.len, 0);
             }
 
-            /*
             #[test]
             fn create_dir_with_camino() {
                 let root = create_root();
@@ -169,7 +168,7 @@ macro_rules! test_vfs {
                 let metadata = path.metadata().unwrap();
                 assert_eq!(metadata.file_type, VfsFileType::Directory);
                 assert_eq!(metadata.len, 0);
-            }*/
+            }
 
             #[test]
             fn create_dir_all() -> VfsResult<()>{
