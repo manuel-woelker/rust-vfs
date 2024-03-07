@@ -2,8 +2,6 @@
 
 use crate::error::VfsErrorKind;
 use crate::{SeekAndRead, SeekAndWrite, VfsError, VfsMetadata, VfsPath, VfsResult};
-use std::fmt::Debug;
-use std::io::Write;
 use std::time::SystemTime;
 use std::fmt::Debug;
 
