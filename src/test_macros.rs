@@ -5,7 +5,8 @@ macro_rules! test_vfs {
     ($root:expr) => {
         #[cfg(test)]
         mod vfs_tests {
-            use super::*;
+            use std::io::{Seek, SeekFrom};
+use super::*;
             use $crate::VfsFileType;
             use $crate::VfsPath;
             use $crate::VfsResult;
@@ -113,6 +114,32 @@ macro_rules! test_vfs {
                 assert!(!root.join("foo").unwrap().exists()?);
                 let metadata = path.metadata().unwrap();
                 assert_eq!(metadata.len, 12);
+                assert_eq!(metadata.file_type, VfsFileType::File);
+                Ok(())
+            }
+
+            #[test]
+            fn write_and_seek_and_read_file()  -> VfsResult<()>{
+                let root = create_root();
+                let path = root.join("foobar.txt").unwrap();
+                let _send = &path as &dyn Send;
+                {
+                    let mut file = path.create_file().unwrap();
+                    write!(file, "Hello world").unwrap();
+                    write!(file, "!").unwrap();
+                    file.seek(SeekFrom::Start(5)).unwrap();
+                    write!(file, "SeekCompleted").unwrap();
+                }
+                {
+                    let mut file = path.open_file().unwrap();
+                    let mut string: String = String::new();
+                    file.read_to_string(&mut string).unwrap();
+                    assert_eq!(string, "HelloSeekCompleted");
+                }
+                assert!(path.exists()?);
+                assert!(!root.join("foo").unwrap().exists()?);
+                let metadata = path.metadata().unwrap();
+                assert_eq!(metadata.len, 18);
                 assert_eq!(metadata.file_type, VfsFileType::File);
                 Ok(())
             }

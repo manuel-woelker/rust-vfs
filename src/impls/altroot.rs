@@ -1,6 +1,6 @@
 //! A file system with its root in a particular directory of another filesystem
 
-use crate::{error::VfsErrorKind, FileSystem, SeekAndRead, VfsMetadata, VfsPath, VfsResult};
+use crate::{error::VfsErrorKind, FileSystem, SeekAndRead, VfsMetadata, VfsMetadata, VfsPath, VfsResult};
 use std::io::Write;
 use std::time::SystemTime;
 
@@ -51,11 +51,11 @@ impl FileSystem for AltrootFS {
         self.path(path)?.open_file()
     }
 
-    fn create_file(&self, path: &str) -> VfsResult<Box<dyn Write + Send>> {
+    fn create_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndWrite + Send>> {
         self.path(path)?.create_file()
     }
 
-    fn append_file(&self, path: &str) -> VfsResult<Box<dyn Write + Send>> {
+    fn append_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndWrite + Send>> {
         self.path(path)?.append_file()
     }
 

@@ -1,14 +1,14 @@
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
-use std::io::{Cursor, Write};
+use std::io::Cursor;
 use std::marker::PhantomData;
 use std::time::{Duration, SystemTime};
 
 use rust_embed::RustEmbed;
 
 use crate::error::VfsErrorKind;
-use crate::{FileSystem, SeekAndRead, VfsFileType, VfsMetadata, VfsResult};
+use crate::{FileSystem, SeekAndRead, SeekAndWrite, VfsFileType, VfsMetadata, VfsResult};
 
 type EmbeddedPath = Cow<'static, str>;
 
@@ -107,11 +107,11 @@ where
         }
     }
 
-    fn create_file(&self, _path: &str) -> VfsResult<Box<dyn Write + Send>> {
+    fn create_file(&self, _path: &str) -> VfsResult<Box<dyn SeekAndWrite + Send>> {
         Err(VfsErrorKind::NotSupported.into())
     }
 
-    fn append_file(&self, _path: &str) -> VfsResult<Box<dyn Write + Send>> {
+    fn append_file(&self, _path: &str) -> VfsResult<Box<dyn SeekAndWrite + Send>> {
         Err(VfsErrorKind::NotSupported.into())
     }
 

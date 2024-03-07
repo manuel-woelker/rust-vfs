@@ -1,10 +1,11 @@
 //! The filesystem trait definitions needed to implement new virtual filesystems
 
 use crate::error::VfsErrorKind;
-use crate::{SeekAndRead, VfsError, VfsMetadata, VfsPath, VfsResult};
+use crate::{SeekAndRead, SeekAndWrite, VfsError, VfsMetadata, VfsPath, VfsResult};
 use std::fmt::Debug;
 use std::io::Write;
 use std::time::SystemTime;
+use std::fmt::Debug;
 
 /// File system implementations must implement this trait
 /// All path parameters are absolute, starting with '/', except for the root directory
@@ -24,9 +25,9 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
     /// Opens the file at this path for reading
     fn open_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndRead + Send>>;
     /// Creates a file at this path for writing
-    fn create_file(&self, path: &str) -> VfsResult<Box<dyn Write + Send>>;
+    fn create_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndWrite + Send>>;
     /// Opens the file at this path for appending
-    fn append_file(&self, path: &str) -> VfsResult<Box<dyn Write + Send>>;
+    fn append_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndWrite + Send>>;
     /// Returns the file metadata for the file at this path
     fn metadata(&self, path: &str) -> VfsResult<VfsMetadata>;
     /// Sets the files creation timestamp, if the implementation supports it

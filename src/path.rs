@@ -13,7 +13,12 @@ use crate::{FileSystem, VfsError, VfsResult};
 /// Trait combining Seek and Read, return value for opening files
 pub trait SeekAndRead: Seek + Read {}
 
+/// Trait combining Seek and Write, return value for writing files
+pub trait SeekAndWrite: Seek + Write {}
+
 impl<T> SeekAndRead for T where T: Seek + Read {}
+
+impl<T> SeekAndWrite for T where T: Seek + Write {}
 
 /// A trait for common non-async behaviour of both sync and async paths
 pub(crate) trait PathLike: Clone {
@@ -334,7 +339,7 @@ impl VfsPath {
     /// assert_eq!(&result, "Hello, world!");
     /// # Ok::<(), VfsError>(())
     /// ```
-    pub fn create_file(&self) -> VfsResult<Box<dyn Write + Send>> {
+    pub fn create_file(&self) -> VfsResult<Box<dyn SeekAndWrite + Send>> {
         self.get_parent("create file")?;
         self.fs.fs.create_file(&self.path).map_err(|err| {
             err.with_path(&*self.path)
@@ -399,7 +404,7 @@ impl VfsPath {
     /// assert_eq!(&result, "Hello, world!");
     /// # Ok::<(), VfsError>(())
     /// ```
-    pub fn append_file(&self) -> VfsResult<Box<dyn Write + Send>> {
+    pub fn append_file(&self) -> VfsResult<Box<dyn SeekAndWrite + Send>> {
         self.fs.fs.append_file(&self.path).map_err(|err| {
             err.with_path(&*self.path)
                 .with_context(|| "Could not open file for appending")
