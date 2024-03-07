@@ -336,6 +336,13 @@ struct MemoryFile {
     accessed: Option<SystemTime>,
 }
 
+fn ensure_file(file: &MemoryFile) -> VfsResult<()> {
+    if file.file_type != VfsFileType::File {
+        return Err(VfsErrorKind::Other("Not a file".into()).into());
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -476,11 +483,4 @@ mod tests {
         assert_eq!(&dest.read_to_string()?, "Hello World");
         Ok(())
     }
-}
-
-fn ensure_file(file: &MemoryFile) -> VfsResult<()> {
-    if file.file_type != VfsFileType::File {
-        return Err(VfsErrorKind::Other("Not a file".into()).into());
-    }
-    Ok(())
 }

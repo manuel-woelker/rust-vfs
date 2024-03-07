@@ -3,9 +3,8 @@
 use crate::error::VfsErrorKind;
 use crate::{FileSystem, SeekAndRead, SeekAndWrite, VfsMetadata, VfsPath, VfsResult};
 use std::collections::HashSet;
-use std::io::Write;
-use std::time::SystemTime;
 
+use std::time::SystemTime;
 
 /// An overlay file system combining several filesystems into one, an upper layer with read/write access and lower layers with only read access
 ///

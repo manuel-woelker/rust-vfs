@@ -123,9 +123,13 @@ where
                 Some(file) => Ok(VfsMetadata {
                     file_type: VfsFileType::File,
                     len: *len,
-                    modified: file.metadata.last_modified()
+                    modified: file
+                        .metadata
+                        .last_modified()
                         .map(|secs| SystemTime::UNIX_EPOCH + Duration::from_secs(secs)),
-                    created: file.metadata.created()
+                    created: file
+                        .metadata
+                        .created()
                         .map(|secs| SystemTime::UNIX_EPOCH + Duration::from_secs(secs)),
                     accessed: None,
                 }),

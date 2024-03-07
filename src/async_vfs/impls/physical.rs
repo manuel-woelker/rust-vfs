@@ -8,10 +8,10 @@ use async_std::fs::{File, OpenOptions};
 use async_std::io::{ErrorKind, Write};
 use async_std::path::{Path, PathBuf};
 use async_trait::async_trait;
+use filetime::FileTime;
 use futures::stream::{Stream, StreamExt};
 use std::pin::Pin;
 use std::time::SystemTime;
-use filetime::FileTime;
 use tokio::runtime::Handle;
 
 /// A physical filesystem implementation using the underlying OS file system
@@ -34,24 +34,24 @@ impl AsyncPhysicalFS {
         }
         self.root.join(path)
     }
-
-
 }
 
 /// Runs normal blocking io on a tokio thread.
 /// Requires a tokio runtime.
 async fn blocking_io<F>(f: F) -> Result<(), VfsError>
-    where F: FnOnce() -> std::io::Result<()> + Send + 'static
+where
+    F: FnOnce() -> std::io::Result<()> + Send + 'static,
 {
     if Handle::try_current().is_ok() {
         let result = tokio::task::spawn_blocking(f).await;
 
         match result {
-            Ok(val) => { val }
+            Ok(val) => val,
             Err(err) => {
-                return Err(VfsError::from(
-                    VfsErrorKind::Other(format!("Tokio Concurrency Error: {}", err))
-                ));
+                return Err(VfsError::from(VfsErrorKind::Other(format!(
+                    "Tokio Concurrency Error: {}",
+                    err
+                ))));
             }
         }?;
 
@@ -135,9 +135,7 @@ impl AsyncFileSystem for AsyncPhysicalFS {
     async fn set_modification_time(&self, path: &str, time: SystemTime) -> VfsResult<()> {
         let path = self.get_path(path);
 
-        blocking_io(move || {
-            filetime::set_file_mtime(path, FileTime::from(time))
-        }).await?;
+        blocking_io(move || filetime::set_file_mtime(path, FileTime::from(time))).await?;
 
         Ok(())
     }
@@ -145,9 +143,7 @@ impl AsyncFileSystem for AsyncPhysicalFS {
     async fn set_access_time(&self, path: &str, time: SystemTime) -> VfsResult<()> {
         let path = self.get_path(path);
 
-        blocking_io(move || {
-            filetime::set_file_atime(path, FileTime::from(time))
-        }).await?;
+        blocking_io(move || filetime::set_file_atime(path, FileTime::from(time))).await?;
 
         Ok(())
     }

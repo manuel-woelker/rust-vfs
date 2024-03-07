@@ -2,8 +2,8 @@
 
 use crate::error::VfsErrorKind;
 use crate::{SeekAndRead, SeekAndWrite, VfsError, VfsMetadata, VfsPath, VfsResult};
-use std::time::SystemTime;
 use std::fmt::Debug;
+use std::time::SystemTime;
 
 /// File system implementations must implement this trait
 /// All path parameters are absolute, starting with '/', except for the root directory
