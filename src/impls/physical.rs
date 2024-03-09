@@ -4,9 +4,11 @@ use crate::error::VfsErrorKind;
 use crate::{FileSystem, SeekAndWrite, VfsMetadata};
 use crate::{SeekAndRead, VfsFileType};
 use crate::{VfsError, VfsResult};
+use filetime::FileTime;
 use std::fs::{File, OpenOptions};
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
+use std::time::SystemTime;
 
 /// A physical filesystem implementation using the underlying OS file system
 #[derive(Debug)]
@@ -75,13 +77,29 @@ impl FileSystem for PhysicalFS {
             VfsMetadata {
                 file_type: VfsFileType::Directory,
                 len: 0,
+                modified: metadata.modified().ok(),
+                created: metadata.created().ok(),
+                accessed: metadata.accessed().ok(),
             }
         } else {
             VfsMetadata {
                 file_type: VfsFileType::File,
                 len: metadata.len(),
+                modified: metadata.modified().ok(),
+                created: metadata.created().ok(),
+                accessed: metadata.accessed().ok(),
             }
         })
+    }
+
+    fn set_modification_time(&self, path: &str, time: SystemTime) -> VfsResult<()> {
+        filetime::set_file_mtime(self.get_path(path), FileTime::from(time))?;
+        Ok(())
+    }
+
+    fn set_access_time(&self, path: &str, time: SystemTime) -> VfsResult<()> {
+        filetime::set_file_atime(self.get_path(path), FileTime::from(time))?;
+        Ok(())
     }
 
     fn exists(&self, path: &str) -> VfsResult<bool> {

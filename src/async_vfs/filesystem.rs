@@ -2,12 +2,13 @@
 
 use crate::async_vfs::{AsyncVfsPath, SeekAndRead};
 use crate::error::VfsErrorKind;
-use crate::{VfsMetadata, VfsResult};
+use crate::{VfsError, VfsMetadata, VfsResult};
 
 use async_std::io::Write;
 use async_std::stream::Stream;
 use async_trait::async_trait;
 use std::fmt::Debug;
+use std::time::SystemTime;
 
 /// File system implementations must implement this trait
 /// All path parameters are absolute, starting with '/', except for the root directory
@@ -36,6 +37,18 @@ pub trait AsyncFileSystem: Debug + Sync + Send + 'static {
     async fn append_file(&self, path: &str) -> VfsResult<Box<dyn Write + Send + Unpin>>;
     /// Returns the file metadata for the file at this path
     async fn metadata(&self, path: &str) -> VfsResult<VfsMetadata>;
+    /// Sets the files creation timestamp, if the implementation supports it
+    async fn set_creation_time(&self, _path: &str, _time: SystemTime) -> VfsResult<()> {
+        Err(VfsError::from(VfsErrorKind::NotSupported))
+    }
+    /// Sets the files modification timestamp, if the implementation supports it
+    async fn set_modification_time(&self, _path: &str, _time: SystemTime) -> VfsResult<()> {
+        Err(VfsError::from(VfsErrorKind::NotSupported))
+    }
+    /// Sets the files access timestamp, if the implementation supports it
+    async fn set_access_time(&self, _path: &str, _time: SystemTime) -> VfsResult<()> {
+        Err(VfsError::from(VfsErrorKind::NotSupported))
+    }
     /// Returns true if a file or directory at path exists, false otherwise
     async fn exists(&self, path: &str) -> VfsResult<bool>;
     /// Removes the file at this path

@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::io::Cursor;
 use std::marker::PhantomData;
+use std::time::{Duration, SystemTime};
 
 use rust_embed::RustEmbed;
 
@@ -117,15 +118,30 @@ where
     fn metadata(&self, path: &str) -> VfsResult<VfsMetadata> {
         let normalized_path = normalize_path(path)?;
         if let Some(len) = self.files.get(normalized_path) {
-            return Ok(VfsMetadata {
-                file_type: VfsFileType::File,
-                len: *len,
-            });
+            return match T::get(path.split_at(1).1) {
+                None => Err(VfsErrorKind::FileNotFound.into()),
+                Some(file) => Ok(VfsMetadata {
+                    file_type: VfsFileType::File,
+                    len: *len,
+                    modified: file
+                        .metadata
+                        .last_modified()
+                        .map(|secs| SystemTime::UNIX_EPOCH + Duration::from_secs(secs)),
+                    created: file
+                        .metadata
+                        .created()
+                        .map(|secs| SystemTime::UNIX_EPOCH + Duration::from_secs(secs)),
+                    accessed: None,
+                }),
+            };
         }
         if self.directory_map.contains_key(normalized_path) {
             return Ok(VfsMetadata {
                 file_type: VfsFileType::Directory,
                 len: 0,
+                modified: None,
+                created: None,
+                accessed: None,
             });
         }
         Err(VfsErrorKind::FileNotFound.into())

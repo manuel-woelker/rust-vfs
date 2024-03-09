@@ -8,6 +8,7 @@ use async_std::io::Write;
 use async_trait::async_trait;
 use futures::stream::{Stream, StreamExt};
 use std::collections::HashSet;
+use std::time::SystemTime;
 
 /// An overlay file system combining several filesystems into one, an upper layer with read/write access and lower layers with only read access
 ///
@@ -152,6 +153,18 @@ impl AsyncFileSystem for AsyncOverlayFS {
 
     async fn metadata(&self, path: &str) -> VfsResult<VfsMetadata> {
         self.read_path(path).await?.metadata().await
+    }
+
+    async fn set_creation_time(&self, path: &str, time: SystemTime) -> VfsResult<()> {
+        self.write_path(path)?.set_creation_time(time).await
+    }
+
+    async fn set_modification_time(&self, path: &str, time: SystemTime) -> VfsResult<()> {
+        self.write_path(path)?.set_modification_time(time).await
+    }
+
+    async fn set_access_time(&self, path: &str, time: SystemTime) -> VfsResult<()> {
+        self.write_path(path)?.set_access_time(time).await
     }
 
     async fn exists(&self, path: &str) -> VfsResult<bool> {

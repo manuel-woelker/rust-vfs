@@ -10,6 +10,8 @@ use super::*;
             use $crate::VfsFileType;
             use $crate::VfsPath;
             use $crate::VfsResult;
+            use $crate::error::VfsErrorKind;
+            use std::time::SystemTime;
 
             fn create_root() -> VfsPath {
                 $root.into()
@@ -18,6 +20,78 @@ use super::*;
             #[test]
             fn vfs_can_be_created() {
                 create_root();
+            }
+
+            #[test]
+            fn set_and_query_creation_timestamp() -> VfsResult<()> {
+                let root = create_root();
+                let path = root.join("foobar.txt").unwrap();
+                drop( path.create_file().unwrap() );
+
+                let time = SystemTime::now();
+                let result = path.set_creation_time(time);
+
+                match result {
+                    Err(err) => {
+                        if let VfsErrorKind::NotSupported = err.kind() {
+                            println!("Skipping creation time test: set_creation_time unsupported!");
+                        } else {
+                            return Err(err);
+                        }
+                    },
+                    _ => {
+                        assert_eq!(path.metadata()?.created, Some(time));
+                    }
+                }
+                Ok(())
+            }
+
+             #[test]
+            fn set_and_query_modification_timestamp() -> VfsResult<()> {
+                let root = create_root();
+                let path = root.join("foobar.txt").unwrap();
+                drop( path.create_file().unwrap() );
+
+                let time = SystemTime::now();
+                let result = path.set_modification_time(time);
+
+                match result {
+                    Err(err) => {
+                        if let VfsErrorKind::NotSupported = err.kind() {
+                            println!("Skipping creation time test: set_modification_time unsupported!");
+                        } else {
+                            return Err(err);
+                        }
+                    },
+                    _ => {
+                        assert_eq!(path.metadata()?.modified, Some(time));
+                    }
+                }
+                Ok(())
+            }
+
+             #[test]
+            fn set_and_query_access_timestamp() -> VfsResult<()> {
+                let root = create_root();
+                let path = root.join("foobar.txt").unwrap();
+                drop( path.create_file().unwrap() );
+
+                let time = SystemTime::now();
+                let result = path.set_access_time(time);
+
+                match result {
+                    Err(err) => {
+                        if let VfsErrorKind::NotSupported = err.kind() {
+                            println!("Skipping access time test: set_access_time unsupported!");
+                        } else {
+                            return Err(err);
+                        }
+                    },
+                    _ => {
+                        assert_eq!(path.metadata()?.accessed, Some(time));
+                    }
+                }
+                Ok(())
             }
 
             #[test]

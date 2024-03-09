@@ -15,6 +15,7 @@ use async_std::sync::Arc;
 use async_std::task::{Context, Poll};
 use futures::{future::BoxFuture, FutureExt, Stream, StreamExt};
 use std::pin::Pin;
+use std::time::SystemTime;
 
 /// Trait combining Seek and Read, return value for opening files
 pub trait SeekAndRead: Seek + Read {}
@@ -465,6 +466,96 @@ impl AsyncVfsPath {
             err.with_path(&self.path)
                 .with_context(|| "Could not get metadata")
         })
+    }
+
+    /// Sets the files creation timestamp at this path
+    ///
+    /// ```
+    /// use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
+    /// use vfs::{VfsError, VfsFileType, VfsMetadata, VfsPath};
+    /// use async_std::io::WriteExt;
+    /// # tokio_test::block_on(async {
+    /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
+    /// let file = path.join("foo.txt")?;
+    /// file.create_file();
+    ///
+    /// let time = std::time::SystemTime::now();
+    /// file.set_creation_time(time).await?;
+    ///
+    /// assert_eq!(file.metadata().await?.len, 0);
+    /// assert_eq!(file.metadata().await?.created, Some(time));
+    ///
+    /// # Ok::<(), VfsError>(())
+    /// # });
+    pub async fn set_creation_time(&self, time: SystemTime) -> VfsResult<()> {
+        self.fs
+            .fs
+            .set_creation_time(&self.path, time)
+            .await
+            .map_err(|err| {
+                err.with_path(&*self.path)
+                    .with_context(|| "Could not set creation timestamp.")
+            })
+    }
+
+    /// Sets the files modification timestamp at this path
+    ///
+    /// ```
+    /// use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
+    /// use vfs::{VfsError, VfsFileType, VfsMetadata, VfsPath};
+    /// use async_std::io::WriteExt;
+    /// # tokio_test::block_on(async {
+    /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
+    /// let file = path.join("foo.txt")?;
+    /// file.create_file();
+    ///
+    /// let time = std::time::SystemTime::now();
+    /// file.set_modification_time(time).await?;
+    ///
+    /// assert_eq!(file.metadata().await?.len, 0);
+    /// assert_eq!(file.metadata().await?.modified, Some(time));
+    ///
+    /// # Ok::<(), VfsError>(())
+    /// # });
+    pub async fn set_modification_time(&self, time: SystemTime) -> VfsResult<()> {
+        self.fs
+            .fs
+            .set_modification_time(&self.path, time)
+            .await
+            .map_err(|err| {
+                err.with_path(&*self.path)
+                    .with_context(|| "Could not set modification timestamp.")
+            })
+    }
+
+    /// Sets the files access timestamp at this path
+    ///
+    /// ```
+    /// use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
+    /// use vfs::{VfsError, VfsFileType, VfsMetadata, VfsPath};
+    /// use async_std::io::WriteExt;
+    /// # tokio_test::block_on(async {
+    /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
+    /// let file = path.join("foo.txt")?;
+    /// file.create_file();
+    ///
+    /// let time = std::time::SystemTime::now();
+    /// file.set_access_time(time).await?;
+    ///
+    /// assert_eq!(file.metadata().await?.len, 0);
+    /// assert_eq!(file.metadata().await?.accessed, Some(time));
+    ///
+    /// # Ok::<(), VfsError>(())
+    /// # });
+    pub async fn set_access_time(&self, time: SystemTime) -> VfsResult<()> {
+        self.fs
+            .fs
+            .set_access_time(&self.path, time)
+            .await
+            .map_err(|err| {
+                err.with_path(&*self.path)
+                    .with_context(|| "Could not set access timestamp.")
+            })
     }
 
     /// Returns `true` if the path exists and is pointing at a regular file, otherwise returns `false`.

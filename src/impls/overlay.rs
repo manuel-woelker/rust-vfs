@@ -4,6 +4,8 @@ use crate::error::VfsErrorKind;
 use crate::{FileSystem, SeekAndRead, SeekAndWrite, VfsMetadata, VfsPath, VfsResult};
 use std::collections::HashSet;
 
+use std::time::SystemTime;
+
 /// An overlay file system combining several filesystems into one, an upper layer with read/write access and lower layers with only read access
 ///
 /// Files in upper layers shadow those in lower layers. Directories are the merged view of all layers.
@@ -141,6 +143,18 @@ impl FileSystem for OverlayFS {
 
     fn metadata(&self, path: &str) -> VfsResult<VfsMetadata> {
         self.read_path(path)?.metadata()
+    }
+
+    fn set_creation_time(&self, path: &str, time: SystemTime) -> VfsResult<()> {
+        self.write_path(path)?.set_creation_time(time)
+    }
+
+    fn set_modification_time(&self, path: &str, time: SystemTime) -> VfsResult<()> {
+        self.write_path(path)?.set_modification_time(time)
+    }
+
+    fn set_access_time(&self, path: &str, time: SystemTime) -> VfsResult<()> {
+        self.write_path(path)?.set_access_time(time)
     }
 
     fn exists(&self, path: &str) -> VfsResult<bool> {
