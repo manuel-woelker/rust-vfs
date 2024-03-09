@@ -23,6 +23,11 @@ Comments and pull-requests welcome!
 
 ## Changelog
 
+
+### 0.12.0 (2024-03-09)
+* Allow reading and setting modification/creation/access-times - thanks [@kartonrad](https://github.com/kartonrad)!
+* Allow seek when writing - thanks [@jonmclean](https://github.com/jonmclean)!
+
 ### 0.11.0 (2024-02-18)
 * Updated minimum supported Rust version to 1.63.
 * Updated rust-embed dependency to 8.0 - thanks [@NickAcPT](https://github.com/NickAcPT)!
