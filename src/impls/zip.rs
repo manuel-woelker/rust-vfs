@@ -1,7 +1,7 @@
-use std::collections::HashSet;
 use crate::error::VfsErrorKind;
 use crate::{FileSystem, SeekAndRead, SeekAndWrite, VfsError, VfsFileType, VfsMetadata, VfsResult};
 use ouroboros::self_referencing;
+use std::collections::HashSet;
 use std::fmt::{Debug, Formatter};
 use std::io::{Read, Seek, SeekFrom};
 use zip::read::ZipFile;
@@ -101,7 +101,7 @@ impl FileSystem for ZipFS {
         if entries.is_empty() {
             // Maybe directory does not exist
             if !self.exists(&path)? {
-                return Err(VfsError::from(VfsErrorKind::FileNotFound))
+                return Err(VfsError::from(VfsErrorKind::FileNotFound));
             }
         }
         Ok(Box::new(entries.into_iter()))
@@ -114,7 +114,6 @@ impl FileSystem for ZipFS {
     fn open_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndRead + Send>> {
         let mut archive = self.open_archive()?;
         let path = Self::resolve_path(path);
-//        return Ok(Box::new(Cursor::new(vec![])));
         archive.by_name(&path)?;
         let file = SeekableZipFileBuilder {
             archive: archive,
@@ -225,7 +224,14 @@ mod tests {
         let base_path = "test/test_directory";
         for entry in WalkDir::new(base_path) {
             let entry = entry.unwrap();
-            let path = entry.path().strip_prefix(base_path).unwrap().to_str().unwrap().to_string().replace("\\", "/");
+            let path = entry
+                .path()
+                .strip_prefix(base_path)
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_string()
+                .replace("\\", "/");
             if fs::metadata(entry.path()).unwrap().is_dir() {
                 let options =
                     SimpleFileOptions::default().compression_method(zip::CompressionMethod::Zstd);
@@ -234,8 +240,7 @@ mod tests {
             }
             let options =
                 SimpleFileOptions::default().compression_method(zip::CompressionMethod::Zstd);
-            zip.start_file(path, options)
-                .unwrap();
+            zip.start_file(path, options).unwrap();
             let mut file = File::open(entry.path()).unwrap();
             std::io::copy(&mut file, &mut zip).unwrap();
         }

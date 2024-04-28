@@ -2,7 +2,7 @@
 
 use std::{error, fmt, io};
 
-#[cfg(feature="zip")]
+#[cfg(feature = "zip")]
 use zip::result::ZipError;
 
 /// The error type of this crate
@@ -55,7 +55,7 @@ impl From<io::Error> for VfsError {
     }
 }
 
-#[cfg(feature="zip")]
+#[cfg(feature = "zip")]
 impl From<ZipError> for VfsError {
     fn from(err: ZipError) -> Self {
         VfsError::from(match err {
