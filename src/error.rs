@@ -2,6 +2,9 @@
 
 use std::{error, fmt, io};
 
+#[cfg(feature="zip")]
+use zip::result::ZipError;
+
 /// The error type of this crate
 #[derive(Debug)]
 pub struct VfsError {
@@ -49,6 +52,22 @@ impl From<VfsErrorKind> for VfsError {
 impl From<io::Error> for VfsError {
     fn from(err: io::Error) -> Self {
         Self::from(VfsErrorKind::IoError(err))
+    }
+}
+
+#[cfg(feature="zip")]
+impl From<ZipError> for VfsError {
+    fn from(err: ZipError) -> Self {
+        VfsError::from(match err {
+            ZipError::Io(err) => VfsErrorKind::IoError(err),
+            ZipError::InvalidArchive(str) => VfsErrorKind::Other(format!("Invalid Archive: {str}")),
+            ZipError::UnsupportedArchive(str) => {
+                VfsErrorKind::Other(format!("Invalid Archive: {str}"))
+            }
+            ZipError::FileNotFound => VfsErrorKind::FileNotFound,
+            ZipError::InvalidPassword => VfsErrorKind::Other("Invalid Password".to_string()),
+            _ => VfsErrorKind::Other("Unknown error".to_string()),
+        })
     }
 }
 
