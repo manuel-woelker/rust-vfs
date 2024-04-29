@@ -23,7 +23,7 @@ impl ZipFS {
 
     fn resolve_path(path: &str) -> String {
         let mut path = path.to_string();
-        if path.starts_with("/") {
+        if path.starts_with('/') {
             path.remove(0);
         }
         path
@@ -76,7 +76,7 @@ unsafe impl Send for SeekableZipFile {}
 impl FileSystem for ZipFS {
     fn read_dir(&self, path: &str) -> VfsResult<Box<dyn Iterator<Item = String> + Send>> {
         let mut resolved_path = Self::resolve_path(path);
-        if resolved_path != "" {
+        if resolved_path.is_empty() {
             resolved_path += "/";
         }
         let mut archive = self.open_archive()?;
@@ -85,11 +85,11 @@ impl FileSystem for ZipFS {
         for i in 0..size {
             let file = archive.by_index(i)?;
             if let Some(rest) = file.name().strip_prefix(&resolved_path) {
-                if rest == "" {
+                if rest.is_empty() {
                     continue;
                 }
-                if let Some((entry, _)) = rest.split_once("/") {
-                    if entry == "" {
+                if let Some((entry, _)) = rest.split_once('/') {
+                    if entry.is_empty() {
                         continue;
                     }
                     entries.insert(entry.to_string());
@@ -100,7 +100,7 @@ impl FileSystem for ZipFS {
         }
         if entries.is_empty() {
             // Maybe directory does not exist
-            if !self.exists(&path)? {
+            if !self.exists(path)? {
                 return Err(VfsError::from(VfsErrorKind::FileNotFound));
             }
         }
@@ -116,7 +116,7 @@ impl FileSystem for ZipFS {
         let path = Self::resolve_path(path);
         archive.by_name(&path)?;
         let file = SeekableZipFileBuilder {
-            archive: archive,
+            archive,
             zip_file_builder: |archive: &mut ZipArchive<Box<dyn SeekAndReadAndSend>>| {
                 archive.by_name(&path).unwrap()
             },
@@ -134,7 +134,7 @@ impl FileSystem for ZipFS {
     }
 
     fn metadata(&self, path: &str) -> VfsResult<VfsMetadata> {
-        if path == "" {
+        if path.is_empty() {
             return Ok(VfsMetadata {
                 file_type: VfsFileType::Directory,
                 len: 0,
@@ -167,7 +167,8 @@ impl FileSystem for ZipFS {
     }
 
     fn exists(&self, path: &str) -> VfsResult<bool> {
-        if path == "" {
+        if path.is_empty() {
+            // root path always exists
             return Ok(true);
         }
         let mut archive = self.open_archive()?;
