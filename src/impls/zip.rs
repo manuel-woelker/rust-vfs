@@ -76,7 +76,7 @@ unsafe impl Send for SeekableZipFile {}
 impl FileSystem for ZipFS {
     fn read_dir(&self, path: &str) -> VfsResult<Box<dyn Iterator<Item = String> + Send>> {
         let mut resolved_path = Self::resolve_path(path);
-        if resolved_path.is_empty() {
+        if !resolved_path.is_empty() {
             resolved_path += "/";
         }
         let mut archive = self.open_archive()?;
