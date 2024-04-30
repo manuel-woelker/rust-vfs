@@ -64,9 +64,10 @@ impl Read for SeekableZipFile {
 
 impl Seek for SeekableZipFile {
     fn seek(&mut self, _pos: SeekFrom) -> std::io::Result<u64> {
-        Err(std::io::Error::other(VfsError::from(
-            VfsErrorKind::NotSupported,
-        )))
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            VfsError::from(VfsErrorKind::NotSupported),
+        ))
     }
 }
 
