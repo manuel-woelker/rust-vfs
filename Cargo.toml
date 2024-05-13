@@ -23,7 +23,8 @@ filetime = "0.2.23"
 camino = { version = "1.0.5", optional = true }
 
 [dev-dependencies]
-uuid = { version = "=0.8.1", features = ["v4"] }
+getrandom = { version = "0.2", features = ["js"] }
+uuid = { version = "=1.8.0", features = ["v4"] }
 camino = "1.0.5"
 anyhow = "1.0.58"
 tokio-test = "0.4.3"
