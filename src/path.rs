@@ -5,6 +5,7 @@
 
 use std::io::{Read, Seek, Write};
 use std::sync::Arc;
+use std::time::SystemTime;
 
 use crate::error::VfsErrorKind;
 use crate::{FileSystem, VfsError, VfsResult};
@@ -12,7 +13,76 @@ use crate::{FileSystem, VfsError, VfsResult};
 /// Trait combining Seek and Read, return value for opening files
 pub trait SeekAndRead: Seek + Read {}
 
+/// Trait combining Seek and Write, return value for writing files
+pub trait SeekAndWrite: Seek + Write {}
+
 impl<T> SeekAndRead for T where T: Seek + Read {}
+
+impl<T> SeekAndWrite for T where T: Seek + Write {}
+
+/// A trait for common non-async behaviour of both sync and async paths
+pub(crate) trait PathLike: Clone {
+    fn get_path(&self) -> String;
+    fn filename_internal(&self) -> String {
+        let path = self.get_path();
+        let index = path.rfind('/').map(|x| x + 1).unwrap_or(0);
+        path[index..].to_string()
+    }
+
+    fn extension_internal(&self) -> Option<String> {
+        let filename = self.filename_internal();
+        let mut parts = filename.rsplitn(2, '.');
+        let after = parts.next();
+        let before = parts.next();
+        match before {
+            None | Some("") => None,
+            _ => after.map(|x| x.to_string()),
+        }
+    }
+
+    fn parent_internal(&self, path: &str) -> String {
+        let index = path.rfind('/');
+        index
+            .map(|idx| path[..idx].to_string())
+            .unwrap_or_else(|| "".to_string())
+    }
+
+    fn join_internal(&self, in_path: &str, path: &str) -> VfsResult<String> {
+        if path.is_empty() {
+            return Ok(in_path.to_string());
+        }
+        let mut new_components: Vec<&str> = vec![];
+        let mut base_path = if path.starts_with('/') {
+            "".to_string()
+        } else {
+            in_path.to_string()
+        };
+        // Prevent paths from ending in slashes unless this is just the root directory.
+        if path.len() > 1 && path.ends_with('/') {
+            return Err(VfsError::from(VfsErrorKind::InvalidPath).with_path(path));
+        }
+        for component in path.split('/') {
+            if component == "." || component.is_empty() {
+                continue;
+            }
+            if component == ".." {
+                if !new_components.is_empty() {
+                    new_components.truncate(new_components.len() - 1);
+                } else {
+                    base_path = self.parent_internal(&base_path);
+                }
+            } else {
+                new_components.push(component);
+            }
+        }
+        let mut path = base_path;
+        for component in new_components {
+            path += "/";
+            path += component
+        }
+        Ok(path)
+    }
+}
 
 /// Type of file
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -30,6 +100,12 @@ pub struct VfsMetadata {
     pub file_type: VfsFileType,
     /// Length of the file in bytes, 0 for directories
     pub len: u64,
+    /// Creation time of the file, if supported by the vfs implementation
+    pub created: Option<SystemTime>,
+    /// Modification time of the file, if supported by the vfs implementation
+    pub modified: Option<SystemTime>,
+    /// Access time of the file, if supported by the vfs implementation
+    pub accessed: Option<SystemTime>,
 }
 
 #[derive(Debug)]
@@ -40,8 +116,14 @@ struct VFS {
 /// A virtual filesystem path, identifying a single file or directory in this virtual filesystem
 #[derive(Clone, Debug)]
 pub struct VfsPath {
-    path: String,
+    path: Arc<str>,
     fs: Arc<VFS>,
+}
+
+impl PathLike for VfsPath {
+    fn get_path(&self) -> String {
+        self.path.to_string()
+    }
 }
 
 impl PartialEq for VfsPath {
@@ -61,7 +143,7 @@ impl VfsPath {
     /// ````
     pub fn new<T: FileSystem>(filesystem: T) -> Self {
         VfsPath {
-            path: "".to_string(),
+            path: "".into(),
             fs: Arc::new(VFS {
                 fs: Box::new(filesystem),
             }),
@@ -98,45 +180,9 @@ impl VfsPath {
     /// # Ok::<(), VfsError>(())
     /// ```
     pub fn join(&self, path: impl AsRef<str>) -> VfsResult<Self> {
-        self.join_internal(path.as_ref())
-    }
-
-    /// Appends a path segment to this path, returning the result
-    fn join_internal(&self, path: &str) -> VfsResult<Self> {
-        if path.is_empty() {
-            return Ok(self.clone());
-        }
-        let mut new_components: Vec<&str> = vec![];
-        let mut base_path = if path.starts_with('/') {
-            self.root()
-        } else {
-            self.clone()
-        };
-        // Prevent paths from ending in slashes unless this is just the root directory.
-        if path.len() > 1 && path.ends_with('/') {
-            return Err(VfsError::from(VfsErrorKind::InvalidPath).with_path(path));
-        }
-        for component in path.split('/') {
-            if component == "." || component.is_empty() {
-                continue;
-            }
-            if component == ".." {
-                if !new_components.is_empty() {
-                    new_components.truncate(new_components.len() - 1);
-                } else {
-                    base_path = base_path.parent();
-                }
-            } else {
-                new_components.push(component);
-            }
-        }
-        let mut path = base_path.path;
-        for component in new_components {
-            path += "/";
-            path += component
-        }
-        Ok(VfsPath {
-            path,
+        let new_path = self.join_internal(&self.path, path.as_ref())?;
+        Ok(Self {
+            path: Arc::from(new_path),
             fs: self.fs.clone(),
         })
     }
@@ -153,7 +199,7 @@ impl VfsPath {
     /// ```
     pub fn root(&self) -> VfsPath {
         VfsPath {
-            path: "".to_string(),
+            path: "".into(),
             fs: self.fs.clone(),
         }
     }
@@ -193,7 +239,7 @@ impl VfsPath {
     pub fn create_dir(&self) -> VfsResult<()> {
         self.get_parent("create directory")?;
         self.fs.fs.create_dir(&self.path).map_err(|err| {
-            err.with_path(&self.path)
+            err.with_path(&*self.path)
                 .with_context(|| "Could not create directory")
         })
     }
@@ -268,11 +314,11 @@ impl VfsPath {
                 .fs
                 .read_dir(&self.path)
                 .map_err(|err| {
-                    err.with_path(&self.path)
+                    err.with_path(&*self.path)
                         .with_context(|| "Could not read directory")
                 })?
                 .map(move |path| VfsPath {
-                    path: format!("{}/{}", parent, path),
+                    path: format!("{}/{}", parent, path).into(),
                     fs: fs.clone(),
                 }),
         ))
@@ -293,10 +339,10 @@ impl VfsPath {
     /// assert_eq!(&result, "Hello, world!");
     /// # Ok::<(), VfsError>(())
     /// ```
-    pub fn create_file(&self) -> VfsResult<Box<dyn Write + Send>> {
+    pub fn create_file(&self) -> VfsResult<Box<dyn SeekAndWrite + Send>> {
         self.get_parent("create file")?;
         self.fs.fs.create_file(&self.path).map_err(|err| {
-            err.with_path(&self.path)
+            err.with_path(&*self.path)
                 .with_context(|| "Could not create file")
         })
     }
@@ -318,7 +364,7 @@ impl VfsPath {
     /// ```
     pub fn open_file(&self) -> VfsResult<Box<dyn SeekAndRead + Send>> {
         self.fs.fs.open_file(&self.path).map_err(|err| {
-            err.with_path(&self.path)
+            err.with_path(&*self.path)
                 .with_context(|| "Could not open file")
         })
     }
@@ -331,7 +377,7 @@ impl VfsPath {
                 "Could not {}, parent directory does not exist",
                 action
             )))
-            .with_path(&self.path));
+            .with_path(&*self.path));
         }
         let metadata = parent.metadata()?;
         if metadata.file_type != VfsFileType::Directory {
@@ -339,7 +385,7 @@ impl VfsPath {
                 "Could not {}, parent path is not a directory",
                 action
             )))
-            .with_path(&self.path));
+            .with_path(&*self.path));
         }
         Ok(())
     }
@@ -358,9 +404,9 @@ impl VfsPath {
     /// assert_eq!(&result, "Hello, world!");
     /// # Ok::<(), VfsError>(())
     /// ```
-    pub fn append_file(&self) -> VfsResult<Box<dyn Write + Send>> {
+    pub fn append_file(&self) -> VfsResult<Box<dyn SeekAndWrite + Send>> {
         self.fs.fs.append_file(&self.path).map_err(|err| {
-            err.with_path(&self.path)
+            err.with_path(&*self.path)
                 .with_context(|| "Could not open file for appending")
         })
     }
@@ -382,7 +428,7 @@ impl VfsPath {
     /// ```
     pub fn remove_file(&self) -> VfsResult<()> {
         self.fs.fs.remove_file(&self.path).map_err(|err| {
-            err.with_path(&self.path)
+            err.with_path(&*self.path)
                 .with_context(|| "Could not remove file")
         })
     }
@@ -406,7 +452,7 @@ impl VfsPath {
     /// ```
     pub fn remove_dir(&self) -> VfsResult<()> {
         self.fs.fs.remove_dir(&self.path).map_err(|err| {
-            err.with_path(&self.path)
+            err.with_path(&*self.path)
                 .with_context(|| "Could not remove directory")
         })
     }
@@ -463,8 +509,86 @@ impl VfsPath {
     /// # Ok::<(), VfsError>(())
     pub fn metadata(&self) -> VfsResult<VfsMetadata> {
         self.fs.fs.metadata(&self.path).map_err(|err| {
-            err.with_path(&self.path)
+            err.with_path(&*self.path)
                 .with_context(|| "Could not get metadata")
+        })
+    }
+
+    /// Sets the files creation timestamp at this path
+    ///
+    /// ```
+    /// # use std::io::Read;
+    /// use std::time::SystemTime;
+    /// use vfs::{MemoryFS, VfsError, VfsFileType, VfsMetadata, VfsPath};
+    /// let path = VfsPath::new(MemoryFS::new());
+    /// let file = path.join("foo.txt")?;
+    /// file.create_file();
+    ///
+    /// let time = SystemTime::now();
+    /// file.set_creation_time(time);
+    ///
+    /// assert_eq!(file.metadata()?.len, 0);
+    /// assert_eq!(file.metadata()?.created, Some(time));
+    ///
+    /// # Ok::<(), VfsError>(())
+    pub fn set_creation_time(&self, time: SystemTime) -> VfsResult<()> {
+        self.fs
+            .fs
+            .set_creation_time(&self.path, time)
+            .map_err(|err| {
+                err.with_path(&*self.path)
+                    .with_context(|| "Could not set creation timestamp.")
+            })
+    }
+
+    /// Sets the files modification timestamp at this path
+    ///
+    /// ```
+    /// # use std::io::Read;
+    /// use std::time::SystemTime;
+    /// use vfs::{MemoryFS, VfsError, VfsFileType, VfsMetadata, VfsPath};
+    /// let path = VfsPath::new(MemoryFS::new());
+    /// let file = path.join("foo.txt")?;
+    /// file.create_file();
+    ///
+    /// let time = SystemTime::now();
+    /// file.set_modification_time(time);
+    ///
+    /// assert_eq!(file.metadata()?.len, 0);
+    /// assert_eq!(file.metadata()?.modified, Some(time));
+    ///
+    /// # Ok::<(), VfsError>(())
+    pub fn set_modification_time(&self, time: SystemTime) -> VfsResult<()> {
+        self.fs
+            .fs
+            .set_modification_time(&self.path, time)
+            .map_err(|err| {
+                err.with_path(&*self.path)
+                    .with_context(|| "Could not set modification timestamp.")
+            })
+    }
+
+    /// Sets the files access timestamp at this path
+    ///
+    /// ```
+    /// # use std::io::Read;
+    /// use std::time::SystemTime;
+    /// use vfs::{MemoryFS, VfsError, VfsFileType, VfsMetadata, VfsPath};
+    /// let path = VfsPath::new(MemoryFS::new());
+    /// let file = path.join("foo.txt")?;
+    /// file.create_file();
+    ///
+    /// let time = SystemTime::now();
+    /// file.set_access_time(time);
+    ///
+    /// assert_eq!(file.metadata()?.len, 0);
+    /// assert_eq!(file.metadata()?.accessed, Some(time));
+    ///
+    /// # Ok::<(), VfsError>(())
+    pub fn set_access_time(&self, time: SystemTime) -> VfsResult<()> {
+        self.fs.fs.set_access_time(&self.path, time).map_err(|err| {
+            err.with_path(&*self.path)
+                .with_context(|| "Could not set access timestamp.")
         })
     }
 
@@ -546,8 +670,7 @@ impl VfsPath {
     ///
     /// # Ok::<(), VfsError>(())
     pub fn filename(&self) -> String {
-        let index = self.path.rfind('/').map(|x| x + 1).unwrap_or(0);
-        self.path[index..].to_string()
+        self.filename_internal()
     }
 
     /// Returns the extension portion of this path
@@ -563,14 +686,7 @@ impl VfsPath {
     ///
     /// # Ok::<(), VfsError>(())
     pub fn extension(&self) -> Option<String> {
-        let filename = self.filename();
-        let mut parts = filename.rsplitn(2, '.');
-        let after = parts.next();
-        let before = parts.next();
-        match before {
-            None | Some("") => None,
-            _ => after.map(|x| x.to_string()),
-        }
+        self.extension_internal()
     }
 
     /// Returns the parent path of this portion of this path
@@ -588,13 +704,11 @@ impl VfsPath {
     ///
     /// # Ok::<(), VfsError>(())
     pub fn parent(&self) -> Self {
-        let index = self.path.rfind('/');
-        index
-            .map(|idx| VfsPath {
-                path: self.path[..idx].to_string(),
-                fs: self.fs.clone(),
-            })
-            .unwrap_or_else(|| self.root())
+        let parent_path = self.parent_internal(&self.path);
+        Self {
+            path: Arc::from(parent_path),
+            fs: self.fs.clone(),
+        }
     }
 
     /// Recursively iterates over all the directories and files at this path
@@ -648,7 +762,7 @@ impl VfsPath {
         if metadata.file_type != VfsFileType::File {
             return Err(
                 VfsError::from(VfsErrorKind::Other("Path is a directory".into()))
-                    .with_path(&self.path)
+                    .with_path(&*self.path)
                     .with_context(|| "Could not read path"),
             );
         }
@@ -657,7 +771,7 @@ impl VfsPath {
             .read_to_string(&mut result)
             .map_err(|source| {
                 VfsError::from(source)
-                    .with_path(&self.path)
+                    .with_path(&*self.path)
                     .with_context(|| "Could not read path")
             })?;
         Ok(result)
@@ -686,7 +800,7 @@ impl VfsPath {
                 return Err(VfsError::from(VfsErrorKind::Other(
                     "Destination exists already".into(),
                 ))
-                .with_path(&self.path));
+                .with_path(&*self.path));
             }
             if Arc::ptr_eq(&self.fs, &destination.fs) {
                 let result = self.fs.fs.copy_file(&self.path, &destination.path);
@@ -704,13 +818,13 @@ impl VfsPath {
             let mut dest = destination.create_file()?;
             std::io::copy(&mut src, &mut dest).map_err(|source| {
                 VfsError::from(source)
-                    .with_path(&self.path)
+                    .with_path(&*self.path)
                     .with_context(|| "Could not read path")
             })?;
             Ok(())
         }()
         .map_err(|err| {
-            err.with_path(&self.path).with_context(|| {
+            err.with_path(&*self.path).with_context(|| {
                 format!(
                     "Could not copy '{}' to '{}'",
                     self.as_str(),
@@ -745,7 +859,7 @@ impl VfsPath {
                 return Err(VfsError::from(VfsErrorKind::Other(
                     "Destination exists already".into(),
                 ))
-                .with_path(&destination.path));
+                .with_path(&*destination.path));
             }
             if Arc::ptr_eq(&self.fs, &destination.fs) {
                 let result = self.fs.fs.move_file(&self.path, &destination.path);
@@ -763,14 +877,14 @@ impl VfsPath {
             let mut dest = destination.create_file()?;
             std::io::copy(&mut src, &mut dest).map_err(|source| {
                 VfsError::from(source)
-                    .with_path(&self.path)
+                    .with_path(&*self.path)
                     .with_context(|| "Could not read path")
             })?;
             self.remove_file()?;
             Ok(())
         }()
         .map_err(|err| {
-            err.with_path(&self.path).with_context(|| {
+            err.with_path(&*self.path).with_context(|| {
                 format!(
                     "Could not move '{}' to '{}'",
                     self.as_str(),
@@ -807,10 +921,10 @@ impl VfsPath {
                 return Err(VfsError::from(VfsErrorKind::Other(
                     "Destination exists already".into(),
                 ))
-                .with_path(&destination.path));
+                .with_path(&*destination.path));
             }
             destination.create_dir()?;
-            let prefix = self.path.as_str();
+            let prefix = &*self.path;
             let prefix_len = prefix.len();
             for file in self.walk_dir()? {
                 let src_path: VfsPath = file?;
@@ -824,7 +938,7 @@ impl VfsPath {
             Ok(())
         }()
         .map_err(|err| {
-            err.with_path(&self.path).with_context(|| {
+            err.with_path(&*self.path).with_context(|| {
                 format!(
                     "Could not copy directory '{}' to '{}'",
                     self.as_str(),
@@ -859,7 +973,7 @@ impl VfsPath {
                 return Err(VfsError::from(VfsErrorKind::Other(
                     "Destination exists already".into(),
                 ))
-                .with_path(&destination.path));
+                .with_path(&*destination.path));
             }
             if Arc::ptr_eq(&self.fs, &destination.fs) {
                 let result = self.fs.fs.move_dir(&self.path, &destination.path);
@@ -874,7 +988,7 @@ impl VfsPath {
                 }
             }
             destination.create_dir()?;
-            let prefix = self.path.as_str();
+            let prefix = &*self.path;
             let prefix_len = prefix.len();
             for file in self.walk_dir()? {
                 let src_path: VfsPath = file?;
@@ -888,7 +1002,7 @@ impl VfsPath {
             Ok(())
         }()
         .map_err(|err| {
-            err.with_path(&self.path).with_context(|| {
+            err.with_path(&*self.path).with_context(|| {
                 format!(
                     "Could not move directory '{}' to '{}'",
                     self.as_str(),

@@ -2,9 +2,8 @@
 
 [![Crate](https://img.shields.io/crates/v/vfs.svg)](https://crates.io/crates/vfs)
 [![API](https://docs.rs/vfs/badge.svg)](https://docs.rs/vfs)
-![Minimum rustc version](https://img.shields.io/badge/rustc-1.56.0+-green.svg)
+![Minimum rustc version](https://img.shields.io/badge/rustc-1.63.0+-green.svg)
 [![Actions Status](https://github.com/manuel-woelker/rust-vfs/workflows/Continuous%20integration/badge.svg)](https://github.com/manuel-woelker/rust-vfs/actions?query=workflow%3A%22Continuous+integration%22)
-[![Build Status](https://travis-ci.org/manuel-woelker/rust-vfs.svg?branch=master)](https://travis-ci.org/manuel-woelker/rust-vfs)
 
 A virtual filesystem for Rust
 
@@ -16,13 +15,32 @@ This crate currently has the following implementations:
  * **MemoryFS** - an ephemeral in-memory file system, intended mainly for unit tests
  * **AltrootFS** - a file system with its root in a particular directory of another filesystem
  * **OverlayFS** - an overlay file system combining two filesystems, an upper layer with read/write access and a lower layer with only read access
- * **EmbeddedFS** - a read-only file system embedded in the executable, requires `embedded-fs` feature
+ * **EmbeddedFS** - a read-only file system embedded in the executable, requires `embedded-fs` feature, no async version available
  
-The minimum supported Rust version is 1.56.0.
+The minimum supported Rust version (MSRV) is 1.63.
  
 Comments and pull-requests welcome!
 
 ## Changelog
+
+
+### 0.12.0 (2024-03-09)
+* Allow reading and setting modification/creation/access-times - thanks [@kartonrad](https://github.com/kartonrad)!
+* Allow seek when writing - thanks [@jonmclean](https://github.com/jonmclean)!
+
+### 0.11.0 (2024-02-18)
+* Updated minimum supported Rust version to 1.63.
+* Updated rust-embed dependency to 8.0 - thanks [@NickAcPT](https://github.com/NickAcPT)!
+* Unlocked tokio crate version to work with newer versions - thanks [@Fredrik-Reinholdsen](https://github.com/Fredrik-Reinholdsen)!
+* use `Arc<str>` for paths internally to reduce string allocations - thanks [@BrettMayson](https://github.com/BrettMayson)!
+
+### 0.10.0 (2023-09-08)
+* Added async port of the crate, in a new module `async_vfs`.
+The module is behind the `async-vfs` feature flag which is not enabled by default. Huge thank you to [@Fredrik Reinholdsen](https://github.com/Fredrik-Reinholdsen)!
+* Ported all synchronous tests and doc-tests to async
+* Updated minimum supported Rust version to 1.61.0, needed for the async port.
+* Updated Rust edition from *2018* to *2021*, needed for the async port.
+* Updated Rust versions used in CI pipeline.
 
 ### 0.9.0 (2022-12-20)
 

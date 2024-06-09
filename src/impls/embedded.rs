@@ -1,13 +1,14 @@
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
-use std::io::{Cursor, Write};
+use std::io::Cursor;
 use std::marker::PhantomData;
+use std::time::{Duration, SystemTime};
 
 use rust_embed::RustEmbed;
 
 use crate::error::VfsErrorKind;
-use crate::{FileSystem, SeekAndRead, VfsFileType, VfsMetadata, VfsResult};
+use crate::{FileSystem, SeekAndRead, SeekAndWrite, VfsFileType, VfsMetadata, VfsResult};
 
 type EmbeddedPath = Cow<'static, str>;
 
@@ -45,7 +46,7 @@ where
             children.insert(path);
         }
         EmbeddedFS {
-            p: PhantomData::default(),
+            p: PhantomData,
             directory_map,
             files,
         }
@@ -106,26 +107,41 @@ where
         }
     }
 
-    fn create_file(&self, _path: &str) -> VfsResult<Box<dyn Write + Send>> {
+    fn create_file(&self, _path: &str) -> VfsResult<Box<dyn SeekAndWrite + Send>> {
         Err(VfsErrorKind::NotSupported.into())
     }
 
-    fn append_file(&self, _path: &str) -> VfsResult<Box<dyn Write + Send>> {
+    fn append_file(&self, _path: &str) -> VfsResult<Box<dyn SeekAndWrite + Send>> {
         Err(VfsErrorKind::NotSupported.into())
     }
 
     fn metadata(&self, path: &str) -> VfsResult<VfsMetadata> {
         let normalized_path = normalize_path(path)?;
         if let Some(len) = self.files.get(normalized_path) {
-            return Ok(VfsMetadata {
-                file_type: VfsFileType::File,
-                len: *len,
-            });
+            return match T::get(path.split_at(1).1) {
+                None => Err(VfsErrorKind::FileNotFound.into()),
+                Some(file) => Ok(VfsMetadata {
+                    file_type: VfsFileType::File,
+                    len: *len,
+                    modified: file
+                        .metadata
+                        .last_modified()
+                        .map(|secs| SystemTime::UNIX_EPOCH + Duration::from_secs(secs)),
+                    created: file
+                        .metadata
+                        .created()
+                        .map(|secs| SystemTime::UNIX_EPOCH + Duration::from_secs(secs)),
+                    accessed: None,
+                }),
+            };
         }
         if self.directory_map.contains_key(normalized_path) {
             return Ok(VfsMetadata {
                 file_type: VfsFileType::Directory,
                 len: 0,
+                modified: None,
+                created: None,
+                accessed: None,
             });
         }
         Err(VfsErrorKind::FileNotFound.into())

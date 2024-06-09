@@ -104,6 +104,10 @@ pub enum VfsErrorKind {
     /// Certain standard I/O errors are normalized to their VfsErrorKind counterparts
     IoError(io::Error),
 
+    #[cfg(feature = "async-fs")]
+    /// A generic async I/O error
+    AsyncIoError(io::Error),
+
     /// The file or directory at the given path could not be found
     FileNotFound,
 
@@ -128,6 +132,10 @@ impl fmt::Display for VfsErrorKind {
         match self {
             VfsErrorKind::IoError(cause) => {
                 write!(f, "IO error: {}", cause)
+            }
+            #[cfg(feature = "async-fs")]
+            VfsErrorKind::AsyncIoError(cause) => {
+                write!(f, "Async IO error: {}", cause)
             }
             VfsErrorKind::FileNotFound => {
                 write!(f, "The file or directory could not be found")
