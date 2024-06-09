@@ -2,4 +2,3 @@ target/
 tmp/
 dist/
 .idea
-Cargo.lock
