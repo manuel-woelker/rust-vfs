@@ -696,7 +696,7 @@ use super::*;
             fn read_to_string_nonutf8() -> VfsResult<()> {
                 let root = create_root();
                 let path = root.join("foobar.txt")?;
-                path.create_file()?.write_all(&vec![0, 159, 146, 150])?;
+                path.create_file()?.write_all(&[0, 159, 146, 150])?;
                 let error_message = path.read_to_string().expect_err("read_to_string").to_string();
                 assert_eq!(
                     &error_message,
