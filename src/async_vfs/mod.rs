@@ -13,7 +13,7 @@
 //! # Usage Examples
 //!
 //! ```
-//! use async_std::io::{ReadExt, WriteExt};
+//! use tokio::io::{ReadExt, WriteExt};
 //! use vfs::async_vfs::{AsyncVfsPath, AsyncPhysicalFS};
 //! use vfs::VfsError;
 //!
@@ -29,7 +29,7 @@
 //! ```
 //!
 //! ```
-//! use async_std::io::{ReadExt, WriteExt};
+//! use tokio::io::{ReadExt, WriteExt};
 //! use vfs::async_vfs::{AsyncVfsPath, AsyncMemoryFS};
 //! use vfs::VfsError;
 //!

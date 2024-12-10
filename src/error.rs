@@ -106,7 +106,7 @@ pub enum VfsErrorKind {
     /// Certain standard I/O errors are normalized to their VfsErrorKind counterparts
     IoError(io::Error),
 
-    #[cfg(feature = "async-fs")]
+    #[cfg(feature = "async-vfs")]
     /// A generic async I/O error
     AsyncIoError(io::Error),
 
@@ -135,7 +135,7 @@ impl fmt::Display for VfsErrorKind {
             VfsErrorKind::IoError(cause) => {
                 write!(f, "IO error: {}", cause)
             }
-            #[cfg(feature = "async-fs")]
+            #[cfg(feature = "async-vfs")]
             VfsErrorKind::AsyncIoError(cause) => {
                 write!(f, "Async IO error: {}", cause)
             }

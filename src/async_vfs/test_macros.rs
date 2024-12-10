@@ -11,7 +11,7 @@ macro_rules! test_async_vfs {
             use $crate::VfsResult;
             use $crate::error::VfsErrorKind;
             use futures::stream::StreamExt;
-            use async_std::io::{WriteExt, ReadExt};
+            use tokio::io::{AsyncWriteExt, AsyncReadExt};
             use std::time::SystemTime;
 
             fn create_root() -> AsyncVfsPath {
@@ -102,8 +102,8 @@ macro_rules! test_async_vfs {
                 let _send = &path as &dyn Send;
                 {
                     let mut file = path.create_file().await.unwrap();
-                    write!(file, "Hello world").await.unwrap();
-                    write!(file, "!").await.unwrap();
+                    file.write_all(b"Hello world").await.unwrap();
+                    file.write_all(b"!").await.unwrap();
                 }
                 {
                     let mut file = path.open_file().await.unwrap();
