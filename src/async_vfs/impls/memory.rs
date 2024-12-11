@@ -130,15 +130,31 @@ impl AsyncRead for AsyncReadableFile {
     ) -> Poll<Result<(), tokio::io::Error>> {
         let this = self.get_mut();
         let bytes_left = this.len() - this.cursor_pos;
-        let bytes_read = std::cmp::min(buf.remaining() as u64, bytes_left);
+
         if bytes_left == 0 {
             return Poll::Ready(Ok(()));
         }
+
+        let bytes_read = std::cmp::min(buf.remaining() as u64, bytes_left);
         buf.put_slice(
             &this.content[this.cursor_pos as usize..(this.cursor_pos + bytes_read) as usize],
         );
         this.cursor_pos += bytes_read;
-        Poll::Ready(Ok(()))
+        if buf.remaining() == 0 {
+            Poll::Pending
+        } else {
+            Poll::Ready(Ok(()))
+        }
+
+        // let bytes_read = std::cmp::min(buf.remaining() as u64, bytes_left);
+        // if bytes_left == 0 {
+        //     return Poll::Ready(Ok(()));
+        // }
+        // buf.put_slice(
+        //     &this.content[this.cursor_pos as usize..(this.cursor_pos + bytes_read) as usize],
+        // );
+        // this.cursor_pos += bytes_read;
+        // Poll::Ready(Ok(()))
     }
 }
 
@@ -340,22 +356,22 @@ mod tests {
     #[tokio::test]
     async fn write_and_read_file() -> VfsResult<()> {
         let root = AsyncVfsPath::new(AsyncMemoryFS::new());
-        let path = root.join("foobar.txt").unwrap();
+        let path = root.join("foobar.txt")?;
         let _send = &path as &dyn Send;
         {
-            let mut file = path.create_file().await.unwrap();
-            file.write_all(b"Hello world").await.unwrap();
-            file.write_all(b"!").await.unwrap();
+            let mut file = path.create_file().await?;
+            file.write_all(b"Hello world").await?;
+            file.write_all(b"!").await?;
         }
         {
-            let mut file = path.open_file().await.unwrap();
+            let mut file = path.open_file().await?;
             let mut string: String = String::new();
-            file.read_to_string(&mut string).await.unwrap();
+            file.read_to_string(&mut string).await?;
             assert_eq!(string, "Hello world!");
         }
         assert!(path.exists().await?);
-        assert!(!root.join("foo").unwrap().exists().await?);
-        let metadata = path.metadata().await.unwrap();
+        assert!(!root.join("foo")?.exists().await?);
+        let metadata = path.metadata().await?;
         assert_eq!(metadata.len, 12);
         assert_eq!(metadata.file_type, VfsFileType::File);
         Ok(())

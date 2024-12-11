@@ -317,8 +317,8 @@ macro_rules! test_async_vfs {
                 Ok(())
             }
 
-            #[test]
-            fn filename() {
+            #[tokio::test]
+            async fn filename() {
                 let root = create_root();
                 assert_eq!(root.filename(), "");
                 assert_eq!(
@@ -336,8 +336,8 @@ macro_rules! test_async_vfs {
                 assert_eq!(root.join("fizz.buzz/foo.").unwrap().filename(), "foo.");
             }
 
-            #[test]
-            fn extension() {
+            #[tokio::test]
+            async fn extension() {
                 let root = create_root();
                 assert_eq!(root.extension(), None, "root");
                 assert_eq!(root.join("name").unwrap().extension(), None, "name");
@@ -380,8 +380,8 @@ macro_rules! test_async_vfs {
                 );
             }
 
-            #[test]
-            fn parent() {
+            #[tokio::test]
+            async fn parent() {
                 let root = create_root();
                 assert_eq!(root.parent(), root.clone(), "root");
                 assert_eq!(
@@ -401,8 +401,8 @@ macro_rules! test_async_vfs {
                 );
             }
 
-            #[test]
-            fn eq() {
+            #[tokio::test]
+            async fn eq() {
                 let root = create_root();
 
                 assert_eq!(root, root);
@@ -421,8 +421,8 @@ macro_rules! test_async_vfs {
                 assert_ne!(root.join("foo").unwrap(), root2.join("foo").unwrap());
             }
 
-            #[test]
-            fn join() {
+            #[tokio::test]
+            async fn join() {
                 let root = create_root();
                 assert_eq!(root.join("").unwrap().as_str(), "");
                 assert_eq!(root.join("foo").unwrap().join("").unwrap().as_str(), "/foo");

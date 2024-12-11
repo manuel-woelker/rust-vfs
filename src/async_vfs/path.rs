@@ -263,15 +263,17 @@ impl AsyncVfsPath {
     /// ```
     /// # use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
     /// # use vfs::VfsError;
-    /// use tokio::io::{ReadExt, WriteExt};
+    /// use tokio::io::{AsyncReadExt, AsyncWriteExt};
     /// # tokio_test::block_on(async {
-    /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
-    /// let file = path.join("foo.txt")?;
-    ///
-    /// write!(file.create_file().await?, "Hello, world!").await?;
+    /// let root = AsyncVfsPath::new(AsyncMemoryFS::new());
+    /// let path = root.join("foo.txt")?;
+    /// {
+    /// let mut f = path.create_file().await?;
+    /// f.write_all(b"Hello, world!").await?;
+    /// }
     ///
     /// let mut result = String::new();
-    /// file.open_file().await?.read_to_string(&mut result).await?;
+    /// path.open_file().await?.read_to_string(&mut result).await?;
     /// assert_eq!(&result, "Hello, world!");
     /// # Ok::<(), VfsError>(())
     /// # });
@@ -289,7 +291,7 @@ impl AsyncVfsPath {
     /// ```
     /// # use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
     /// # use vfs::VfsError;
-    /// use tokio::io::{ReadExt, WriteExt};
+    /// use tokio::io::{AsyncReadExt, AsyncWriteExt};
     /// # tokio_test::block_on(async {
     /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let file = path.join("foo.txt")?;
@@ -335,7 +337,7 @@ impl AsyncVfsPath {
     /// ```
     /// # use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
     /// # use vfs::VfsError;
-    /// use tokio::io::{ReadExt, WriteExt};
+    /// use tokio::io::{AsyncReadExt, AsyncWriteExt};
     /// # tokio_test::block_on(async {
     /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let file = path.join("foo.txt")?;
@@ -357,7 +359,7 @@ impl AsyncVfsPath {
     /// Removes the file at this path
     ///
     /// ```
-    /// use tokio::io::{ReadExt, WriteExt};
+    /// use tokio::io::{AsyncReadExt, AsyncWriteExt};
     /// # use vfs::async_vfs::{AsyncMemoryFS , AsyncVfsPath};
     /// # use vfs::VfsError;
     /// # tokio_test::block_on(async {
@@ -446,7 +448,7 @@ impl AsyncVfsPath {
     /// ```
     /// use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
     /// use vfs::{VfsError, VfsFileType, VfsMetadata};
-    /// use tokio::io::WriteExt;
+    /// use tokio::io::AsyncWriteExt;
     /// # tokio_test::block_on(async {
     /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let directory = path.join("foo")?;
@@ -474,7 +476,7 @@ impl AsyncVfsPath {
     /// ```
     /// use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
     /// use vfs::{VfsError, VfsFileType, VfsMetadata, VfsPath};
-    /// use tokio::io::WriteExt;
+    /// use tokio::io::AsyncWriteExt;
     /// # tokio_test::block_on(async {
     /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let file = path.join("foo.txt")?;
@@ -504,7 +506,7 @@ impl AsyncVfsPath {
     /// ```
     /// use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
     /// use vfs::{VfsError, VfsFileType, VfsMetadata, VfsPath};
-    /// use tokio::io::WriteExt;
+    /// use tokio::io::AsyncWriteExt;
     /// # tokio_test::block_on(async {
     /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let file = path.join("foo.txt")?;
@@ -534,7 +536,7 @@ impl AsyncVfsPath {
     /// ```
     /// use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
     /// use vfs::{VfsError, VfsFileType, VfsMetadata, VfsPath};
-    /// use tokio::io::WriteExt;
+    /// use tokio::io::AsyncWriteExt;
     /// # tokio_test::block_on(async {
     /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let file = path.join("foo.txt")?;
@@ -728,7 +730,7 @@ impl AsyncVfsPath {
     /// ```
     /// # use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
     /// # use vfs::VfsError;
-    /// use tokio::io::{ReadExt, WriteExt};
+    /// use tokio::io::{AsyncReadExt, AsyncWriteExt};
     /// # tokio_test::block_on(async {
     /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let file = path.join("foo.txt")?;
@@ -767,7 +769,7 @@ impl AsyncVfsPath {
     /// The destination must not exist, but its parent directory must
     ///
     /// ```
-    /// use tokio::io::{ReadExt, WriteExt};
+    /// use tokio::io::{AsyncReadExt, AsyncWriteExt};
     /// # use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
     /// # use vfs::VfsError;
     /// # tokio_test::block_on(async {
@@ -833,7 +835,7 @@ impl AsyncVfsPath {
     /// ```
     /// # use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
     /// # use vfs::VfsError;
-    /// use tokio::io::{ReadExt, WriteExt};
+    /// use tokio::io::{AsyncReadExt, AsyncWriteExt};
     /// # tokio_test::block_on(async {
     /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let src = path.join("foo.txt")?;
