@@ -75,35 +75,16 @@ impl AsyncFileSystem for AsyncPhysicalFS {
         let p = self.get_path(path);
         let read_dir = ReadDirStream::new(tokio::fs::read_dir(p).await?);
 
-        // let entries = read_dir.filter_map(|entry| async {
-        //     match entry {
-        //         Ok(entry) => match entry.file_name().into_string() {
-        //             Ok(name) => Some(Ok(name)),
-        //             Err(_) => Some(Err(VfsError::from(VfsErrorKind::InvalidPath))),
-        //         },
-        //         Err(e) => Some(Err(e.into())),
-        //     }
-        // });
-        todo!()
+        let entries = read_dir.filter_map(|entry| match entry {
+            Ok(entry) => match entry.file_name().into_string() {
+                Ok(name) => Some(name),
+                Err(_) => None,
+            },
+            Err(_) => None,
+        });
 
-        // Ok(Box::new(entries))
+        Ok(Box::new(entries))
     }
-    // ) -> VfsResult<Box<dyn Stream<Item = String> + Send + Unpin>> {
-    //     let p = self.get_path(path);
-    //     let read_dir = ReadDirStream::new(tokio::fs::read_dir(p).await?);
-
-    //     let entries = read_dir.filter_map(|entry| async {
-    //         match entry {
-    //             Ok(entry) => match entry.file_name().into_string() {
-    //                 Ok(name) => Some(Ok(name)),
-    //                 Err(_) => Some(Err(VfsError::from(VfsErrorKind::InvalidPath))),
-    //             },
-    //             Err(e) => Some(Err(e.into())),
-    //         }
-    //     });
-
-    //     Ok(Box::new(entries))
-    // }
 
     async fn create_dir(&self, path: &str) -> VfsResult<()> {
         let fs_path = self.get_path(path);
