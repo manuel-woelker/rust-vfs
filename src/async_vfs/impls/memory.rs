@@ -135,7 +135,7 @@ impl AsyncRead for AsyncReadableFile {
             return Poll::Ready(Ok(()));
         }
 
-        let bytes_read = std::cmp::min(buf.remaining() as u64, bytes_left);
+        let bytes_read = std::cmp::min(buf.capacity() as u64, bytes_left);
         buf.put_slice(
             &this.content[this.cursor_pos as usize..(this.cursor_pos + bytes_read) as usize],
         );
@@ -145,16 +145,6 @@ impl AsyncRead for AsyncReadableFile {
         } else {
             Poll::Ready(Ok(()))
         }
-
-        // let bytes_read = std::cmp::min(buf.remaining() as u64, bytes_left);
-        // if bytes_left == 0 {
-        //     return Poll::Ready(Ok(()));
-        // }
-        // buf.put_slice(
-        //     &this.content[this.cursor_pos as usize..(this.cursor_pos + bytes_read) as usize],
-        // );
-        // this.cursor_pos += bytes_read;
-        // Poll::Ready(Ok(()))
     }
 }
 
