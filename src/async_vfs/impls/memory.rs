@@ -140,10 +140,11 @@ impl AsyncRead for AsyncReadableFile {
             &this.content[this.cursor_pos as usize..(this.cursor_pos + bytes_read) as usize],
         );
         this.cursor_pos += bytes_read;
-        if buf.remaining() == 0 {
-            Poll::Pending
-        } else {
+
+        if this.cursor_pos == this.len() {
             Poll::Ready(Ok(()))
+        } else {
+            Poll::Pending
         }
     }
 }

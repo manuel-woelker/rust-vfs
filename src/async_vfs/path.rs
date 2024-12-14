@@ -341,8 +341,10 @@ impl AsyncVfsPath {
     /// # tokio_test::block_on(async {
     /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let file = path.join("foo.txt")?;
-    /// write!(file.create_file().await?, "Hello, ").await?;
-    /// write!(file.append_file().await?, "world!").await?;
+    /// let _ = file.create_file().await?
+    /// tokio::fs::write(file.path(), "Hello, ").await?;
+    /// let _ = file.append_file().await?;
+    /// write!(, "world!").await?;
     /// let mut result = String::new();
     /// file.open_file().await?.read_to_string(&mut result).await?;
     /// assert_eq!(&result, "Hello, world!");
@@ -365,7 +367,8 @@ impl AsyncVfsPath {
     /// # tokio_test::block_on(async {
     /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let file = path.join("foo.txt")?;
-    /// write!(file.create_file().await?, "Hello, ").await?;
+    /// let f = file.create_file().await?;
+    /// tokio::fs::write(file.path(), "Hello, ").await?;
     /// assert!(file.exists().await?);
     ///
     /// file.remove_file().await?;
@@ -839,7 +842,8 @@ impl AsyncVfsPath {
     /// # tokio_test::block_on(async {
     /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let src = path.join("foo.txt")?;
-    /// write!(src.create_file().await?, "Hello, world!").await?;
+    /// let file = src.create_file().await?;
+    /// tokio::fs::write(src.path(), "Hello, world!").await?;
     /// let dest = path.join("bar.txt")?;
     ///
     /// src.move_file(&dest).await?;
