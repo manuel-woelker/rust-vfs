@@ -112,7 +112,7 @@ impl Drop for AsyncWritableFile {
 struct AsyncReadableFile {
     #[allow(clippy::rc_buffer)] // to allow accessing the same object as writable
     content: Arc<Vec<u8>>,
-    // Position of the read cursor in the "file"
+    /// Position of the read cursor in the "file"
     cursor_pos: u64,
 }
 
@@ -141,11 +141,7 @@ impl AsyncRead for AsyncReadableFile {
         );
         this.cursor_pos += bytes_read;
 
-        if this.cursor_pos == this.len() {
-            Poll::Ready(Ok(()))
-        } else {
-            Poll::Pending
-        }
+        Poll::Ready(Ok(()))
     }
 }
 
