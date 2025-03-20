@@ -44,7 +44,7 @@ pub(crate) trait PathLike: Clone {
         let index = path.rfind('/');
         index
             .map(|idx| path[..idx].to_string())
-            .unwrap_or_else(|| "".to_string())
+            .unwrap_or_default()
     }
 
     fn join_internal(&self, in_path: &str, path: &str) -> VfsResult<String> {
