@@ -70,13 +70,8 @@ impl Write for WritableFile {
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
-        self.content.flush()
-    }
-}
-
-impl Drop for WritableFile {
-    fn drop(&mut self) {
-        let mut content = vec![];
+        self.content.flush()?;
+        let mut content = self.content.get_ref().clone();
         swap(&mut content, self.content.get_mut());
         let mut handle = self.fs.write().unwrap();
         let previous_file = handle.files.get(&self.destination);
@@ -92,6 +87,14 @@ impl Drop for WritableFile {
         };
 
         handle.files.insert(self.destination.clone(), new_file);
+        Ok(())
+    }
+}
+
+impl Drop for WritableFile {
+    fn drop(&mut self) {
+        self.flush()
+            .expect("Flush failed while dropping in-memory file");
     }
 }
 
@@ -482,5 +485,37 @@ mod tests {
         src.copy_file(&dest)?;
         assert_eq!(&dest.read_to_string()?, "Hello World");
         Ok(())
+    }
+
+    // cf. https://github.com/manuel-woelker/rust-vfs/issues/70
+    #[test]
+    fn flush_then_read_with_new_handle() {
+        let root = VfsPath::new(MemoryFS::new());
+        let path = root.join("test.txt").unwrap();
+        let mut write_handle = path.create_file().unwrap();
+        write_handle.write_all(b"Testing 1").unwrap();
+
+        // Ensure flushed data can be read
+        write_handle.flush().unwrap();
+        let mut read_handle = path.open_file().unwrap();
+        let mut string: String = String::new();
+        read_handle.read_to_string(&mut string).unwrap();
+        assert_eq!(string, "Testing 1");
+
+        // Ensure second flush data can be read
+        write_handle.write_all(b"Testing 2").unwrap();
+        write_handle.flush().unwrap();
+        let mut read_handle = path.open_file().unwrap();
+        let mut string: String = String::new();
+        read_handle.read_to_string(&mut string).unwrap();
+        assert_eq!(string, "Testing 1Testing 2");
+
+        // Ensure everything can be read on drop
+        write_handle.write_all(b"Testing 3").unwrap();
+        drop(write_handle);
+        let mut read_handle = path.open_file().unwrap();
+        let mut string: String = String::new();
+        read_handle.read_to_string(&mut string).unwrap();
+        assert_eq!(string, "Testing 1Testing 2Testing 3");
     }
 }
