@@ -5,9 +5,10 @@ authors = ["Manuel Woelker <github@manuel.woelker.org>"]
 description = "A virtual filesystem for Rust"
 repository = "https://github.com/manuel-woelker/rust-vfs"
 readme = "README.md"
+edition = "2021"
+rust-version = "1.56"
 keywords = ["vfs", "virtual", "filesystem", "async"]
 license = "Apache-2.0"
-edition = "2021"
 
 [badges]
 travis-ci = { repository = "manuel-woelker/rust-vfs", branch = "master" }
