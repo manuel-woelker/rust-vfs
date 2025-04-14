@@ -4,13 +4,13 @@ use crate::error::VfsErrorKind;
 use crate::path::VfsFileType;
 use crate::{VfsMetadata, VfsResult};
 
-use async_std::io::{prelude::SeekExt, Cursor, Read, Seek, SeekFrom, Write};
+use async_std::io::{Cursor, Read, Seek, SeekFrom, Write, prelude::SeekExt};
 use async_std::sync::{Arc, RwLock};
 use async_trait::async_trait;
 use futures::task::{Context, Poll};
 use futures::{Stream, StreamExt};
-use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::mem::swap;
@@ -201,7 +201,7 @@ impl AsyncFileSystem for AsyncMemoryFS {
                 return match file.get().file_type {
                     VfsFileType::File => Err(VfsErrorKind::FileExists.into()),
                     VfsFileType::Directory => Err(VfsErrorKind::DirectoryExists.into()),
-                }
+                };
             }
             Entry::Vacant(_) => {
                 map.insert(

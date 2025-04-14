@@ -5,8 +5,8 @@ use crate::{FileSystem, VfsFileType};
 use crate::{SeekAndRead, VfsMetadata};
 use crate::{SeekAndWrite, VfsResult};
 use core::cmp;
-use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::io::{Cursor, Read, Seek, SeekFrom, Write};
@@ -174,7 +174,7 @@ impl FileSystem for MemoryFS {
                 return match file.get().file_type {
                     VfsFileType::File => Err(VfsErrorKind::FileExists.into()),
                     VfsFileType::Directory => Err(VfsErrorKind::DirectoryExists.into()),
-                }
+                };
             }
             Entry::Vacant(_) => {
                 map.insert(

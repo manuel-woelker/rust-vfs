@@ -1,7 +1,7 @@
 //! A file system with its root in a particular directory of another filesystem
 
 use crate::async_vfs::{AsyncFileSystem, AsyncVfsPath, SeekAndRead};
-use crate::{error::VfsErrorKind, VfsMetadata, VfsResult};
+use crate::{VfsMetadata, VfsResult, error::VfsErrorKind};
 use std::time::SystemTime;
 
 use async_std::io::Write;

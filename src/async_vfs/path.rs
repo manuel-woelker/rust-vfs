@@ -13,7 +13,7 @@ use async_recursion::async_recursion;
 use async_std::io::{Read, ReadExt, Seek, Write};
 use async_std::sync::Arc;
 use async_std::task::{Context, Poll};
-use futures::{future::BoxFuture, FutureExt, Stream, StreamExt};
+use futures::{FutureExt, Stream, StreamExt, future::BoxFuture};
 use std::pin::Pin;
 use std::time::SystemTime;
 
@@ -204,7 +204,7 @@ impl AsyncVfsPath {
                     _ => {
                         return Err(error.with_path(directory).with_context(|| {
                             format!("Could not create directories at '{}'", path)
-                        }))
+                        }));
                     }
                 }
             }
