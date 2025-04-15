@@ -15,7 +15,7 @@ use futures::{
 };
 use std::{
     collections::{HashMap, hash_map::Entry},
-    fmt::{Debug, Formatter},
+    fmt::{self, Debug, Formatter},
     mem::swap,
     pin::Pin,
 };
