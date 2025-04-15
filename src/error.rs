@@ -1,5 +1,3 @@
-//! Error and Result definitions
-
 use std::{error, fmt, io};
 
 /// The error type of this crate

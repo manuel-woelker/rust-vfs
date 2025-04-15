@@ -1,14 +1,12 @@
-//! An overlay file system combining two filesystems, an upper layer with read/write access and a lower layer with only read access
-
-use crate::async_vfs::{AsyncFileSystem, AsyncVfsPath, SeekAndRead};
-use crate::error::VfsErrorKind;
-use crate::{VfsMetadata, VfsResult};
-
+use crate::{
+    VfsMetadata, VfsResult,
+    async_vfs::{AsyncFileSystem, AsyncVfsPath, SeekAndRead},
+    error::VfsErrorKind,
+};
 use async_std::io::Write;
 use async_trait::async_trait;
 use futures::stream::{Stream, StreamExt};
-use std::collections::HashSet;
-use std::time::SystemTime;
+use std::{collections::HashSet, time::SystemTime};
 
 /// An overlay file system combining several filesystems into one, an upper layer with read/write access and lower layers with only read access
 ///

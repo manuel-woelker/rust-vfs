@@ -1,18 +1,15 @@
-//! An ephemeral in-memory file system, intended mainly for unit tests
-
-use crate::error::VfsErrorKind;
-use crate::{FileSystem, VfsFileType};
-use crate::{SeekAndRead, VfsMetadata};
-use crate::{SeekAndWrite, VfsResult};
+use crate::{
+    FileSystem, SeekAndRead, SeekAndWrite, VfsFileType, VfsMetadata, VfsResult, error::VfsErrorKind,
+};
 use core::cmp;
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
-use std::fmt;
-use std::fmt::{Debug, Formatter};
-use std::io::{Cursor, Read, Seek, SeekFrom, Write};
-use std::mem::swap;
-use std::sync::{Arc, RwLock};
-use std::time::SystemTime;
+use std::{
+    collections::{HashMap, hash_map::Entry},
+    fmt::{self, Debug, Formatter},
+    io::{Cursor, Read, Seek, SeekFrom, Write},
+    mem::swap,
+    sync::{Arc, RwLock},
+    time::SystemTime,
+};
 
 type MemoryFsHandle = Arc<RwLock<MemoryFsImpl>>;
 
@@ -174,7 +171,7 @@ impl FileSystem for MemoryFS {
                 return match file.get().file_type {
                     VfsFileType::File => Err(VfsErrorKind::FileExists.into()),
                     VfsFileType::Directory => Err(VfsErrorKind::DirectoryExists.into()),
-                }
+                };
             }
             Entry::Vacant(_) => {
                 map.insert(

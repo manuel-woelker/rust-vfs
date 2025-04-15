@@ -1,9 +1,8 @@
 //! The filesystem trait definitions needed to implement new virtual filesystems
-
-use crate::error::VfsErrorKind;
-use crate::{SeekAndRead, SeekAndWrite, VfsError, VfsMetadata, VfsPath, VfsResult};
-use std::fmt::Debug;
-use std::time::SystemTime;
+use crate::{
+    SeekAndRead, SeekAndWrite, VfsError, VfsMetadata, VfsPath, VfsResult, error::VfsErrorKind,
+};
+use std::{fmt::Debug, time::SystemTime};
 
 /// File system implementations must implement this trait
 /// All path parameters are absolute, starting with '/', except for the root directory

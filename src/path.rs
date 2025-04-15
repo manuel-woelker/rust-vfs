@@ -2,13 +2,12 @@
 //!
 //! The virtual file system abstraction generalizes over file systems and allow using
 //! different VirtualFileSystem implementations (i.e. an in memory implementation for unit tests)
-
-use std::io::{Read, Seek, Write};
-use std::sync::Arc;
-use std::time::SystemTime;
-
-use crate::error::VfsErrorKind;
-use crate::{FileSystem, VfsError, VfsResult};
+use crate::{FileSystem, VfsError, VfsResult, error::VfsErrorKind};
+use std::{
+    io::{Read, Seek, Write},
+    sync::Arc,
+    time::SystemTime,
+};
 
 /// Trait combining Seek and Read, return value for opening files
 pub trait SeekAndRead: Seek + Read {}
@@ -278,7 +277,7 @@ impl VfsPath {
                     _ => {
                         return Err(error.with_path(directory).with_context(|| {
                             format!("Could not create directories at '{}'", path)
-                        }))
+                        }));
                     }
                 }
             }

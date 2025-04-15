@@ -1,14 +1,14 @@
-//! A "physical" file system implementation using the underlying OS file system
-
-use crate::error::VfsErrorKind;
-use crate::{FileSystem, SeekAndWrite, VfsMetadata};
-use crate::{SeekAndRead, VfsFileType};
-use crate::{VfsError, VfsResult};
+use crate::{
+    FileSystem, SeekAndRead, SeekAndWrite, VfsError, VfsFileType, VfsMetadata, VfsResult,
+    error::VfsErrorKind,
+};
 use filetime::FileTime;
-use std::fs::{File, OpenOptions};
-use std::io::ErrorKind;
-use std::path::{Path, PathBuf};
-use std::time::SystemTime;
+use std::{
+    fs::{File, OpenOptions},
+    io::ErrorKind,
+    path::{Path, PathBuf},
+    time::SystemTime,
+};
 
 /// A physical filesystem implementation using the underlying OS file system
 #[derive(Debug)]
