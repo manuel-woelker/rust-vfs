@@ -1,10 +1,8 @@
 //! An async implementation of a "physical" file system implementation using the underlying OS file system
 use crate::{
-    async_vfs::{
-        path::VfsFileType,
-        {AsyncFileSystem, SeekAndRead},
-    },
+    async_vfs::{AsyncFileSystem, SeekAndRead},
     error::VfsErrorKind,
+    path::VfsFileType,
     {VfsError, VfsMetadata, VfsResult},
 };
 use async_std::{
