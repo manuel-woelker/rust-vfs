@@ -1,17 +1,17 @@
 //! An async implementation of a "physical" file system implementation using the underlying OS file system
-use crate::async_vfs::{AsyncFileSystem, SeekAndRead};
-use crate::error::VfsErrorKind;
-use crate::path::VfsFileType;
-use crate::{VfsError, VfsMetadata, VfsResult};
-
-use async_std::fs::{File, OpenOptions};
-use async_std::io::{ErrorKind, Write};
-use async_std::path::{Path, PathBuf};
+use crate::async_vfs::{
+    AsyncFileSystem, SeekAndRead, VfsError, VfsMetadata, VfsResult, error::VfsErrorKind,
+    path::VfsFileType,
+};
+use async_std::{
+    fs::{File, OpenOptions},
+    io::{ErrorKind, Write},
+    path::{Path, PathBuf},
+};
 use async_trait::async_trait;
 use filetime::FileTime;
 use futures::stream::{Stream, StreamExt};
-use std::pin::Pin;
-use std::time::SystemTime;
+use std::{pin::Pin, time::SystemTime};
 use tokio::runtime::Handle;
 
 /// A physical filesystem implementation using the underlying OS file system

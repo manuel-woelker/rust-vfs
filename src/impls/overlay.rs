@@ -1,10 +1,7 @@
-//! An overlay file system combining two filesystems, an upper layer with read/write access and a lower layer with only read access
-
-use crate::error::VfsErrorKind;
-use crate::{FileSystem, SeekAndRead, SeekAndWrite, VfsMetadata, VfsPath, VfsResult};
-use std::collections::HashSet;
-
-use std::time::SystemTime;
+use crate::{
+    FileSystem, SeekAndRead, SeekAndWrite, VfsMetadata, VfsPath, VfsResult, error::VfsErrorKind,
+};
+use std::{collections::HashSet, time::SystemTime};
 
 /// An overlay file system combining several filesystems into one, an upper layer with read/write access and lower layers with only read access
 ///

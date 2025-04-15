@@ -1,12 +1,13 @@
 //! A file system with its root in a particular directory of another filesystem
-
-use crate::async_vfs::{AsyncFileSystem, AsyncVfsPath, SeekAndRead};
-use crate::{VfsMetadata, VfsResult, error::VfsErrorKind};
-use std::time::SystemTime;
-
+use crate::{
+    VfsMetadata, VfsResult,
+    async_vfs::{AsyncFileSystem, AsyncVfsPath, SeekAndRead},
+    error::VfsErrorKind,
+};
 use async_std::io::Write;
 use async_trait::async_trait;
 use futures::stream::{Stream, StreamExt};
+use std::time::SystemTime;
 
 /// Similar to a chroot but done purely by path manipulation
 ///

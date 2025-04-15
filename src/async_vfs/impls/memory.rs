@@ -1,20 +1,24 @@
-//! An ephemeral in-memory file system, intended mainly for unit tests
-use crate::async_vfs::{AsyncFileSystem, SeekAndRead};
-use crate::error::VfsErrorKind;
-use crate::path::VfsFileType;
-use crate::{VfsMetadata, VfsResult};
-
-use async_std::io::{Cursor, Read, Seek, SeekFrom, Write, prelude::SeekExt};
-use async_std::sync::{Arc, RwLock};
+use crate::{
+    VfsMetadata, VfsResult,
+    async_vfs::{AsyncFileSystem, SeekAndRead},
+    error::VfsErrorKind,
+    path::VfsFileType,
+};
+use async_std::{
+    io::{Cursor, Read, Seek, SeekFrom, Write, prelude::SeekExt},
+    sync::{Arc, RwLock},
+};
 use async_trait::async_trait;
-use futures::task::{Context, Poll};
-use futures::{Stream, StreamExt};
-use std::collections::HashMap;
-use std::collections::hash_map::Entry;
-use std::fmt;
-use std::fmt::{Debug, Formatter};
-use std::mem::swap;
-use std::pin::Pin;
+use futures::{
+    Stream, StreamExt,
+    task::{Context, Poll},
+};
+use std::{
+    collections::{HashMap, hash_map::Entry},
+    fmt::{Debug, Formatter},
+    mem::swap,
+    pin::Pin,
+};
 
 type AsyncMemoryFsHandle = Arc<RwLock<AsyncMemoryFsImpl>>;
 

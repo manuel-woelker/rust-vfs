@@ -1,9 +1,7 @@
 //! A file system with its root in a particular directory of another filesystem
-
 use crate::{
     FileSystem, SeekAndRead, SeekAndWrite, VfsMetadata, VfsPath, VfsResult, error::VfsErrorKind,
 };
-
 use std::time::SystemTime;
 
 /// Similar to a chroot but done purely by path manipulation

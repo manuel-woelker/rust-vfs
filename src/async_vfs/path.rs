@@ -2,20 +2,20 @@
 //!
 //! The virtual file system abstraction generalizes over file systems and allow using
 //! different VirtualFileSystem implementations (i.e. an in memory implementation for unit tests)
-
-use crate::async_vfs::AsyncFileSystem;
-use crate::error::{VfsError, VfsErrorKind};
-use crate::path::PathLike;
-use crate::path::VfsFileType;
-use crate::{VfsMetadata, VfsResult};
-
+use crate::{
+    async_vfs::AsyncFileSystem,
+    error::{VfsError, VfsErrorKind},
+    path::{PathLike, VfsFileType},
+    {VfsMetadata, VfsResult},
+};
 use async_recursion::async_recursion;
-use async_std::io::{Read, ReadExt, Seek, Write};
-use async_std::sync::Arc;
-use async_std::task::{Context, Poll};
+use async_std::{
+    io::{Read, ReadExt, Seek, Write},
+    sync::Arc,
+    task::{Context, Poll},
+};
 use futures::{FutureExt, Stream, StreamExt, future::BoxFuture};
-use std::pin::Pin;
-use std::time::SystemTime;
+use std::{pin::Pin, time::SystemTime};
 
 /// Trait combining Seek and Read, return value for opening files
 pub trait SeekAndRead: Seek + Read {}

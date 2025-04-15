@@ -1,14 +1,12 @@
 //! The async filesystem trait definitions needed to implement new async virtual filesystems
-
-use crate::async_vfs::{AsyncVfsPath, SeekAndRead};
-use crate::error::VfsErrorKind;
-use crate::{VfsError, VfsMetadata, VfsResult};
-
-use async_std::io::Write;
-use async_std::stream::Stream;
+use crate::{
+    VfsError, VfsMetadata, VfsResult,
+    async_vfs::{AsyncVfsPath, SeekAndRead},
+    error::VfsErrorKind,
+};
+use async_std::{io::Write, stream::Stream};
 use async_trait::async_trait;
-use std::fmt::Debug;
-use std::time::SystemTime;
+use std::{fmt::Debug, time::SystemTime};
 
 /// File system implementations must implement this trait
 /// All path parameters are absolute, starting with '/', except for the root directory
