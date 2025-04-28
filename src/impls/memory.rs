@@ -6,7 +6,7 @@ use crate::{SeekAndRead, VfsMetadata};
 use crate::{SeekAndWrite, VfsResult};
 use core::cmp;
 use std::collections::hash_map::Entry;
-use std::collections::HashMap;
+use std::collections::{HashSet, HashMap};
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::io::{Cursor, Read, Seek, SeekFrom, Write};
@@ -304,6 +304,11 @@ impl FileSystem for MemoryFS {
             .remove(path)
             .ok_or(VfsErrorKind::FileNotFound)?;
         Ok(())
+    }
+
+    fn file_list(&self) -> VfsResult<HashSet<String>> { 
+        let handle = self.handle.read().unwrap();
+        Ok(handle.files.keys().map(|x| x.to_string()).collect())
     }
 }
 

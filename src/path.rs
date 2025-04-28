@@ -107,8 +107,9 @@ pub struct VfsMetadata {
 }
 
 #[derive(Debug)]
-struct VFS {
-    fs: Box<dyn FileSystem>,
+pub struct VFS {
+    /// Inner filesystem
+    pub fs: Box<dyn FileSystem>,
 }
 
 /// A virtual filesystem path, identifying a single file or directory in this virtual filesystem
@@ -160,6 +161,11 @@ impl VfsPath {
     /// ````
     pub fn as_str(&self) -> &str {
         &self.path
+    }
+
+    /// Returns the inner filesystem from the VfsPath
+    pub fn as_filesystem(&self) -> &VFS {
+        &self.fs
     }
 
     /// Appends a path segment to this path, returning the result

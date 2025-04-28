@@ -4,6 +4,7 @@ use crate::error::VfsErrorKind;
 use crate::{SeekAndRead, SeekAndWrite, VfsError, VfsMetadata, VfsPath, VfsResult};
 use std::fmt::Debug;
 use std::time::SystemTime;
+use std::collections::HashSet;
 
 /// File system implementations must implement this trait
 /// All path parameters are absolute, starting with '/', except for the root directory
@@ -56,6 +57,10 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
     }
     /// Moves the src directory to the destination path within the same filesystem (optional)
     fn move_dir(&self, _src: &str, _dest: &str) -> VfsResult<()> {
+        Err(VfsErrorKind::NotSupported.into())
+    }
+    /// Returns the file list as bare files (e.g. /init.luau, /foo/bar.luau)
+    fn file_list(&self) -> VfsResult<HashSet<String>> {
         Err(VfsErrorKind::NotSupported.into())
     }
 }
