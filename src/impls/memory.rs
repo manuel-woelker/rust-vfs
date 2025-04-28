@@ -331,9 +331,23 @@ impl FileSystem for MemoryFS {
     // Optimized read_to_bytes that directly to_vec's the file contents internally instead of going
     // through multiple RwLock read calls + ReadableFile
     fn read_to_bytes(&self, path: &str) -> VfsResult<Vec<u8>> {
-        let guard = self.handle.read()?;
-        let files = &guard.files;
-        let file = files.get(path).ok_or(VfsErrorKind::FileNotFound)?;
+        let handle = self.handle.read()?;
+
+        let Some(file) = handle.files.get(path) else {
+            return Err(
+                <VfsErrorKind as Into<VfsError>>::into(VfsErrorKind::FileNotFound)
+                    .with_path(path)
+                    .with_context(|| "Could not get metadata"),
+            );
+        };
+
+        if file.file_type != VfsFileType::File {
+            return Err(
+                VfsError::from(VfsErrorKind::Other("Path is a directory".into()))
+                    .with_path(path)
+                    .with_context(|| "Could not read path"),
+            );
+        }
 
         Ok(file.content.to_vec()) // TODO: Find some way of avoiding the clone(?)
     }
@@ -343,11 +357,26 @@ impl FileSystem for MemoryFS {
         let handle = self.handle.read()?;
 
         let Some(file) = handle.files.get(path) else {
-            return Err(VfsErrorKind::FileNotFound.into());
+            return Err(
+                <VfsErrorKind as Into<VfsError>>::into(VfsErrorKind::FileNotFound)
+                    .with_path(path)
+                    .with_context(|| "Could not get metadata"),
+            );
         };
 
-        Ok(String::from_utf8(file.content.to_vec())
-            .map_err(|e| <String as Into<VfsError>>::into(e.to_string()))?) // TODO: Find some way of avoiding the clone(?)
+        if file.file_type != VfsFileType::File {
+            return Err(
+                VfsError::from(VfsErrorKind::Other("Path is a directory".into()))
+                    .with_path(path)
+                    .with_context(|| "Could not read path"),
+            );
+        }
+
+        String::from_utf8(file.content.to_vec()).map_err(|_e| {
+            VfsError::from(VfsErrorKind::Other("Could not read path".into()))
+                .with_path(path)
+                .with_context(|| "IO error: stream did not contain valid UTF-8")
+        }) // TODO: Find some way of avoiding the clone(?)
     }
 }
 

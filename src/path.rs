@@ -762,23 +762,7 @@ impl VfsPath {
     /// # Ok::<(), VfsError>(())
     /// ```
     pub fn read_to_string(&self) -> VfsResult<String> {
-        let metadata = self.metadata()?;
-        if metadata.file_type != VfsFileType::File {
-            return Err(
-                VfsError::from(VfsErrorKind::Other("Path is a directory".into()))
-                    .with_path(&*self.path)
-                    .with_context(|| "Could not read path"),
-            );
-        }
-        let mut result = String::with_capacity(metadata.len as usize);
-        self.open_file()?
-            .read_to_string(&mut result)
-            .map_err(|source| {
-                VfsError::from(source)
-                    .with_path(&*self.path)
-                    .with_context(|| "Could not read path")
-            })?;
-        Ok(result)
+        self.fs.fs.read_to_string(&self.path)
     }
 
     /// Copies a file to a new destination

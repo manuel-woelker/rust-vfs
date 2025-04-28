@@ -27,7 +27,11 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
     /// Read a file into a ``Vec<u8>``. This can be overrided by filesystems like MemoryFS to
     /// improve performance/reduce cloning etc
     fn read_to_bytes(&self, path: &str) -> VfsResult<Vec<u8>> {
-        let metadata = self.metadata(path)?;
+        let metadata = self.metadata(path).map_err(|err| {
+            err.with_path(path)
+                .with_context(|| "Could not get metadata")
+        })?;
+
         if metadata.file_type != VfsFileType::File {
             return Err(
                 VfsError::from(VfsErrorKind::Other("Path is a directory".into()))
@@ -37,14 +41,22 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
         }
         let mut file = self.open_file(path)?;
         let mut contents = Vec::with_capacity(metadata.len as usize);
-        file.read_to_end(&mut contents)?;
+        file.read_to_end(&mut contents).map_err(|source| {
+            VfsError::from(source)
+                .with_path(path)
+                .with_context(|| "Could not read path")
+        })?;
         Ok(contents)
     }
 
     /// Read a file into a ``String``. This can be overrided by filesystems like MemoryFS to
     /// improve performance/hold less locks etc
     fn read_to_string(&self, path: &str) -> VfsResult<String> {
-        let metadata = self.metadata(path)?;
+        let metadata = self.metadata(path).map_err(|err| {
+            err.with_path(path)
+                .with_context(|| "Could not get metadata")
+        })?;
+
         if metadata.file_type != VfsFileType::File {
             return Err(
                 VfsError::from(VfsErrorKind::Other("Path is a directory".into()))
@@ -52,9 +64,16 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
                     .with_context(|| "Could not read path"),
             );
         }
+
         let mut file = self.open_file(path)?;
         let mut contents = String::with_capacity(metadata.len as usize);
-        file.read_to_string(&mut contents)?;
+
+        file.read_to_string(&mut contents).map_err(|source| {
+            VfsError::from(source)
+                .with_path(path)
+                .with_context(|| "Could not read path")
+        })?;
+
         Ok(contents)
     }
 
