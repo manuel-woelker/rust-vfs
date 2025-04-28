@@ -18,14 +18,34 @@ pub struct OverlayFS {
 }
 
 impl OverlayFS {
-    /// Create a new overlay FileSystem from the given layers, only the first layer is written to
+    /// Create a new overlay FileSystem from the given layers, only the first layer is written to.
+    ///
+    /// This may panic. See the non-panicking ``try_new`` to avoid this
     pub fn new(layers: &[VfsPath]) -> Self {
+        Self::new_inner(layers.to_vec()).unwrap()
+    }
+
+    /// Create a new overlay FileSystem from the given layers, only the first layer is written to.
+    ///
+    /// Panic-safe version of ``new``
+    pub fn try_new(layers: &[VfsPath]) -> VfsResult<Self> {
+        Self::new_inner(layers.to_vec())
+    }
+
+    /// Create a new overlay FileSystem from the given owned layers, only the first layer is written to.
+    pub fn try_new_owned(layers: Vec<VfsPath>) -> VfsResult<Self> {
+        Self::new_inner(layers)
+    }
+
+    /// Create a new overlay FileSystem from the given layers, only the first layer is written to
+    fn new_inner(layers: Vec<VfsPath>) -> VfsResult<Self> {
         if layers.is_empty() {
-            panic!("OverlayFS needs at least one layer")
+            return Err("OverlayFS needs at least one error".into())
         }
-        OverlayFS {
-            layers: layers.to_vec(),
-        }
+
+        Ok(OverlayFS {
+            layers,
+        })
     }
 
     fn write_layer(&self) -> &VfsPath {

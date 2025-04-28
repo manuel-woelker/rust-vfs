@@ -38,8 +38,8 @@ impl MemoryFS {
 
     /// Replace contents with another in-memory fs 
     pub fn replace_contents(&self, fs: &Self) -> VfsResult<()> {
-        let mut handle = self.handle.write().unwrap();
-        let new = fs.handle.read().unwrap();
+        let mut handle = self.handle.write()?;
+        let new = fs.handle.read()?;
         
         handle.files.clear(); // Clear the files in the handle
         for (key, file) in new.files.iter() {
@@ -87,7 +87,7 @@ impl Write for WritableFile {
         self.content.flush()?;
         let mut content = self.content.get_ref().clone();
         swap(&mut content, self.content.get_mut());
-        let mut handle = self.fs.write().unwrap();
+        let mut handle = self.fs.write().map_err(|_e| std::io::Error::from(std::io::ErrorKind::Deadlock))?; // TODO: Make this a bit nicer
         let previous_file = handle.files.get(&self.destination);
 
         let new_file = MemoryFile {
@@ -154,7 +154,7 @@ impl Seek for ReadableFile {
 impl FileSystem for MemoryFS {
     fn read_dir(&self, path: &str) -> VfsResult<Box<dyn Iterator<Item = String> + Send>> {
         let prefix = format!("{}/", path);
-        let handle = self.handle.read().unwrap();
+        let handle = self.handle.read()?;
         let mut found_directory = false;
         #[allow(clippy::needless_collect)] // need collect to satisfy lifetime requirements
         let entries: Vec<_> = handle
@@ -181,7 +181,7 @@ impl FileSystem for MemoryFS {
 
     fn create_dir(&self, path: &str) -> VfsResult<()> {
         self.ensure_has_parent(path)?;
-        let map = &mut self.handle.write().unwrap().files;
+        let map = &mut self.handle.write()?.files;
         let entry = map.entry(path.to_string());
         match entry {
             Entry::Occupied(file) => {
@@ -209,7 +209,7 @@ impl FileSystem for MemoryFS {
     fn open_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndRead + Send>> {
         self.set_access_time(path, SystemTime::now())?;
 
-        let handle = self.handle.read().unwrap();
+        let handle = self.handle.read()?;
         let file = handle.files.get(path).ok_or(VfsErrorKind::FileNotFound)?;
         ensure_file(file)?;
         Ok(Box::new(ReadableFile {
@@ -221,7 +221,7 @@ impl FileSystem for MemoryFS {
     fn create_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndWrite + Send>> {
         self.ensure_has_parent(path)?;
         let content = Arc::new(Vec::<u8>::new());
-        self.handle.write().unwrap().files.insert(
+        self.handle.write()?.files.insert(
             path.to_string(),
             MemoryFile {
                 file_type: VfsFileType::File,
@@ -240,7 +240,7 @@ impl FileSystem for MemoryFS {
     }
 
     fn append_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndWrite + Send>> {
-        let handle = self.handle.write().unwrap();
+        let handle = self.handle.write()?;
         let file = handle.files.get(path).ok_or(VfsErrorKind::FileNotFound)?;
         let mut content = Cursor::new(file.content.as_ref().clone());
         content.seek(SeekFrom::End(0))?;
@@ -253,7 +253,7 @@ impl FileSystem for MemoryFS {
     }
 
     fn metadata(&self, path: &str) -> VfsResult<VfsMetadata> {
-        let guard = self.handle.read().unwrap();
+        let guard = self.handle.read()?;
         let files = &guard.files;
         let file = files.get(path).ok_or(VfsErrorKind::FileNotFound)?;
         Ok(VfsMetadata {
@@ -266,7 +266,7 @@ impl FileSystem for MemoryFS {
     }
 
     fn set_creation_time(&self, path: &str, time: SystemTime) -> VfsResult<()> {
-        let mut guard = self.handle.write().unwrap();
+        let mut guard = self.handle.write()?;
         let files = &mut guard.files;
         let file = files.get_mut(path).ok_or(VfsErrorKind::FileNotFound)?;
 
@@ -276,7 +276,7 @@ impl FileSystem for MemoryFS {
     }
 
     fn set_modification_time(&self, path: &str, time: SystemTime) -> VfsResult<()> {
-        let mut guard = self.handle.write().unwrap();
+        let mut guard = self.handle.write()?;
         let files = &mut guard.files;
         let file = files.get_mut(path).ok_or(VfsErrorKind::FileNotFound)?;
 
@@ -286,7 +286,7 @@ impl FileSystem for MemoryFS {
     }
 
     fn set_access_time(&self, path: &str, time: SystemTime) -> VfsResult<()> {
-        let mut guard = self.handle.write().unwrap();
+        let mut guard = self.handle.write()?;
         let files = &mut guard.files;
         let file = files.get_mut(path).ok_or(VfsErrorKind::FileNotFound)?;
 
@@ -296,11 +296,11 @@ impl FileSystem for MemoryFS {
     }
 
     fn exists(&self, path: &str) -> VfsResult<bool> {
-        Ok(self.handle.read().unwrap().files.contains_key(path))
+        Ok(self.handle.read()?.files.contains_key(path))
     }
 
     fn remove_file(&self, path: &str) -> VfsResult<()> {
-        let mut handle = self.handle.write().unwrap();
+        let mut handle = self.handle.write()?;
         handle
             .files
             .remove(path)
@@ -312,7 +312,7 @@ impl FileSystem for MemoryFS {
         if self.read_dir(path)?.next().is_some() {
             return Err(VfsErrorKind::Other("Directory to remove is not empty".into()).into());
         }
-        let mut handle = self.handle.write().unwrap();
+        let mut handle = self.handle.write()?;
         handle
             .files
             .remove(path)
@@ -321,7 +321,7 @@ impl FileSystem for MemoryFS {
     }
 
     fn file_list(&self) -> VfsResult<HashSet<String>> { 
-        let handle = self.handle.read().unwrap();
+        let handle = self.handle.read()?;
         Ok(handle.files.keys().map(|x| x.to_string()).collect())
     }
 }
@@ -375,22 +375,22 @@ mod tests {
     #[test]
     fn write_and_read_file() -> VfsResult<()> {
         let root = VfsPath::new(MemoryFS::new());
-        let path = root.join("foobar.txt").unwrap();
+        let path = root.join("foobar.txt")?;
         let _send = &path as &dyn Send;
         {
-            let mut file = path.create_file().unwrap();
+            let mut file = path.create_file()?;
             write!(file, "Hello world").unwrap();
             write!(file, "!").unwrap();
         }
         {
-            let mut file = path.open_file().unwrap();
+            let mut file = path.open_file()?;
             let mut string: String = String::new();
             file.read_to_string(&mut string).unwrap();
             assert_eq!(string, "Hello world!");
         }
         assert!(path.exists()?);
-        assert!(!root.join("foo").unwrap().exists()?);
-        let metadata = path.metadata().unwrap();
+        assert!(!root.join("foo")?.exists()?);
+        let metadata = path.metadata()?;
         assert_eq!(metadata.len, 12);
         assert_eq!(metadata.file_type, VfsFileType::File);
         Ok(())
@@ -399,10 +399,10 @@ mod tests {
     #[test]
     fn write_and_seek_and_read_file() -> VfsResult<()> {
         let root = VfsPath::new(MemoryFS::new());
-        let path = root.join("foobar.txt").unwrap();
+        let path = root.join("foobar.txt")?;
         let _send = &path as &dyn Send;
         {
-            let mut file = path.create_file().unwrap();
+            let mut file = path.create_file()?;
             write!(file, "Hello world").unwrap();
             write!(file, "!").unwrap();
             write!(file, " Before seek!!").unwrap();
