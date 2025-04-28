@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 /// A physical filesystem implementation using the underlying OS file system
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PhysicalFS {
     root: PathBuf,
 }

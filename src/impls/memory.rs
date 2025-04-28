@@ -17,6 +17,7 @@ use std::time::SystemTime;
 type MemoryFsHandle = Arc<RwLock<MemoryFsImpl>>;
 
 /// An ephemeral in-memory file system, intended mainly for unit tests
+#[derive(Clone)]
 pub struct MemoryFS {
     handle: MemoryFsHandle,
 }
