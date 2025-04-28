@@ -72,8 +72,14 @@ impl From<Box<dyn std::error::Error>> for VfsError {
 }
 
 impl<T> From<std::sync::PoisonError<T>> for VfsError {
-    fn from(_e: std::sync::PoisonError<T>) -> Self {
-        Self::from(VfsErrorKind::LockPoisoned)
+    fn from(e: std::sync::PoisonError<T>) -> Self {
+        Self::from(VfsErrorKind::LockPoisoned(e.to_string()))
+    }
+}
+
+impl<T> From<std::sync::TryLockError<T>> for VfsError {
+    fn from(e: std::sync::TryLockError<T>) -> Self {
+        Self::from(VfsErrorKind::LockPoisoned(e.to_string()))
     }
 }
 
@@ -153,8 +159,8 @@ pub enum VfsErrorKind {
     /// Functionality not supported by this filesystem
     NotSupported,
 
-    /// Internal lock poisoned
-    LockPoisoned,
+    /// Internal lock poisoned/broken
+    LockPoisoned(String),
 }
 
 impl fmt::Display for VfsErrorKind {
@@ -185,8 +191,8 @@ impl fmt::Display for VfsErrorKind {
             VfsErrorKind::FileExists => {
                 write!(f, "File already exists")
             }
-            VfsErrorKind::LockPoisoned => {
-                write!(f, "Internal lock poisoned")
+            VfsErrorKind::LockPoisoned(e) => {
+                write!(f, "Internal lock poisoned: {e}")
             }
         }
     }

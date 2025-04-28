@@ -39,9 +39,10 @@ impl MemoryFS {
     /// Replace contents with another in-memory fs. This needs write access to self and read to
     /// ``fs``
     pub fn replace_with_filesystem(&self, fs: &Self) -> VfsResult<()> {
-        let mut handle = self.handle.write()?;
-        let new = fs.handle.read()?;
+        let mut handle = self.handle.try_write()?;
+        let new = fs.handle.try_read()?;
 
+        handle.last_reset = SystemTime::now();
         handle.files = HashMap::with_capacity(new.files.len());
         for (key, file) in new.files.iter() {
             handle.files.insert(key.clone(), file.clone());
@@ -53,12 +54,21 @@ impl MemoryFS {
     /// Replace the contents with another in-memory filesystem, destroying the second filesystems
     /// contents in the process, This needs write access to both ``self`` and ``fs``
     pub fn take_from_filesystem(&self, fs: &Self) -> VfsResult<()> {
-        let mut handle = self.handle.write()?;
-        let mut new = fs.handle.write()?;
+        let mut handle = self.handle.try_write()?;
+        let mut new = fs.handle.try_write()?;
         
+        handle.last_reset = SystemTime::now();
         handle.files = std::mem::take(&mut new.files);
 
         Ok(())
+    }
+
+    /// Returns when the memoryfs was last reset using take_from_filesystem or
+    /// replace_with_filesystem
+    pub fn last_reset(&self) -> VfsResult<SystemTime> {
+        let handle = self.handle.try_read()?;
+
+        Ok(handle.last_reset)
     }
 
     fn ensure_has_parent(&self, path: &str) -> VfsResult<()> {
@@ -101,7 +111,7 @@ impl Write for WritableFile {
         swap(&mut content, self.content.get_mut());
         let mut handle = self
             .fs
-            .write()
+            .try_write()
             .map_err(|_e| std::io::Error::from(std::io::ErrorKind::Deadlock))?; // TODO: Make this a bit nicer
         let previous_file = handle.files.get(&self.destination);
 
@@ -169,7 +179,7 @@ impl Seek for ReadableFile {
 impl FileSystem for MemoryFS {
     fn read_dir(&self, path: &str) -> VfsResult<Box<dyn Iterator<Item = String> + Send>> {
         let prefix = format!("{}/", path);
-        let handle = self.handle.read()?;
+        let handle = self.handle.try_read()?;
         let mut found_directory = false;
         #[allow(clippy::needless_collect)] // need collect to satisfy lifetime requirements
         let entries: Vec<_> = handle
@@ -196,7 +206,7 @@ impl FileSystem for MemoryFS {
 
     fn create_dir(&self, path: &str) -> VfsResult<()> {
         self.ensure_has_parent(path)?;
-        let map = &mut self.handle.write()?.files;
+        let map = &mut self.handle.try_write()?.files;
         let entry = map.entry(path.to_string());
         match entry {
             Entry::Occupied(file) => {
@@ -224,7 +234,7 @@ impl FileSystem for MemoryFS {
     fn open_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndRead + Send>> {
         self.set_access_time(path, SystemTime::now())?;
 
-        let handle = self.handle.read()?;
+        let handle = self.handle.try_read()?;
         let file = handle.files.get(path).ok_or(VfsErrorKind::FileNotFound)?;
         ensure_file(file)?;
         Ok(Box::new(ReadableFile {
@@ -255,7 +265,7 @@ impl FileSystem for MemoryFS {
     }
 
     fn append_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndWrite + Send>> {
-        let handle = self.handle.write()?;
+        let handle = self.handle.try_write()?;
         let file = handle.files.get(path).ok_or(VfsErrorKind::FileNotFound)?;
         let mut content = Cursor::new(file.content.as_ref().clone());
         content.seek(SeekFrom::End(0))?;
@@ -268,7 +278,7 @@ impl FileSystem for MemoryFS {
     }
 
     fn metadata(&self, path: &str) -> VfsResult<VfsMetadata> {
-        let guard = self.handle.read()?;
+        let guard = self.handle.try_read()?;
         let files = &guard.files;
         let file = files.get(path).ok_or(VfsErrorKind::FileNotFound)?;
         Ok(VfsMetadata {
@@ -281,7 +291,7 @@ impl FileSystem for MemoryFS {
     }
 
     fn set_creation_time(&self, path: &str, time: SystemTime) -> VfsResult<()> {
-        let mut guard = self.handle.write()?;
+        let mut guard = self.handle.try_write()?;
         let files = &mut guard.files;
         let file = files.get_mut(path).ok_or(VfsErrorKind::FileNotFound)?;
 
@@ -291,7 +301,7 @@ impl FileSystem for MemoryFS {
     }
 
     fn set_modification_time(&self, path: &str, time: SystemTime) -> VfsResult<()> {
-        let mut guard = self.handle.write()?;
+        let mut guard = self.handle.try_write()?;
         let files = &mut guard.files;
         let file = files.get_mut(path).ok_or(VfsErrorKind::FileNotFound)?;
 
@@ -301,7 +311,7 @@ impl FileSystem for MemoryFS {
     }
 
     fn set_access_time(&self, path: &str, time: SystemTime) -> VfsResult<()> {
-        let mut guard = self.handle.write()?;
+        let mut guard = self.handle.try_write()?;
         let files = &mut guard.files;
         let file = files.get_mut(path).ok_or(VfsErrorKind::FileNotFound)?;
 
@@ -311,11 +321,11 @@ impl FileSystem for MemoryFS {
     }
 
     fn exists(&self, path: &str) -> VfsResult<bool> {
-        Ok(self.handle.read()?.files.contains_key(path))
+        Ok(self.handle.try_read()?.files.contains_key(path))
     }
 
     fn remove_file(&self, path: &str) -> VfsResult<()> {
-        let mut handle = self.handle.write()?;
+        let mut handle = self.handle.try_write()?;
         handle
             .files
             .remove(path)
@@ -327,7 +337,7 @@ impl FileSystem for MemoryFS {
         if self.read_dir(path)?.next().is_some() {
             return Err(VfsErrorKind::Other("Directory to remove is not empty".into()).into());
         }
-        let mut handle = self.handle.write()?;
+        let mut handle = self.handle.try_write()?;
         handle
             .files
             .remove(path)
@@ -336,14 +346,14 @@ impl FileSystem for MemoryFS {
     }
 
     fn file_list(&self) -> VfsResult<HashSet<String>> {
-        let handle = self.handle.read()?;
+        let handle = self.handle.try_read()?;
         Ok(handle.files.keys().map(|x| x.to_string()).collect())
     }
 
     // Optimized read_to_bytes that directly to_vec's the file contents internally instead of going
     // through multiple RwLock read calls + ReadableFile
     fn read_to_bytes(&self, path: &str) -> VfsResult<Vec<u8>> {
-        let handle = self.handle.read()?;
+        let handle = self.handle.try_read()?;
 
         let Some(file) = handle.files.get(path) else {
             return Err(
@@ -366,7 +376,7 @@ impl FileSystem for MemoryFS {
 
     // Optimized read_to_string
     fn read_to_string(&self, path: &str) -> VfsResult<String> {
-        let handle = self.handle.read()?;
+        let handle = self.handle.try_read()?;
 
         let Some(file) = handle.files.get(path) else {
             return Err(
@@ -394,23 +404,25 @@ impl FileSystem for MemoryFS {
 
 struct MemoryFsImpl {
     files: HashMap<String, MemoryFile>,
+    last_reset: SystemTime
 }
 
 impl MemoryFsImpl {
     pub fn new() -> Self {
         let mut files = HashMap::new();
+        let st = SystemTime::now();
         // Add root directory
         files.insert(
             "".to_string(),
             MemoryFile {
                 file_type: VfsFileType::Directory,
                 content: Arc::new(vec![]),
-                created: SystemTime::now(),
+                created: st,
                 modified: None,
                 accessed: None,
             },
         );
-        Self { files }
+        Self { files, last_reset: st }
     }
 }
 
