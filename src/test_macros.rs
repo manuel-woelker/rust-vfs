@@ -1005,6 +1005,20 @@ use super::*;
                Ok(())
             }
 
+
+            #[test]
+            fn file_list() -> VfsResult<()> {
+                let root = create_root();
+                
+                let src = root.join("foo").unwrap().join("bar").unwrap();
+                src.create_dir_all().unwrap();
+                let b = src.join("c").unwrap();
+                b.create_file().unwrap();
+
+                println!("{:?}, fs={:?}", root.as_filesystem().fs.file_list(), root.as_filesystem());
+
+                Ok(())
+            }
         }
     };
 }

@@ -35,6 +35,19 @@ impl MemoryFS {
         }
     }
 
+    /// Replace contents with another in-memory fs 
+    pub fn replace_contents(&self, fs: &Self) -> VfsResult<()> {
+        let mut handle = self.handle.write().unwrap();
+        let new = fs.handle.read().unwrap();
+        
+        handle.files.clear(); // Clear the files in the handle
+        for (key, file) in new.files.iter() {
+            handle.files.insert(key.clone(), file.clone());
+        }
+
+        Ok(())
+    }
+
     fn ensure_has_parent(&self, path: &str) -> VfsResult<()> {
         let separator = path.rfind('/');
         if let Some(index) = separator {
@@ -334,6 +347,7 @@ impl MemoryFsImpl {
     }
 }
 
+#[derive(Clone)]
 struct MemoryFile {
     file_type: VfsFileType,
     #[allow(clippy::rc_buffer)] // to allow accessing the same object as writable
