@@ -749,6 +749,8 @@ impl VfsPath {
     ///
     /// Returns an error if the file does not exist or is not valid UTF-8
     ///
+    /// The error returned is filesystem dependent (e.g. if the filesystem has a fastpath)
+    ///
     /// ```
     /// # use std::io::Read;
     /// use vfs::{MemoryFS, VfsError, VfsPath};
@@ -763,6 +765,28 @@ impl VfsPath {
     /// ```
     pub fn read_to_string(&self) -> VfsResult<String> {
         self.fs.fs.read_to_string(&self.path)
+    }
+
+    /// Reads a complete file to a ``Vec<u8>``. This *may* copy based on the filesystem internals.
+    ///
+    /// Returns an error if the file does not exist.
+    ///
+    /// The error returned is filesystem dependent (e.g. if the filesystem has a fastpath)
+    ///
+    /// ```
+    /// # use std::io::Read;
+    /// use vfs::{MemoryFS, VfsError, VfsPath};
+    /// let path = VfsPath::new(MemoryFS::new());
+    /// let file = path.join("foo.txt")?;
+    /// write!(file.create_file()?, "Hello, world!")?;
+    ///
+    /// let result = file.read_to_string()?;
+    ///
+    /// assert_eq!(&result, "Hello, world!");
+    /// # Ok::<(), VfsError>(())
+    /// ```
+    pub fn read_to_bytes(&self) -> VfsResult<Vec<u8>> {
+        self.fs.fs.read_to_bytes(&self.path)
     }
 
     /// Copies a file to a new destination

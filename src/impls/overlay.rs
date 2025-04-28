@@ -140,6 +140,14 @@ impl FileSystem for OverlayFS {
         self.read_path(path)?.open_file()
     }
 
+    fn read_to_bytes(&self, path: &str) -> VfsResult<Vec<u8>> {
+        self.read_path(path)?.read_to_bytes()
+    }
+
+    fn read_to_string(&self, path: &str) -> VfsResult<String> {
+        self.read_path(path)?.read_to_string()
+    }
+
     fn create_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndWrite + Send>> {
         self.ensure_has_parent(path)?;
         let result = self.write_path(path)?.create_file()?;

@@ -672,7 +672,7 @@ use super::*;
                 let root = create_root();
                 let error_message = root.join("foobar.txt")?.read_to_string().expect_err("read_to_string").to_string();
                 assert!(
-                    error_message.starts_with("Could not get metadata for '/foobar.txt'"),
+                    error_message.starts_with("Could not get metadata for '/foobar.txt'") || error_message.contains("The file or directory could not be found"),
                     "Actual message: {}",
                     error_message
                 );
@@ -1362,6 +1362,7 @@ macro_rules! test_vfs_readonly {
                     .read_to_string()
                     .expect_err("read_to_string")
                     .to_string();
+
                 assert!(
                     error_message.starts_with("Could not get metadata for '/foobar.txt'"),
                     "Actual message: {}",
