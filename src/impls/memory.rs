@@ -1,6 +1,6 @@
-//! An ephemeral in-memory file system, intended mainly for unit tests
+//! An ephemeral in-memory file system (for e.g. unit tests)
 
-use crate::error::VfsErrorKind;
+use crate::error::{VfsError, VfsErrorKind};
 use crate::{FileSystem, VfsFileType};
 use crate::{SeekAndRead, VfsMetadata};
 use crate::{SeekAndWrite, VfsResult};
@@ -16,7 +16,7 @@ use std::time::SystemTime;
 
 type MemoryFsHandle = Arc<RwLock<MemoryFsImpl>>;
 
-/// An ephemeral in-memory file system, intended mainly for unit tests
+/// An ephemeral in-memory file system, intended for unit tests and other use cases
 #[derive(Clone)]
 pub struct MemoryFS {
     handle: MemoryFsHandle,
@@ -328,15 +328,26 @@ impl FileSystem for MemoryFS {
         Ok(handle.files.keys().map(|x| x.to_string()).collect())
     }
 
-    // Optimized read_to_bytes that directly to_vec's the file contents internally.
+    // Optimized read_to_bytes that directly to_vec's the file contents internally instead of going
+    // through multiple RwLock read calls + ReadableFile
     fn read_to_bytes(&self, path: &str) -> VfsResult<Vec<u8>> {
+        let guard = self.handle.read()?;
+        let files = &guard.files;
+        let file = files.get(path).ok_or(VfsErrorKind::FileNotFound)?;
+
+        Ok(file.content.to_vec()) // TODO: Find some way of avoiding the clone(?)
+    }
+
+    // Optimized read_to_string
+    fn read_to_string(&self, path: &str) -> VfsResult<String> {
         let handle = self.handle.read()?;
-        
+
         let Some(file) = handle.files.get(path) else {
             return Err(VfsErrorKind::FileNotFound.into());
         };
 
-        Ok(file.content.to_vec())
+        Ok(String::from_utf8(file.content.to_vec())
+            .map_err(|e| <String as Into<VfsError>>::into(e.to_string()))?) // TODO: Find some way of avoiding the clone(?)
     }
 }
 

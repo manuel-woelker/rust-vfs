@@ -59,9 +59,15 @@ impl From<&str> for VfsError {
     }
 }
 
+impl From<String> for VfsError {
+    fn from(err: String) -> Self {
+        Self::from(VfsErrorKind::Other(err))
+    }
+}
+
 impl From<Box<dyn std::error::Error>> for VfsError {
     fn from(err: Box<dyn std::error::Error>) -> Self {
-        Self::from(VfsErrorKind::Other(err.to_string())) // TODO: Support cause etc here
+        Self::from(VfsErrorKind::Other(err.to_string().into())) // TODO: Support cause etc here
     }
 }
 
