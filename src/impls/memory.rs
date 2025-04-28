@@ -6,7 +6,7 @@ use crate::{SeekAndRead, VfsMetadata};
 use crate::{SeekAndWrite, VfsResult};
 use core::cmp;
 use std::collections::hash_map::Entry;
-use std::collections::{HashSet, HashMap};
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::io::{Cursor, Read, Seek, SeekFrom, Write};
@@ -36,11 +36,11 @@ impl MemoryFS {
         }
     }
 
-    /// Replace contents with another in-memory fs 
+    /// Replace contents with another in-memory fs
     pub fn replace_contents(&self, fs: &Self) -> VfsResult<()> {
         let mut handle = self.handle.write()?;
         let new = fs.handle.read()?;
-        
+
         handle.files.clear(); // Clear the files in the handle
         for (key, file) in new.files.iter() {
             handle.files.insert(key.clone(), file.clone());
@@ -87,7 +87,10 @@ impl Write for WritableFile {
         self.content.flush()?;
         let mut content = self.content.get_ref().clone();
         swap(&mut content, self.content.get_mut());
-        let mut handle = self.fs.write().map_err(|_e| std::io::Error::from(std::io::ErrorKind::Deadlock))?; // TODO: Make this a bit nicer
+        let mut handle = self
+            .fs
+            .write()
+            .map_err(|_e| std::io::Error::from(std::io::ErrorKind::Deadlock))?; // TODO: Make this a bit nicer
         let previous_file = handle.files.get(&self.destination);
 
         let new_file = MemoryFile {
@@ -320,7 +323,7 @@ impl FileSystem for MemoryFS {
         Ok(())
     }
 
-    fn file_list(&self) -> VfsResult<HashSet<String>> { 
+    fn file_list(&self) -> VfsResult<HashSet<String>> {
         let handle = self.handle.read()?;
         Ok(handle.files.keys().map(|x| x.to_string()).collect())
     }

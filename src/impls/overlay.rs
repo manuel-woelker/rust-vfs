@@ -40,12 +40,10 @@ impl OverlayFS {
     /// Create a new overlay FileSystem from the given layers, only the first layer is written to
     fn new_inner(layers: Vec<VfsPath>) -> VfsResult<Self> {
         if layers.is_empty() {
-            return Err("OverlayFS needs at least one error".into())
+            return Err("OverlayFS needs at least one error".into());
         }
 
-        Ok(OverlayFS {
-            layers,
-        })
+        Ok(OverlayFS { layers })
     }
 
     fn write_layer(&self) -> &VfsPath {

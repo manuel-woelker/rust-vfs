@@ -178,7 +178,7 @@ impl fmt::Display for VfsErrorKind {
             }
             VfsErrorKind::FileExists => {
                 write!(f, "File already exists")
-            },
+            }
             VfsErrorKind::LockPoisoned => {
                 write!(f, "Internal lock poisoned")
             }

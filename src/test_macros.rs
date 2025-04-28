@@ -1009,7 +1009,7 @@ use super::*;
             #[test]
             fn file_list() -> VfsResult<()> {
                 let root = create_root();
-                
+
                 let src = root.join("foo").unwrap().join("bar").unwrap();
                 src.create_dir_all().unwrap();
                 let b = src.join("c").unwrap();
