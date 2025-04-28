@@ -36,15 +36,27 @@ impl MemoryFS {
         }
     }
 
-    /// Replace contents with another in-memory fs
-    pub fn replace_contents(&self, fs: &Self) -> VfsResult<()> {
+    /// Replace contents with another in-memory fs. This needs write access to self and read to
+    /// ``fs``
+    pub fn replace_with_filesystem(&self, fs: &Self) -> VfsResult<()> {
         let mut handle = self.handle.write()?;
         let new = fs.handle.read()?;
 
-        handle.files.clear(); // Clear the files in the handle
+        handle.files = HashMap::with_capacity(new.files.len());
         for (key, file) in new.files.iter() {
             handle.files.insert(key.clone(), file.clone());
         }
+
+        Ok(())
+    }
+
+    /// Replace the contents with another in-memory filesystem, destroying the second filesystems
+    /// contents in the process, This needs write access to both ``self`` and ``fs``
+    pub fn take_from_filesystem(&self, fs: &Self) -> VfsResult<()> {
+        let mut handle = self.handle.write()?;
+        let mut new = fs.handle.write()?;
+        
+        handle.files = std::mem::take(&mut new.files);
 
         Ok(())
     }
