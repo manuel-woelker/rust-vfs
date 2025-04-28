@@ -1,7 +1,7 @@
 //! The filesystem trait definitions needed to implement new virtual filesystems
 
 use crate::error::VfsErrorKind;
-use crate::{SeekAndRead, SeekAndWrite, VfsError, VfsMetadata, VfsPath, VfsResult};
+use crate::{SeekAndRead, SeekAndWrite, VfsError, VfsMetadata, VfsPath, VfsResult, VfsFileType};
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::time::SystemTime;
@@ -23,6 +23,41 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
     fn create_dir(&self, path: &str) -> VfsResult<()>;
     /// Opens the file at this path for reading
     fn open_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndRead + Send>>;
+    
+    /// Read a file into a ``Vec<u8>``. This can be overrided by filesystems like MemoryFS to
+    /// improve performance/reduce cloning etc
+    fn read_to_bytes(&self, path: &str) -> VfsResult<Vec<u8>> {
+        let metadata = self.metadata(path)?;
+        if metadata.file_type != VfsFileType::File {
+            return Err(
+                VfsError::from(VfsErrorKind::Other("Path is a directory".into()))
+                    .with_path(path)
+                    .with_context(|| "Could not read path"),
+            );
+        }
+        let mut file = self.open_file(path)?;
+        let mut contents = Vec::with_capacity(metadata.len as usize);
+        file.read_to_end(&mut contents)?;
+        Ok(contents)
+    }
+
+    /// Read a file into a ``String``. This can be overrided by filesystems like MemoryFS to
+    /// improve performance/hold less locks etc
+    fn read_to_string(&self, path: &str) -> VfsResult<String> {
+        let metadata = self.metadata(path)?;
+        if metadata.file_type != VfsFileType::File {
+            return Err(
+                VfsError::from(VfsErrorKind::Other("Path is a directory".into()))
+                    .with_path(path)
+                    .with_context(|| "Could not read path"),
+            );
+        }
+        let mut file = self.open_file(path)?;
+        let mut contents = String::with_capacity(metadata.len as usize);
+        file.read_to_string(&mut contents)?;
+        Ok(contents)
+    }
+
     /// Creates a file at this path for writing
     fn create_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndWrite + Send>>;
     /// Opens the file at this path for appending

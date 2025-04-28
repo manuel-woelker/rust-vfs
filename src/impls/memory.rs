@@ -327,6 +327,17 @@ impl FileSystem for MemoryFS {
         let handle = self.handle.read()?;
         Ok(handle.files.keys().map(|x| x.to_string()).collect())
     }
+
+    // Optimized read_to_bytes that directly to_vec's the file contents internally.
+    fn read_to_bytes(&self, path: &str) -> VfsResult<Vec<u8>> {
+        let handle = self.handle.read()?;
+        
+        let Some(file) = handle.files.get(path) else {
+            return Err(VfsErrorKind::FileNotFound.into());
+        };
+
+        Ok(file.content.to_vec())
+    }
 }
 
 struct MemoryFsImpl {
