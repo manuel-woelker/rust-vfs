@@ -115,13 +115,14 @@ impl Write for WritableFile {
             .map_err(|_e| std::io::Error::from(std::io::ErrorKind::Deadlock))?; // TODO: Make this a bit nicer
         let previous_file = handle.files.get(&self.destination);
 
+        let st = SystemTime::now();
         let new_file = MemoryFile {
             file_type: VfsFileType::File,
             content: Arc::new(content),
             created: previous_file
                 .map(|file| file.created)
-                .unwrap_or(SystemTime::now()),
-            modified: Some(SystemTime::now()),
+                .unwrap_or(st),
+            modified: Some(st),
             accessed: previous_file.map(|file| file.accessed).unwrap_or(None),
         };
 
@@ -216,14 +217,15 @@ impl FileSystem for MemoryFS {
                 }
             }
             Entry::Vacant(_) => {
+                let st = SystemTime::new();
                 map.insert(
                     path.to_string(),
                     MemoryFile {
                         file_type: VfsFileType::Directory,
                         content: Default::default(),
-                        created: SystemTime::now(),
-                        modified: Some(SystemTime::now()),
-                        accessed: Some(SystemTime::now()),
+                        created: st,
+                        modified: Some(st),
+                        accessed: Some(st),
                     },
                 );
             }
@@ -246,14 +248,15 @@ impl FileSystem for MemoryFS {
     fn create_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndWrite + Send>> {
         self.ensure_has_parent(path)?;
         let content = Arc::new(Vec::<u8>::new());
+        let st = SystemTime::new();
         self.handle.write()?.files.insert(
             path.to_string(),
             MemoryFile {
                 file_type: VfsFileType::File,
                 content,
-                created: SystemTime::now(),
-                modified: Some(SystemTime::now()),
-                accessed: Some(SystemTime::now()),
+                created: st,
+                modified: Some(st),
+                accessed: Some(st),
             },
         );
         let writer = WritableFile {
