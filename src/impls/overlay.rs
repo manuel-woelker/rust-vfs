@@ -221,6 +221,40 @@ impl FileSystem for OverlayFS {
         whiteout_path.create_file()?;
         Ok(())
     }
+
+    fn fs_last_reset(&self) -> VfsResult<SystemTime> {
+        // This is the latest last reset across all filesystems
+        let mut latest = None;
+        for layer in &self.layers {
+            match layer.as_filesystem().fs.fs_last_reset() {
+                Ok(time) => {
+                    if latest.is_none() {
+                        latest = Some(time);
+                    } else if let Some(latest_time) = latest {
+                        if time > latest_time {
+                            latest = Some(time);
+                        }
+                    }
+                },
+                Err(err) => {
+                    match err.kind() {
+                        VfsErrorKind::NotSupported => {
+                            // Ignore this error, as it is not supported
+                        }
+                        _ => {
+                            return Err(err);
+                        }
+                    }
+                }
+            }
+        }
+
+        if let Some(time) = latest {
+            Ok(time)
+        } else {
+            Err(VfsErrorKind::NotSupported.into())
+        }
+    }
 }
 
 #[cfg(test)]

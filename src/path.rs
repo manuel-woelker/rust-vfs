@@ -164,6 +164,7 @@ impl VfsPath {
     }
 
     /// Returns the inner filesystem from the VfsPath
+    #[inline(always)]
     pub fn as_filesystem(&self) -> &VFS {
         &self.fs
     }

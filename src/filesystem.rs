@@ -117,7 +117,7 @@ pub trait FileSystem: Debug + Sync + Send + 'static {
     fn file_list(&self) -> VfsResult<HashSet<String>> {
         Err(VfsErrorKind::NotSupported.into())
     }
-    /// Returns when the filesystem as a whole was last reset. Only applicable for MemoryFS
+    /// Returns when the filesystem as a whole was last 'reset'. Only applicable for MemoryFS
     fn fs_last_reset(&self) -> VfsResult<SystemTime> {
         Err(VfsErrorKind::NotSupported.into())
     }
