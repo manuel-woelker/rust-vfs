@@ -63,14 +63,6 @@ impl MemoryFS {
         Ok(())
     }
 
-    /// Returns when the memoryfs was last reset using take_from_filesystem or
-    /// replace_with_filesystem
-    pub fn last_reset(&self) -> VfsResult<SystemTime> {
-        let handle = self.handle.try_read()?;
-
-        Ok(handle.last_reset)
-    }
-
     fn ensure_has_parent(&self, path: &str) -> VfsResult<()> {
         let separator = path.rfind('/');
         if let Some(index) = separator {
@@ -217,7 +209,7 @@ impl FileSystem for MemoryFS {
                 }
             }
             Entry::Vacant(_) => {
-                let st = SystemTime::new();
+                let st = SystemTime::now();
                 map.insert(
                     path.to_string(),
                     MemoryFile {
@@ -248,7 +240,7 @@ impl FileSystem for MemoryFS {
     fn create_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndWrite + Send>> {
         self.ensure_has_parent(path)?;
         let content = Arc::new(Vec::<u8>::new());
-        let st = SystemTime::new();
+        let st = SystemTime::now();
         self.handle.write()?.files.insert(
             path.to_string(),
             MemoryFile {
@@ -402,6 +394,12 @@ impl FileSystem for MemoryFS {
                 .with_path(path)
                 .with_context(|| "IO error: stream did not contain valid UTF-8")
         }) // TODO: Find some way of avoiding the clone(?)
+    }
+
+    fn fs_last_reset(&self) -> VfsResult<SystemTime> {
+        let handle = self.handle.try_read()?;
+
+        Ok(handle.last_reset)
     }
 }
 
