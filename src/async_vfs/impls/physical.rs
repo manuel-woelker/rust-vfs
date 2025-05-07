@@ -75,10 +75,7 @@ impl AsyncFileSystem for AsyncPhysicalFS {
         let read_dir = ReadDirStream::new(tokio::fs::read_dir(p).await?);
 
         let entries = read_dir.filter_map(|entry| match entry {
-            Ok(entry) => match entry.file_name().into_string() {
-                Ok(name) => Some(name),
-                Err(_) => None,
-            },
+            Ok(entry) => entry.file_name().into_string().ok(),
             Err(_) => None,
         });
 
