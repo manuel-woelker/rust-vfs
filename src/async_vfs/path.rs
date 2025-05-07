@@ -753,8 +753,17 @@ impl AsyncVfsPath {
     /// }
     ///
     /// let result = file.read_to_string().await?;
-    ///
     /// assert_eq!(&result, "Hello, world!");
+    ///
+    /// {
+    ///     let mut f = file.append_file().await?;
+    ///     for i in 0..5000 {
+    ///         f.write_all(b"Hello, world!").await?;
+    ///     }
+    /// }
+    ///
+    /// let result = file.read_to_string().await?;
+    /// assert_eq!(result.len(), 13 * 5001);
     /// # Ok::<(), VfsError>(())
     /// # });
     /// ```
