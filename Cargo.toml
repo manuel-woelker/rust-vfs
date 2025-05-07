@@ -36,7 +36,7 @@ anyhow = "1.0"
 tokio-test = "0.4"
 
 [features]
-default = ["async-vfs"]
+default = []
 
 embedded-fs = ["rust-embed"]
 async-vfs = [
