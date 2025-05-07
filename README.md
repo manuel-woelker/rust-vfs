@@ -24,6 +24,9 @@ Comments and pull-requests welcome!
 ## Changelog
 
 
+### 0.12.1 (2025-03-24)
+* MemoryFS: The `flush()` method now makes the written data available to read calls (fixes [#70](https://github.com/manuel-woelker/rust-vfs/issues/70) - thanks [@krisajenkins](https://github.com/krisajenkins) for the throrough bug report!)
+
 ### 0.12.0 (2024-03-09)
 * Allow reading and setting modification/creation/access-times - thanks [@kartonrad](https://github.com/kartonrad)!
 * Allow seek when writing - thanks [@jonmclean](https://github.com/jonmclean)!
