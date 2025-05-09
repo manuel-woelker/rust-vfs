@@ -4,11 +4,11 @@ use crate::async_vfs::{AsyncVfsPath, SeekAndRead};
 use crate::error::VfsErrorKind;
 use crate::{VfsError, VfsMetadata, VfsResult};
 
-use async_std::io::Write;
-use async_std::stream::Stream;
 use async_trait::async_trait;
+use futures::stream::Stream;
 use std::fmt::Debug;
 use std::time::SystemTime;
+use tokio::io::AsyncWrite;
 
 /// File system implementations must implement this trait
 /// All path parameters are absolute, starting with '/', except for the root directory
@@ -32,9 +32,9 @@ pub trait AsyncFileSystem: Debug + Sync + Send + 'static {
     /// Opens the file at this path for reading
     async fn open_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndRead + Send + Unpin>>;
     /// Creates a file at this path for writing
-    async fn create_file(&self, path: &str) -> VfsResult<Box<dyn Write + Send + Unpin>>;
+    async fn create_file(&self, path: &str) -> VfsResult<Box<dyn AsyncWrite + Send + Unpin>>;
     /// Opens the file at this path for appending
-    async fn append_file(&self, path: &str) -> VfsResult<Box<dyn Write + Send + Unpin>>;
+    async fn append_file(&self, path: &str) -> VfsResult<Box<dyn AsyncWrite + Send + Unpin>>;
     /// Returns the file metadata for the file at this path
     async fn metadata(&self, path: &str) -> VfsResult<VfsMetadata>;
     /// Sets the files creation timestamp, if the implementation supports it
