@@ -4,9 +4,9 @@ use crate::async_vfs::{AsyncFileSystem, AsyncVfsPath, SeekAndRead};
 use crate::{error::VfsErrorKind, VfsMetadata, VfsResult};
 use std::time::SystemTime;
 
-use async_std::io::Write;
 use async_trait::async_trait;
 use futures::stream::{Stream, StreamExt};
+use tokio::io::AsyncWrite;
 
 /// Similar to a chroot but done purely by path manipulation
 ///
@@ -60,11 +60,11 @@ impl AsyncFileSystem for AsyncAltrootFS {
         self.path(path)?.open_file().await
     }
 
-    async fn create_file(&self, path: &str) -> VfsResult<Box<dyn Write + Send + Unpin>> {
+    async fn create_file(&self, path: &str) -> VfsResult<Box<dyn AsyncWrite + Send + Unpin>> {
         self.path(path)?.create_file().await
     }
 
-    async fn append_file(&self, path: &str) -> VfsResult<Box<dyn Write + Send + Unpin>> {
+    async fn append_file(&self, path: &str) -> VfsResult<Box<dyn AsyncWrite + Send + Unpin>> {
         self.path(path)?.append_file().await
     }
 
@@ -135,7 +135,7 @@ mod tests_physical {
     use super::*;
     use crate::async_vfs::AsyncPhysicalFS;
 
-    use async_std::io::ReadExt;
+    use tokio::io::AsyncReadExt;
 
     test_async_vfs!(futures::executor::block_on(async {
         let temp_dir = std::env::temp_dir();
