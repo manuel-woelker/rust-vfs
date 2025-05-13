@@ -49,7 +49,11 @@ pub(crate) trait PathLike: Clone {
         if path.is_empty() {
             return Ok(in_path.to_string());
         }
-        let mut new_components: Vec<&str> = vec![];
+        let mut new_components: Vec<&str> = Vec::with_capacity(
+            in_path.chars().filter(|c| *c == '/').count()
+                + path.chars().filter(|c| *c == '/').count()
+                + 1,
+        );
         let mut base_path = if path.starts_with('/') {
             "".to_string()
         } else {
@@ -74,9 +78,15 @@ pub(crate) trait PathLike: Clone {
             }
         }
         let mut path = base_path;
+        path.reserve(
+            new_components.len()
+                + new_components
+                    .iter()
+                    .fold(0, |accum, part| accum + part.len()),
+        );
         for component in new_components {
-            path += "/";
-            path += component
+            path.push('/');
+            path.push_str(component);
         }
         Ok(path)
     }
