@@ -672,7 +672,7 @@ use super::*;
                 let root = create_root();
                 let error_message = root.join("foobar.txt")?.read_to_string().expect_err("read_to_string").to_string();
                 assert!(
-                    error_message.starts_with("Could not get metadata for '/foobar.txt'"),
+                    error_message.starts_with("Could not get metadata for '/foobar.txt'") || error_message.contains("The file or directory could not be found"),
                     "Actual message: {}",
                     error_message
                 );
@@ -698,9 +698,8 @@ use super::*;
                 let path = root.join("foobar.txt")?;
                 path.create_file()?.write_all(&vec![0, 159, 146, 150])?;
                 let error_message = path.read_to_string().expect_err("read_to_string").to_string();
-                assert_eq!(
-                    &error_message,
-                    "Could not read path for '/foobar.txt': IO error: stream did not contain valid UTF-8"
+                assert!(
+                    error_message.contains("/foobar.txt") && error_message.contains("stream did not contain valid UTF-8"),
                 );
                 Ok(())
             }
@@ -1005,6 +1004,20 @@ use super::*;
                Ok(())
             }
 
+
+            #[test]
+            fn file_list() -> VfsResult<()> {
+                let root = create_root();
+
+                let src = root.join("foo").unwrap().join("bar").unwrap();
+                src.create_dir_all().unwrap();
+                let b = src.join("c").unwrap();
+                b.create_file().unwrap();
+
+                println!("{:?}, fs={:?}", root.as_filesystem().fs.file_list(), root.as_filesystem());
+
+                Ok(())
+            }
         }
     };
 }
@@ -1349,6 +1362,7 @@ macro_rules! test_vfs_readonly {
                     .read_to_string()
                     .expect_err("read_to_string")
                     .to_string();
+
                 assert!(
                     error_message.starts_with("Could not get metadata for '/foobar.txt'"),
                     "Actual message: {}",
