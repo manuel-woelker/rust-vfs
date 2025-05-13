@@ -232,8 +232,9 @@ mod tests {
     async fn create_file() {
         let root = create_root();
         let _string = String::new();
-        let _ = tokio::fs::remove_file("target/test.txt").await;
-        root.join("target/test.txt")
+        let p = "target/test_async_create_file.txt";
+        let _ = tokio::fs::remove_file(p).await;
+        root.join(p)
             .unwrap()
             .create_file()
             .await
@@ -241,7 +242,7 @@ mod tests {
             .write_all(b"Testing only")
             .await
             .unwrap();
-        let read = std::fs::read_to_string("target/test.txt").unwrap();
+        let read = std::fs::read_to_string(p).unwrap();
         assert_eq!(read, "Testing only");
     }
 
