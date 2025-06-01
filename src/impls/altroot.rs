@@ -25,13 +25,12 @@ impl AltrootFS {
 }
 
 impl AltrootFS {
-    #[allow(clippy::manual_strip)] // strip prefix manually for MSRV 1.32
     fn path(&self, path: &str) -> VfsResult<VfsPath> {
         if path.is_empty() {
             return Ok(self.root.clone());
         }
-        if path.starts_with('/') {
-            return self.root.join(&path[1..]);
+        if let Some(path) = path.strip_prefix('/') {
+            return self.root.join(path);
         }
         self.root.join(path)
     }

@@ -26,9 +26,7 @@ impl From<VfsErrorKind> for VfsError {
         let kind = match kind {
             VfsErrorKind::IoError(io) => match io.kind() {
                 io::ErrorKind::NotFound => VfsErrorKind::FileNotFound,
-                // TODO: If MSRV changes to 1.53, enable this. Alternatively,
-                //      if it's possible to #[cfg] just this line, try that
-                // io::ErrorKind::Unsupported => VfsErrorKind::NotSupported,
+                io::ErrorKind::Unsupported => VfsErrorKind::NotSupported,
                 _ => VfsErrorKind::IoError(io),
             },
             // Remaining kinda are passed through as-is
