@@ -24,6 +24,13 @@ Comments and pull-requests welcome!
 ## Changelog
 
 
+### 0.12.2 (2025-07-12)
+* Path: reduced memory allocations when joing paths  - thanks 
+  [@landaire](https://github.com/landaire)!
+* Async Path: removed a stray debug println  - thanks
+  [@ryardley](https://github.com/ryardley)!
+
+
 ### 0.12.1 (2025-03-24)
 * MemoryFS: The `flush()` method now makes the written data available to read calls (fixes [#70](https://github.com/manuel-woelker/rust-vfs/issues/70) - thanks [@krisajenkins](https://github.com/krisajenkins) for the throrough bug report!)
 
