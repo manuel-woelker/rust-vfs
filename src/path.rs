@@ -117,8 +117,9 @@ pub struct VfsMetadata {
 }
 
 #[derive(Debug)]
-struct VFS {
-    fs: Box<dyn FileSystem>,
+pub struct VFS {
+    /// Inner filesystem
+    pub fs: Box<dyn FileSystem>,
 }
 
 /// A virtual filesystem path, identifying a single file or directory in this virtual filesystem
@@ -170,6 +171,12 @@ impl VfsPath {
     /// ````
     pub fn as_str(&self) -> &str {
         &self.path
+    }
+
+    /// Returns the inner filesystem from the VfsPath
+    #[inline(always)]
+    pub fn as_filesystem(&self) -> &VFS {
+        &self.fs
     }
 
     /// Appends a path segment to this path, returning the result
@@ -753,6 +760,8 @@ impl VfsPath {
     ///
     /// Returns an error if the file does not exist or is not valid UTF-8
     ///
+    /// The error returned is filesystem dependent (e.g. if the filesystem has a fastpath)
+    ///
     /// ```
     /// # use std::io::Read;
     /// use vfs::{MemoryFS, VfsError, VfsPath};
@@ -766,23 +775,29 @@ impl VfsPath {
     /// # Ok::<(), VfsError>(())
     /// ```
     pub fn read_to_string(&self) -> VfsResult<String> {
-        let metadata = self.metadata()?;
-        if metadata.file_type != VfsFileType::File {
-            return Err(
-                VfsError::from(VfsErrorKind::Other("Path is a directory".into()))
-                    .with_path(&*self.path)
-                    .with_context(|| "Could not read path"),
-            );
-        }
-        let mut result = String::with_capacity(metadata.len as usize);
-        self.open_file()?
-            .read_to_string(&mut result)
-            .map_err(|source| {
-                VfsError::from(source)
-                    .with_path(&*self.path)
-                    .with_context(|| "Could not read path")
-            })?;
-        Ok(result)
+        self.fs.fs.read_to_string(&self.path)
+    }
+
+    /// Reads a complete file to a ``Vec<u8>``. This *may* copy based on the filesystem internals.
+    ///
+    /// Returns an error if the file does not exist.
+    ///
+    /// The error returned is filesystem dependent (e.g. if the filesystem has a fastpath)
+    ///
+    /// ```
+    /// # use std::io::Read;
+    /// use vfs::{MemoryFS, VfsError, VfsPath};
+    /// let path = VfsPath::new(MemoryFS::new());
+    /// let file = path.join("foo.txt")?;
+    /// write!(file.create_file()?, "Hello, world!")?;
+    ///
+    /// let result = file.read_to_string()?;
+    ///
+    /// assert_eq!(&result, "Hello, world!");
+    /// # Ok::<(), VfsError>(())
+    /// ```
+    pub fn read_to_bytes(&self) -> VfsResult<Vec<u8>> {
+        self.fs.fs.read_to_bytes(&self.path)
     }
 
     /// Copies a file to a new destination

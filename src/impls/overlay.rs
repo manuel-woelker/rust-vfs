@@ -18,14 +18,32 @@ pub struct OverlayFS {
 }
 
 impl OverlayFS {
-    /// Create a new overlay FileSystem from the given layers, only the first layer is written to
+    /// Create a new overlay FileSystem from the given layers, only the first layer is written to.
+    ///
+    /// This may panic. See the non-panicking ``try_new`` to avoid this
     pub fn new(layers: &[VfsPath]) -> Self {
+        Self::new_inner(layers.to_vec()).unwrap()
+    }
+
+    /// Create a new overlay FileSystem from the given layers, only the first layer is written to.
+    ///
+    /// Panic-safe version of ``new``
+    pub fn try_new(layers: &[VfsPath]) -> VfsResult<Self> {
+        Self::new_inner(layers.to_vec())
+    }
+
+    /// Create a new overlay FileSystem from the given owned layers, only the first layer is written to.
+    pub fn try_new_owned(layers: Vec<VfsPath>) -> VfsResult<Self> {
+        Self::new_inner(layers)
+    }
+
+    /// Create a new overlay FileSystem from the given layers, only the first layer is written to
+    fn new_inner(layers: Vec<VfsPath>) -> VfsResult<Self> {
         if layers.is_empty() {
-            panic!("OverlayFS needs at least one layer")
+            return Err("OverlayFS needs at least one layer".into());
         }
-        OverlayFS {
-            layers: layers.to_vec(),
-        }
+
+        Ok(OverlayFS { layers })
     }
 
     fn write_layer(&self) -> &VfsPath {
@@ -122,6 +140,14 @@ impl FileSystem for OverlayFS {
         self.read_path(path)?.open_file()
     }
 
+    fn read_to_bytes(&self, path: &str) -> VfsResult<Vec<u8>> {
+        self.read_path(path)?.read_to_bytes()
+    }
+
+    fn read_to_string(&self, path: &str) -> VfsResult<String> {
+        self.read_path(path)?.read_to_string()
+    }
+
     fn create_file(&self, path: &str) -> VfsResult<Box<dyn SeekAndWrite + Send>> {
         self.ensure_has_parent(path)?;
         let result = self.write_path(path)?.create_file()?;
@@ -194,6 +220,40 @@ impl FileSystem for OverlayFS {
         whiteout_path.parent().create_dir_all()?;
         whiteout_path.create_file()?;
         Ok(())
+    }
+
+    fn fs_last_reset(&self) -> VfsResult<SystemTime> {
+        // This is the latest last reset across all filesystems
+        let mut latest = None;
+        for layer in &self.layers {
+            match layer.as_filesystem().fs.fs_last_reset() {
+                Ok(time) => {
+                    if latest.is_none() {
+                        latest = Some(time);
+                    } else if let Some(latest_time) = latest {
+                        if time > latest_time {
+                            latest = Some(time);
+                        }
+                    }
+                },
+                Err(err) => {
+                    match err.kind() {
+                        VfsErrorKind::NotSupported => {
+                            // Ignore this error, as it is not supported
+                        }
+                        _ => {
+                            return Err(err);
+                        }
+                    }
+                }
+            }
+        }
+
+        if let Some(time) = latest {
+            Ok(time)
+        } else {
+            Err(VfsErrorKind::NotSupported.into())
+        }
     }
 }
 
