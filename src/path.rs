@@ -287,7 +287,7 @@ impl VfsPath {
                     VfsErrorKind::DirectoryExists => {}
                     _ => {
                         return Err(error.with_path(directory).with_context(|| {
-                            format!("Could not create directories at '{}'", path)
+                            format!("Could not create directories at '{path}'")
                         }))
                     }
                 }
@@ -326,7 +326,7 @@ impl VfsPath {
                         .with_context(|| "Could not read directory")
                 })?
                 .map(move |path| VfsPath {
-                    path: format!("{}/{}", parent, path).into(),
+                    path: format!("{parent}/{path}").into(),
                     fs: fs.clone(),
                 }),
         ))
@@ -382,16 +382,14 @@ impl VfsPath {
         let parent = self.parent();
         if !parent.exists()? {
             return Err(VfsError::from(VfsErrorKind::Other(format!(
-                "Could not {}, parent directory does not exist",
-                action
+                "Could not {action}, parent directory does not exist"
             )))
             .with_path(&*self.path));
         }
         let metadata = parent.metadata()?;
         if metadata.file_type != VfsFileType::Directory {
             return Err(VfsError::from(VfsErrorKind::Other(format!(
-                "Could not {}, parent path is not a directory",
-                action
+                "Could not {action}, parent path is not a directory"
             )))
             .with_path(&*self.path));
         }

@@ -105,7 +105,7 @@ impl AsyncFileSystem for AsyncOverlayFS {
             }
         }
         // remove whiteout entries that have been removed
-        let whiteout_path = self.write_layer().join(format!(".whiteout{}", path))?;
+        let whiteout_path = self.write_layer().join(format!(".whiteout{path}"))?;
         if whiteout_path.exists().await? {
             let mut path_stream = whiteout_path.read_dir().await?;
             while let Some(path) = path_stream.next().await {
