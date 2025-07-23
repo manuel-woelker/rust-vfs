@@ -8,6 +8,7 @@ readme = "README.md"
 keywords = ["vfs", "virtual", "filesystem", "async"]
 license = "Apache-2.0"
 edition = "2021"
+rust-version = "1.63.0"
 
 [badges]
 travis-ci = { repository = "manuel-woelker/rust-vfs", branch = "master" }
