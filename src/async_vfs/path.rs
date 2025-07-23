@@ -202,9 +202,9 @@ impl AsyncVfsPath {
                 match error.kind() {
                     VfsErrorKind::DirectoryExists => {}
                     _ => {
-                        return Err(error.with_path(directory).with_context(|| {
-                            format!("Could not create directories at '{path}'")
-                        }))
+                        return Err(error
+                            .with_path(directory)
+                            .with_context(|| format!("Could not create directories at '{path}'")))
                     }
                 }
             }
