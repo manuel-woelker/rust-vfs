@@ -21,6 +21,9 @@ The minimum supported Rust version (MSRV) is 1.63.
  
 Comments and pull-requests welcome!
 
+**Note for async users**: I intend to sunset the `async_vfs` feature in the future since the `async-std` crate is discontinued. If you have any comments or 
+feedback, please leave a comment on [issue #77](https://github.com/manuel-woelker/rust-vfs/issues/77).
+
 ## Changelog
 
 
