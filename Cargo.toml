@@ -22,17 +22,21 @@ futures = {version = "0.3.28", optional = true}
 async-recursion = {version = "1.0.5", optional = true}
 filetime = "0.2.23"
 camino = { version = "1.0.5", optional = true }
+zip = { version = "1.1.1", optional = true }
+ouroboros = { version = "0.18.3", optional = true }
 
 [dev-dependencies]
 uuid = { version = "=0.8.1", features = ["v4"] }
 camino = "1.0.5"
 anyhow = "1.0.58"
 tokio-test = "0.4.3"
+walkdir = { version = "2.5.0" }
 
 [features]
 embedded-fs = ["rust-embed"]
 async-vfs = ["tokio", "async-std", "async-trait", "futures", "async-recursion"]
 export-test-macros = [ "camino" ]
+zip = [ "dep:zip", "dep:ouroboros" ]
 
 [package.metadata.docs.rs]
 features = ["embedded-fs", "async-vfs"]
