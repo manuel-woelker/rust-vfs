@@ -135,7 +135,7 @@ impl fmt::Display for VfsErrorKind {
             }
             #[cfg(feature = "async-vfs")]
             VfsErrorKind::AsyncIoError(cause) => {
-                write!(f, "Async IO error: {}", cause)
+                write!(f, "Async IO error: {cause}")
             }
             VfsErrorKind::FileNotFound => {
                 write!(f, "The file or directory could not be found")

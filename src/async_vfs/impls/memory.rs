@@ -170,7 +170,7 @@ impl AsyncFileSystem for AsyncMemoryFS {
         &self,
         path: &str,
     ) -> VfsResult<Box<dyn Unpin + Stream<Item = String> + Send>> {
-        let prefix = format!("{}/", path);
+        let prefix = format!("{path}/");
         let handle = self.handle.read().await;
         let mut found_directory = false;
         #[allow(clippy::needless_collect)] // need collect to satisfy lifetime requirements
