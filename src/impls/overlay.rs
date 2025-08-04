@@ -93,7 +93,7 @@ impl FileSystem for OverlayFS {
             }
         }
         // remove whiteout entries that have been removed
-        let whiteout_path = self.write_layer().join(format!(".whiteout{}", path))?;
+        let whiteout_path = self.write_layer().join(format!(".whiteout{path}"))?;
         if whiteout_path.exists()? {
             for path in whiteout_path.read_dir()? {
                 let filename = path.filename();

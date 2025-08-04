@@ -131,7 +131,7 @@ impl fmt::Display for VfsErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             VfsErrorKind::IoError(cause) => {
-                write!(f, "IO error: {}", cause)
+                write!(f, "IO error: {cause}")
             }
             #[cfg(feature = "async-vfs")]
             VfsErrorKind::AsyncIoError(cause) => {
@@ -144,7 +144,7 @@ impl fmt::Display for VfsErrorKind {
                 write!(f, "The path is invalid")
             }
             VfsErrorKind::Other(message) => {
-                write!(f, "FileSystem error: {}", message)
+                write!(f, "FileSystem error: {message}")
             }
             VfsErrorKind::NotSupported => {
                 write!(f, "Functionality not supported by this filesystem")
