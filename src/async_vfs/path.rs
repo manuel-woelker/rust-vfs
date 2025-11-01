@@ -1028,7 +1028,7 @@ pub struct WalkDirIterator {
     // Used to store futures when poll_next returns pending
     // this ensures a new future is not spawned on each poll.
     read_dir_fut: Option<
-        BoxFuture<'static, Result<Box<(dyn Stream<Item = AsyncVfsPath> + Send + Unpin)>, VfsError>>,
+        BoxFuture<'static, Result<Box<dyn Stream<Item = AsyncVfsPath> + Send + Unpin>, VfsError>>,
     >,
     metadata_fut: Option<BoxFuture<'static, Result<VfsMetadata, VfsError>>>,
 }
