@@ -8,7 +8,14 @@
 A virtual filesystem for Rust
 
 The virtual file system abstraction generalizes over file systems and allows using
-different filesystem implementations (e.g. an in memory implementation for unit tests)
+different filesystem implementations (e.g. an in memory implementation for unit tests).
+
+The primary envisioned use case is applications that need assets to be embedded in the executable or bundled as a resource archive:
+
+* For unit tests use an in-memory file system
+* For development use the actual filesystem with assets living in a directory for easy access and modification
+* For production, use either an embedded filesystem or an archive filesystem (think .zip, .wad or .mpq) for easier distribution as a single file
+* Incremental updates or mods are possible using an overlay file system combining multiple layers of different assets sources
 
 This crate currently has the following implementations:
  * **PhysicalFS** - the actual filesystem of the underlying OS
@@ -21,7 +28,17 @@ The minimum supported Rust version (MSRV) is 1.63.
  
 Comments and pull-requests welcome!
 
+**Note for async users**: I intend to sunset the `async_vfs` feature in the future since the `async-std` crate is discontinued. If you have any comments or 
+feedback, please leave a comment on [issue #77](https://github.com/manuel-woelker/rust-vfs/issues/77).
+
 ## Changelog
+
+
+### 0.12.2 (2025-07-12)
+* Path: reduced memory allocations when joining paths  - thanks 
+  [@landaire](https://github.com/landaire)!
+* Async Path: removed a stray debug println  - thanks
+  [@ryardley](https://github.com/ryardley)!
 
 
 ### 0.12.1 (2025-03-24)
