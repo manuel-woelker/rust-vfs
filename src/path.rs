@@ -287,7 +287,7 @@ impl VfsPath {
                     _ => {
                         return Err(error
                             .with_path(directory)
-                            .with_context(|| format!("Could not create directories at '{path}'")))
+                            .with_context(|| format!("Could not create directories at '{path}'")));
                     }
                 }
             }
