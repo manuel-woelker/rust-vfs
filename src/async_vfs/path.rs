@@ -204,7 +204,7 @@ impl AsyncVfsPath {
                     _ => {
                         return Err(error
                             .with_path(directory)
-                            .with_context(|| format!("Could not create directories at '{path}'")));
+                            .with_context(|| format!("Could not create directories at '{path}'")))
                     }
                 }
             }
@@ -247,12 +247,9 @@ impl AsyncVfsPath {
                     err.with_path(&self.path)
                         .with_context(|| "Could not read directory")
                 })?
-                .map(move |path| {
-                    println!("{path:?}");
-                    AsyncVfsPath {
-                        path: format!("{parent}/{path}"),
-                        fs: fs.clone(),
-                    }
+                .map(move |path| AsyncVfsPath {
+                    path: format!("{parent}/{path}"),
+                    fs: fs.clone(),
                 }),
         ))
     }
