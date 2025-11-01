@@ -34,10 +34,10 @@ impl MemoryFS {
 
     fn ensure_has_parent(&self, path: &str) -> VfsResult<()> {
         let separator = path.rfind('/');
-        if let Some(index) = separator {
-            if self.exists(&path[..index])? {
-                return Ok(());
-            }
+        if let Some(index) = separator
+            && self.exists(&path[..index])?
+        {
+            return Ok(());
         }
         Err(VfsErrorKind::Other("Parent path does not exist".into()).into())
     }
