@@ -60,6 +60,7 @@ pub mod error;
 pub mod filesystem;
 pub mod impls;
 pub mod path;
+pub mod operations;
 
 #[cfg(feature = "async-vfs")]
 pub mod async_vfs;

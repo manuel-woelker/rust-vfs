@@ -3,12 +3,15 @@
 //! The virtual file system abstraction generalizes over file systems and allow using
 //! different VirtualFileSystem implementations (i.e. an in memory implementation for unit tests)
 
+use std::fmt::Debug;
 use std::io::{Read, Seek, Write};
+use std::marker::PhantomData;
 use std::sync::Arc;
 use std::time::SystemTime;
 
 use crate::error::VfsErrorKind;
 use crate::{FileSystem, VfsError, VfsResult};
+use crate::operations::{AllOps, WriteOp};
 
 /// Trait combining Seek and Read, return value for opening files
 pub trait SeekAndRead: Seek + Read {}
@@ -122,13 +125,32 @@ struct VFS {
 }
 
 /// A virtual filesystem path, identifying a single file or directory in this virtual filesystem
-#[derive(Clone, Debug)]
-pub struct VfsPath {
+pub struct VfsPath<OPS: 'static = AllOps> {
     path: Arc<str>,
     fs: Arc<VFS>,
+    ops: PhantomData<OPS>,
 }
 
-impl PathLike for VfsPath {
+impl <OPS> Clone for VfsPath<OPS> {
+    fn clone(&self) -> Self {
+        Self {
+            path: self.path.clone(),
+            fs: self.fs.clone(),
+            ops: self.ops,
+        }
+    }
+}
+
+impl <OPS> Debug for VfsPath<OPS> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VfsPath")
+            .field("path", &self.path)
+            .field("fs", &self.fs)
+            .finish()
+    }
+}
+
+impl <OPS> PathLike for VfsPath<OPS> {
     fn get_path(&self) -> String {
         self.path.to_string()
     }
@@ -142,7 +164,7 @@ impl PartialEq for VfsPath {
 
 impl Eq for VfsPath {}
 
-impl VfsPath {
+impl VfsPath<AllOps> {
     /// Creates a root path for the given filesystem
     ///
     /// ```
@@ -155,8 +177,31 @@ impl VfsPath {
             fs: Arc::new(VFS {
                 fs: Box::new(filesystem),
             }),
+            ops: PhantomData,
         }
     }
+}
+
+impl <OPS> VfsPath<OPS> {
+    /// Creates a root path for the given filesystem
+    ///
+    /// ```
+    /// # use vfs::{PhysicalFS, VfsPath};
+    /// let path = VfsPath::new(PhysicalFS::new("."));
+    /// ````
+    pub fn new_with_ops<T: FileSystem>(filesystem: T) -> Self {
+        VfsPath {
+            path: "".into(),
+            fs: Arc::new(VFS {
+                fs: Box::new(filesystem),
+            }),
+            ops: PhantomData,
+        }
+    }
+}
+
+
+impl <OPS: Send + Sync + 'static> VfsPath<OPS> {
 
     /// Returns the string representation of this path
     ///
@@ -187,11 +232,12 @@ impl VfsPath {
     /// assert_eq!(path, foo.join("..")?);
     /// # Ok::<(), VfsError>(())
     /// ```
-    pub fn join(&self, path: impl AsRef<str>) -> VfsResult<Self> {
+    pub fn join(&self, path: impl AsRef<str>) -> VfsResult<VfsPath<OPS>> {
         let new_path = self.join_internal(&self.path, path.as_ref())?;
         Ok(Self {
             path: Arc::from(new_path),
             fs: self.fs.clone(),
+            ops: self.ops,
         })
     }
 
@@ -205,10 +251,11 @@ impl VfsPath {
     /// assert_eq!(directory.root(), path);
     /// # Ok::<(), VfsError>(())
     /// ```
-    pub fn root(&self) -> VfsPath {
+    pub fn root(&self) -> VfsPath<OPS> {
         VfsPath {
             path: "".into(),
             fs: self.fs.clone(),
+            ops: self.ops,
         }
     }
 
@@ -226,6 +273,299 @@ impl VfsPath {
         self.path.is_empty()
     }
 
+    /// Iterates over all entries of this directory path
+    ///
+    /// ```
+    /// # use vfs::{MemoryFS, VfsError, VfsPath};
+    /// let path = VfsPath::new(MemoryFS::new());
+    /// path.join("foo")?.create_dir()?;
+    /// path.join("bar")?.create_dir()?;
+    ///
+    /// let mut directories: Vec<_> = path.read_dir()?.collect();
+    ///
+    /// directories.sort_by_key(|path| path.as_str().to_string());
+    /// assert_eq!(directories, vec![path.join("bar")?, path.join("foo")?]);
+    /// # Ok::<(), VfsError>(())
+    /// ```
+    pub fn read_dir(&self) -> VfsResult<Box<dyn Iterator<Item = VfsPath<OPS>> + Send + 'static>>{
+        let parent = self.path.clone();
+        let fs = self.fs.clone();
+        let ops = self.ops;
+        Ok(Box::new(
+            self.fs
+                .fs
+                .read_dir(&self.path)
+                .map_err(|err| {
+                    err.with_path(&*self.path)
+                        .with_context(|| "Could not read directory")
+                })?
+                .map(move |path| VfsPath {
+                    path: format!("{parent}/{path}").into(),
+                    fs: fs.clone(),
+                    ops,
+                }),
+        ))
+    }
+
+
+    /// Checks whether parent is a directory
+    fn get_parent(&self, action: &str) -> VfsResult<()> {
+        let parent = self.parent();
+        if !parent.exists()? {
+            return Err(VfsError::from(VfsErrorKind::Other(format!(
+                "Could not {action}, parent directory does not exist"
+            )))
+                .with_path(&*self.path));
+        }
+        let metadata = parent.metadata()?;
+        if metadata.file_type != VfsFileType::Directory {
+            return Err(VfsError::from(VfsErrorKind::Other(format!(
+                "Could not {action}, parent path is not a directory"
+            )))
+                .with_path(&*self.path));
+        }
+        Ok(())
+    }
+
+    /// Returns the file metadata for the file at this path
+    ///
+    /// ```
+    /// # use std::io::Read;
+    /// use vfs::{MemoryFS, VfsError, VfsFileType, VfsMetadata, VfsPath};
+    /// let path = VfsPath::new(MemoryFS::new());
+    /// let directory = path.join("foo")?;
+    /// directory.create_dir();
+    ///
+    /// assert_eq!(directory.metadata()?.len, 0);
+    /// assert_eq!(directory.metadata()?.file_type, VfsFileType::Directory);
+    ///
+    /// let file = path.join("bar.txt")?;
+    /// write!(file.create_file()?, "Hello, world!")?;
+    ///
+    /// assert_eq!(file.metadata()?.len, 13);
+    /// assert_eq!(file.metadata()?.file_type, VfsFileType::File);
+    /// # Ok::<(), VfsError>(())
+    pub fn metadata(&self) -> VfsResult<VfsMetadata> {
+        self.fs.fs.metadata(&self.path).map_err(|err| {
+            err.with_path(&*self.path)
+                .with_context(|| "Could not get metadata")
+        })
+    }
+
+
+    /// Returns `true` if the path exists and is pointing at a regular file, otherwise returns `false`.
+    ///
+    /// Note that this call may fail if the file's existence cannot be determined or the metadata can not be retrieved
+    ///
+    /// ```
+    /// # use std::io::Read;
+    /// use vfs::{MemoryFS, VfsError, VfsFileType, VfsMetadata, VfsPath};
+    /// let path = VfsPath::new(MemoryFS::new());
+    /// let directory = path.join("foo")?;
+    /// directory.create_dir()?;
+    /// let file = path.join("foo.txt")?;
+    /// file.create_file()?;
+    ///
+    /// assert!(!directory.is_file()?);
+    /// assert!(file.is_file()?);
+    /// # Ok::<(), VfsError>(())
+    pub fn is_file(&self) -> VfsResult<bool> {
+        if !self.exists()? {
+            return Ok(false);
+        }
+        let metadata = self.metadata()?;
+        Ok(metadata.file_type == VfsFileType::File)
+    }
+
+
+
+    /// Returns `true` if the path exists and is pointing at a directory, otherwise returns `false`.
+    ///
+    /// Note that this call may fail if the directory's existence cannot be determined or the metadata can not be retrieved
+    ///
+    /// ```
+    /// # use std::io::Read;
+    /// use vfs::{MemoryFS, VfsError, VfsFileType, VfsMetadata, VfsPath};
+    /// let path = VfsPath::new(MemoryFS::new());
+    /// let directory = path.join("foo")?;
+    /// directory.create_dir()?;
+    /// let file = path.join("foo.txt")?;
+    /// file.create_file()?;
+    ///
+    /// assert!(directory.is_dir()?);
+    /// assert!(!file.is_dir()?);
+    /// # Ok::<(), VfsError>(())
+    pub fn is_dir(&self) -> VfsResult<bool> {
+        if !self.exists()? {
+            return Ok(false);
+        }
+        let metadata = self.metadata()?;
+        Ok(metadata.file_type == VfsFileType::Directory)
+    }
+
+    /// Returns true if a file or directory exists at this path, false otherwise
+    ///
+    /// ```
+    /// # use std::io::Read;
+    /// use vfs::{MemoryFS, VfsError, VfsFileType, VfsMetadata, VfsPath};
+    /// let path = VfsPath::new(MemoryFS::new());
+    /// let directory = path.join("foo")?;
+    ///
+    /// assert!(!directory.exists()?);
+    ///
+    /// directory.create_dir();
+    ///
+    /// assert!(directory.exists()?);
+    /// # Ok::<(), VfsError>(())
+    pub fn exists(&self) -> VfsResult<bool> {
+        self.fs.fs.exists(&self.path)
+    }
+
+    /// Returns the filename portion of this path
+    ///
+    /// ```
+    /// # use std::io::Read;
+    /// use vfs::{MemoryFS, VfsError, VfsFileType, VfsMetadata, VfsPath};
+    /// let path = VfsPath::new(MemoryFS::new());
+    /// let file = path.join("foo/bar.txt")?;
+    ///
+    /// assert_eq!(&file.filename(), "bar.txt");
+    ///
+    /// # Ok::<(), VfsError>(())
+    pub fn filename(&self) -> String {
+        self.filename_internal()
+    }
+
+    /// Returns the extension portion of this path
+    ///
+    /// ```
+    /// # use std::io::Read;
+    /// use vfs::{MemoryFS, VfsError, VfsFileType, VfsMetadata, VfsPath};
+    /// let path = VfsPath::new(MemoryFS::new());
+    ///
+    /// assert_eq!(path.join("foo/bar.txt")?.extension(), Some("txt".to_string()));
+    /// assert_eq!(path.join("foo/bar.txt.zip")?.extension(), Some("zip".to_string()));
+    /// assert_eq!(path.join("foo/bar")?.extension(), None);
+    ///
+    /// # Ok::<(), VfsError>(())
+    pub fn extension(&self) -> Option<String> {
+        self.extension_internal()
+    }
+
+    /// Returns the parent path of this portion of this path
+    ///
+    /// Root will return itself.
+    ///
+    /// ```
+    /// # use std::io::Read;
+    /// use vfs::{MemoryFS, VfsError, VfsFileType, VfsMetadata, VfsPath};
+    /// let path = VfsPath::new(MemoryFS::new());
+    ///
+    /// assert_eq!(path.parent(), path.root());
+    /// assert_eq!(path.join("foo/bar")?.parent(), path.join("foo")?);
+    /// assert_eq!(path.join("foo")?.parent(), path);
+    ///
+    /// # Ok::<(), VfsError>(())
+    pub fn parent(&self) -> Self {
+        let parent_path = self.parent_internal(&self.path);
+        Self {
+            path: Arc::from(parent_path),
+            fs: self.fs.clone(),
+            ops: self.ops,
+        }
+    }
+
+    /// Recursively iterates over all the directories and files at this path
+    ///
+    /// Directories are visited before their children
+    ///
+    /// Note that the iterator items can contain errors, usually when directories are removed during the iteration.
+    /// The returned paths may also point to non-existant files if there is concurrent removal.
+    ///
+    /// Also note that loops in the file system hierarchy may cause this iterator to never terminate.
+    ///
+    /// ```
+    /// # use vfs::{MemoryFS, VfsError, VfsPath, VfsResult};
+    /// let root = VfsPath::new(MemoryFS::new());
+    /// root.join("foo/bar")?.create_dir_all()?;
+    /// root.join("fizz/buzz")?.create_dir_all()?;
+    /// root.join("foo/bar/baz")?.create_file()?;
+    ///
+    /// let mut directories = root.walk_dir()?.collect::<VfsResult<Vec<_>>>()?;
+    ///
+    /// directories.sort_by_key(|path| path.as_str().to_string());
+    /// let expected = vec!["fizz", "fizz/buzz", "foo", "foo/bar", "foo/bar/baz"].iter().map(|path| root.join(path)).collect::<VfsResult<Vec<_>>>()?;
+    /// assert_eq!(directories, expected);
+    /// # Ok::<(), VfsError>(())
+    /// ```
+    pub fn walk_dir(&self) -> VfsResult<WalkDirIterator<OPS>> {
+        Ok(WalkDirIterator {
+            inner: Box::new(self.read_dir()?),
+            todo: vec![],
+        })
+    }
+
+    /// Opens the file at this path for reading
+    ///
+    /// ```
+    /// # use std::io::Read;
+    /// use vfs::{MemoryFS, VfsError, VfsPath};
+    /// let path = VfsPath::new(MemoryFS::new());
+    /// let file = path.join("foo.txt")?;
+    /// write!(file.create_file()?, "Hello, world!")?;
+    /// let mut result = String::new();
+    ///
+    /// file.open_file()?.read_to_string(&mut result)?;
+    ///
+    /// assert_eq!(&result, "Hello, world!");
+    /// # Ok::<(), VfsError>(())
+    /// ```
+    pub fn open_file(&self) -> VfsResult<Box<dyn SeekAndRead + Send>> {
+        self.fs.fs.open_file(&self.path).map_err(|err| {
+            err.with_path(&*self.path)
+                .with_context(|| "Could not open file")
+        })
+    }
+
+    /// Reads a complete file to a string
+    ///
+    /// Returns an error if the file does not exist or is not valid UTF-8
+    ///
+    /// ```
+    /// # use std::io::Read;
+    /// use vfs::{MemoryFS, VfsError, VfsPath};
+    /// let path = VfsPath::new(MemoryFS::new());
+    /// let file = path.join("foo.txt")?;
+    /// write!(file.create_file()?, "Hello, world!")?;
+    ///
+    /// let result = file.read_to_string()?;
+    ///
+    /// assert_eq!(&result, "Hello, world!");
+    /// # Ok::<(), VfsError>(())
+    /// ```
+    pub fn read_to_string(&self) -> VfsResult<String> {
+        let metadata = self.metadata()?;
+        if metadata.file_type != VfsFileType::File {
+            return Err(
+                VfsError::from(VfsErrorKind::Other("Path is a directory".into()))
+                    .with_path(&*self.path)
+                    .with_context(|| "Could not read path"),
+            );
+        }
+        let mut result = String::with_capacity(metadata.len as usize);
+        self.open_file()?
+            .read_to_string(&mut result)
+            .map_err(|source| {
+                VfsError::from(source)
+                    .with_path(&*self.path)
+                    .with_context(|| "Could not read path")
+            })?;
+        Ok(result)
+    }
+
+}
+
+impl <OPS: Send + Sync + WriteOp + 'static> VfsPath<OPS> {
     /// Creates the directory at this path
     ///
     /// Note that the parent directory must exist, while the given path must not exist.
@@ -300,38 +640,6 @@ impl VfsPath {
         Ok(())
     }
 
-    /// Iterates over all entries of this directory path
-    ///
-    /// ```
-    /// # use vfs::{MemoryFS, VfsError, VfsPath};
-    /// let path = VfsPath::new(MemoryFS::new());
-    /// path.join("foo")?.create_dir()?;
-    /// path.join("bar")?.create_dir()?;
-    ///
-    /// let mut directories: Vec<_> = path.read_dir()?.collect();
-    ///
-    /// directories.sort_by_key(|path| path.as_str().to_string());
-    /// assert_eq!(directories, vec![path.join("bar")?, path.join("foo")?]);
-    /// # Ok::<(), VfsError>(())
-    /// ```
-    pub fn read_dir(&self) -> VfsResult<Box<dyn Iterator<Item = VfsPath> + Send>> {
-        let parent = self.path.clone();
-        let fs = self.fs.clone();
-        Ok(Box::new(
-            self.fs
-                .fs
-                .read_dir(&self.path)
-                .map_err(|err| {
-                    err.with_path(&*self.path)
-                        .with_context(|| "Could not read directory")
-                })?
-                .map(move |path| VfsPath {
-                    path: format!("{parent}/{path}").into(),
-                    fs: fs.clone(),
-                }),
-        ))
-    }
-
     /// Creates a file at this path for writing, overwriting any existing file
     ///
     /// ```
@@ -353,47 +661,6 @@ impl VfsPath {
             err.with_path(&*self.path)
                 .with_context(|| "Could not create file")
         })
-    }
-
-    /// Opens the file at this path for reading
-    ///
-    /// ```
-    /// # use std::io::Read;
-    /// use vfs::{MemoryFS, VfsError, VfsPath};
-    /// let path = VfsPath::new(MemoryFS::new());
-    /// let file = path.join("foo.txt")?;
-    /// write!(file.create_file()?, "Hello, world!")?;
-    /// let mut result = String::new();
-    ///
-    /// file.open_file()?.read_to_string(&mut result)?;
-    ///
-    /// assert_eq!(&result, "Hello, world!");
-    /// # Ok::<(), VfsError>(())
-    /// ```
-    pub fn open_file(&self) -> VfsResult<Box<dyn SeekAndRead + Send>> {
-        self.fs.fs.open_file(&self.path).map_err(|err| {
-            err.with_path(&*self.path)
-                .with_context(|| "Could not open file")
-        })
-    }
-
-    /// Checks whether parent is a directory
-    fn get_parent(&self, action: &str) -> VfsResult<()> {
-        let parent = self.parent();
-        if !parent.exists()? {
-            return Err(VfsError::from(VfsErrorKind::Other(format!(
-                "Could not {action}, parent directory does not exist"
-            )))
-            .with_path(&*self.path));
-        }
-        let metadata = parent.metadata()?;
-        if metadata.file_type != VfsFileType::Directory {
-            return Err(VfsError::from(VfsErrorKind::Other(format!(
-                "Could not {action}, parent path is not a directory"
-            )))
-            .with_path(&*self.path));
-        }
-        Ok(())
     }
 
     /// Opens the file at this path for appending
@@ -495,30 +762,6 @@ impl VfsPath {
         Ok(())
     }
 
-    /// Returns the file metadata for the file at this path
-    ///
-    /// ```
-    /// # use std::io::Read;
-    /// use vfs::{MemoryFS, VfsError, VfsFileType, VfsMetadata, VfsPath};
-    /// let path = VfsPath::new(MemoryFS::new());
-    /// let directory = path.join("foo")?;
-    /// directory.create_dir();
-    ///
-    /// assert_eq!(directory.metadata()?.len, 0);
-    /// assert_eq!(directory.metadata()?.file_type, VfsFileType::Directory);
-    ///
-    /// let file = path.join("bar.txt")?;
-    /// write!(file.create_file()?, "Hello, world!")?;
-    ///
-    /// assert_eq!(file.metadata()?.len, 13);
-    /// assert_eq!(file.metadata()?.file_type, VfsFileType::File);
-    /// # Ok::<(), VfsError>(())
-    pub fn metadata(&self) -> VfsResult<VfsMetadata> {
-        self.fs.fs.metadata(&self.path).map_err(|err| {
-            err.with_path(&*self.path)
-                .with_context(|| "Could not get metadata")
-        })
-    }
 
     /// Sets the files creation timestamp at this path
     ///
@@ -598,190 +841,8 @@ impl VfsPath {
         })
     }
 
-    /// Returns `true` if the path exists and is pointing at a regular file, otherwise returns `false`.
-    ///
-    /// Note that this call may fail if the file's existence cannot be determined or the metadata can not be retrieved
-    ///
-    /// ```
-    /// # use std::io::Read;
-    /// use vfs::{MemoryFS, VfsError, VfsFileType, VfsMetadata, VfsPath};
-    /// let path = VfsPath::new(MemoryFS::new());
-    /// let directory = path.join("foo")?;
-    /// directory.create_dir()?;
-    /// let file = path.join("foo.txt")?;
-    /// file.create_file()?;
-    ///
-    /// assert!(!directory.is_file()?);
-    /// assert!(file.is_file()?);
-    /// # Ok::<(), VfsError>(())
-    pub fn is_file(&self) -> VfsResult<bool> {
-        if !self.exists()? {
-            return Ok(false);
-        }
-        let metadata = self.metadata()?;
-        Ok(metadata.file_type == VfsFileType::File)
-    }
 
-    /// Returns `true` if the path exists and is pointing at a directory, otherwise returns `false`.
-    ///
-    /// Note that this call may fail if the directory's existence cannot be determined or the metadata can not be retrieved
-    ///
-    /// ```
-    /// # use std::io::Read;
-    /// use vfs::{MemoryFS, VfsError, VfsFileType, VfsMetadata, VfsPath};
-    /// let path = VfsPath::new(MemoryFS::new());
-    /// let directory = path.join("foo")?;
-    /// directory.create_dir()?;
-    /// let file = path.join("foo.txt")?;
-    /// file.create_file()?;
-    ///
-    /// assert!(directory.is_dir()?);
-    /// assert!(!file.is_dir()?);
-    /// # Ok::<(), VfsError>(())
-    pub fn is_dir(&self) -> VfsResult<bool> {
-        if !self.exists()? {
-            return Ok(false);
-        }
-        let metadata = self.metadata()?;
-        Ok(metadata.file_type == VfsFileType::Directory)
-    }
 
-    /// Returns true if a file or directory exists at this path, false otherwise
-    ///
-    /// ```
-    /// # use std::io::Read;
-    /// use vfs::{MemoryFS, VfsError, VfsFileType, VfsMetadata, VfsPath};
-    /// let path = VfsPath::new(MemoryFS::new());
-    /// let directory = path.join("foo")?;
-    ///
-    /// assert!(!directory.exists()?);
-    ///
-    /// directory.create_dir();
-    ///
-    /// assert!(directory.exists()?);
-    /// # Ok::<(), VfsError>(())
-    pub fn exists(&self) -> VfsResult<bool> {
-        self.fs.fs.exists(&self.path)
-    }
-
-    /// Returns the filename portion of this path
-    ///
-    /// ```
-    /// # use std::io::Read;
-    /// use vfs::{MemoryFS, VfsError, VfsFileType, VfsMetadata, VfsPath};
-    /// let path = VfsPath::new(MemoryFS::new());
-    /// let file = path.join("foo/bar.txt")?;
-    ///
-    /// assert_eq!(&file.filename(), "bar.txt");
-    ///
-    /// # Ok::<(), VfsError>(())
-    pub fn filename(&self) -> String {
-        self.filename_internal()
-    }
-
-    /// Returns the extension portion of this path
-    ///
-    /// ```
-    /// # use std::io::Read;
-    /// use vfs::{MemoryFS, VfsError, VfsFileType, VfsMetadata, VfsPath};
-    /// let path = VfsPath::new(MemoryFS::new());
-    ///
-    /// assert_eq!(path.join("foo/bar.txt")?.extension(), Some("txt".to_string()));
-    /// assert_eq!(path.join("foo/bar.txt.zip")?.extension(), Some("zip".to_string()));
-    /// assert_eq!(path.join("foo/bar")?.extension(), None);
-    ///
-    /// # Ok::<(), VfsError>(())
-    pub fn extension(&self) -> Option<String> {
-        self.extension_internal()
-    }
-
-    /// Returns the parent path of this portion of this path
-    ///
-    /// Root will return itself.
-    ///
-    /// ```
-    /// # use std::io::Read;
-    /// use vfs::{MemoryFS, VfsError, VfsFileType, VfsMetadata, VfsPath};
-    /// let path = VfsPath::new(MemoryFS::new());
-    ///
-    /// assert_eq!(path.parent(), path.root());
-    /// assert_eq!(path.join("foo/bar")?.parent(), path.join("foo")?);
-    /// assert_eq!(path.join("foo")?.parent(), path);
-    ///
-    /// # Ok::<(), VfsError>(())
-    pub fn parent(&self) -> Self {
-        let parent_path = self.parent_internal(&self.path);
-        Self {
-            path: Arc::from(parent_path),
-            fs: self.fs.clone(),
-        }
-    }
-
-    /// Recursively iterates over all the directories and files at this path
-    ///
-    /// Directories are visited before their children
-    ///
-    /// Note that the iterator items can contain errors, usually when directories are removed during the iteration.
-    /// The returned paths may also point to non-existant files if there is concurrent removal.
-    ///
-    /// Also note that loops in the file system hierarchy may cause this iterator to never terminate.
-    ///
-    /// ```
-    /// # use vfs::{MemoryFS, VfsError, VfsPath, VfsResult};
-    /// let root = VfsPath::new(MemoryFS::new());
-    /// root.join("foo/bar")?.create_dir_all()?;
-    /// root.join("fizz/buzz")?.create_dir_all()?;
-    /// root.join("foo/bar/baz")?.create_file()?;
-    ///
-    /// let mut directories = root.walk_dir()?.collect::<VfsResult<Vec<_>>>()?;
-    ///
-    /// directories.sort_by_key(|path| path.as_str().to_string());
-    /// let expected = vec!["fizz", "fizz/buzz", "foo", "foo/bar", "foo/bar/baz"].iter().map(|path| root.join(path)).collect::<VfsResult<Vec<_>>>()?;
-    /// assert_eq!(directories, expected);
-    /// # Ok::<(), VfsError>(())
-    /// ```
-    pub fn walk_dir(&self) -> VfsResult<WalkDirIterator> {
-        Ok(WalkDirIterator {
-            inner: Box::new(self.read_dir()?),
-            todo: vec![],
-        })
-    }
-
-    /// Reads a complete file to a string
-    ///
-    /// Returns an error if the file does not exist or is not valid UTF-8
-    ///
-    /// ```
-    /// # use std::io::Read;
-    /// use vfs::{MemoryFS, VfsError, VfsPath};
-    /// let path = VfsPath::new(MemoryFS::new());
-    /// let file = path.join("foo.txt")?;
-    /// write!(file.create_file()?, "Hello, world!")?;
-    ///
-    /// let result = file.read_to_string()?;
-    ///
-    /// assert_eq!(&result, "Hello, world!");
-    /// # Ok::<(), VfsError>(())
-    /// ```
-    pub fn read_to_string(&self) -> VfsResult<String> {
-        let metadata = self.metadata()?;
-        if metadata.file_type != VfsFileType::File {
-            return Err(
-                VfsError::from(VfsErrorKind::Other("Path is a directory".into()))
-                    .with_path(&*self.path)
-                    .with_context(|| "Could not read path"),
-            );
-        }
-        let mut result = String::with_capacity(metadata.len as usize);
-        self.open_file()?
-            .read_to_string(&mut result)
-            .map_err(|source| {
-                VfsError::from(source)
-                    .with_path(&*self.path)
-                    .with_context(|| "Could not read path")
-            })?;
-        Ok(result)
-    }
 
     /// Copies a file to a new destination
     ///
@@ -800,7 +861,7 @@ impl VfsPath {
     /// assert_eq!(dest.read_to_string()?, "Hello, world!");
     /// # Ok::<(), VfsError>(())
     /// ```
-    pub fn copy_file(&self, destination: &VfsPath) -> VfsResult<()> {
+    pub fn copy_file(&self, destination: &VfsPath<OPS>) -> VfsResult<()> {
         || -> VfsResult<()> {
             if destination.exists()? {
                 return Err(VfsError::from(VfsErrorKind::Other(
@@ -920,7 +981,7 @@ impl VfsPath {
     /// assert!(dest.join("dir")?.exists()?);
     /// # Ok::<(), VfsError>(())
     /// ```
-    pub fn copy_dir(&self, destination: &VfsPath) -> VfsResult<u64> {
+    pub fn copy_dir(&self, destination: &VfsPath<OPS>) -> VfsResult<u64> {
         let mut files_copied = 0u64;
         || -> VfsResult<()> {
             if destination.exists()? {
@@ -933,7 +994,7 @@ impl VfsPath {
             let prefix = &*self.path;
             let prefix_len = prefix.len();
             for file in self.walk_dir()? {
-                let src_path: VfsPath = file?;
+                let src_path: VfsPath<OPS> = file?;
                 let dest_path = destination.join(&src_path.as_str()[prefix_len + 1..])?;
                 match src_path.metadata()?.file_type {
                     VfsFileType::Directory => dest_path.create_dir()?,
@@ -973,7 +1034,7 @@ impl VfsPath {
     /// assert!(!src.join("dir")?.exists()?);
     /// # Ok::<(), VfsError>(())
     /// ```
-    pub fn move_dir(&self, destination: &VfsPath) -> VfsResult<()> {
+    pub fn move_dir(&self, destination: &VfsPath<OPS>) -> VfsResult<()> {
         || -> VfsResult<()> {
             if destination.exists()? {
                 return Err(VfsError::from(VfsErrorKind::Other(
@@ -997,8 +1058,8 @@ impl VfsPath {
             let prefix = &*self.path;
             let prefix_len = prefix.len();
             for file in self.walk_dir()? {
-                let src_path: VfsPath = file?;
-                let dest_path = destination.join(&src_path.as_str()[prefix_len + 1..])?;
+                let src_path: VfsPath<OPS> = file?;
+                let dest_path: VfsPath<OPS> = destination.join(&src_path.as_str()[prefix_len + 1..])?;
                 match src_path.metadata()?.file_type {
                     VfsFileType::Directory => dest_path.create_dir()?,
                     VfsFileType::File => src_path.copy_file(&dest_path)?,
@@ -1021,22 +1082,22 @@ impl VfsPath {
 }
 
 /// An iterator for recursively walking a file hierarchy
-pub struct WalkDirIterator {
+pub struct WalkDirIterator<OPS: 'static> {
     /// the path iterator of the current directory
-    inner: Box<dyn Iterator<Item = VfsPath> + Send>,
+    inner: Box<dyn Iterator<Item = VfsPath<OPS>> + Send>,
     /// stack of subdirectories still to walk
-    todo: Vec<VfsPath>,
+    todo: Vec<VfsPath<OPS>>,
 }
 
-impl std::fmt::Debug for WalkDirIterator {
+impl <OPS> Debug for WalkDirIterator<OPS> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("WalkDirIterator")?;
         self.todo.fmt(f)
     }
 }
 
-impl Iterator for WalkDirIterator {
-    type Item = VfsResult<VfsPath>;
+impl <OPS: Send + Sync + 'static> Iterator for WalkDirIterator<OPS> {
+    type Item = VfsResult<VfsPath<OPS>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let result = loop {
