@@ -59,8 +59,8 @@ pub mod test_macros;
 pub mod error;
 pub mod filesystem;
 pub mod impls;
-pub mod path;
 pub mod operations;
+pub mod path;
 
 #[cfg(feature = "async-vfs")]
 pub mod async_vfs;

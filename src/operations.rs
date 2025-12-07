@@ -1,5 +1,3 @@
-
-
 pub trait WriteOp {}
 pub trait MetadataOp {}
 
@@ -9,4 +7,3 @@ impl MetadataOp for AllOps {}
 
 pub struct ReadOnlyOps;
 impl MetadataOp for ReadOnlyOps {}
-

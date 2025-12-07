@@ -10,8 +10,8 @@ use std::sync::Arc;
 use std::time::SystemTime;
 
 use crate::error::VfsErrorKind;
-use crate::{FileSystem, VfsError, VfsResult};
 use crate::operations::{AllOps, WriteOp};
+use crate::{FileSystem, VfsError, VfsResult};
 
 /// Trait combining Seek and Read, return value for opening files
 pub trait SeekAndRead: Seek + Read {}
@@ -131,7 +131,7 @@ pub struct VfsPath<OPS: 'static = AllOps> {
     ops: PhantomData<OPS>,
 }
 
-impl <OPS> Clone for VfsPath<OPS> {
+impl<OPS> Clone for VfsPath<OPS> {
     fn clone(&self) -> Self {
         Self {
             path: self.path.clone(),
@@ -141,7 +141,7 @@ impl <OPS> Clone for VfsPath<OPS> {
     }
 }
 
-impl <OPS> Debug for VfsPath<OPS> {
+impl<OPS> Debug for VfsPath<OPS> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("VfsPath")
             .field("path", &self.path)
@@ -150,7 +150,7 @@ impl <OPS> Debug for VfsPath<OPS> {
     }
 }
 
-impl <OPS> PathLike for VfsPath<OPS> {
+impl<OPS> PathLike for VfsPath<OPS> {
     fn get_path(&self) -> String {
         self.path.to_string()
     }
@@ -182,7 +182,7 @@ impl VfsPath<AllOps> {
     }
 }
 
-impl <OPS> VfsPath<OPS> {
+impl<OPS> VfsPath<OPS> {
     /// Creates a root path for the given filesystem
     ///
     /// ```
@@ -200,9 +200,7 @@ impl <OPS> VfsPath<OPS> {
     }
 }
 
-
-impl <OPS: Send + Sync + 'static> VfsPath<OPS> {
-
+impl<OPS: Send + Sync + 'static> VfsPath<OPS> {
     /// Returns the string representation of this path
     ///
     /// ```
@@ -287,7 +285,7 @@ impl <OPS: Send + Sync + 'static> VfsPath<OPS> {
     /// assert_eq!(directories, vec![path.join("bar")?, path.join("foo")?]);
     /// # Ok::<(), VfsError>(())
     /// ```
-    pub fn read_dir(&self) -> VfsResult<Box<dyn Iterator<Item = VfsPath<OPS>> + Send + 'static>>{
+    pub fn read_dir(&self) -> VfsResult<Box<dyn Iterator<Item = VfsPath<OPS>> + Send + 'static>> {
         let parent = self.path.clone();
         let fs = self.fs.clone();
         let ops = self.ops;
@@ -307,7 +305,6 @@ impl <OPS: Send + Sync + 'static> VfsPath<OPS> {
         ))
     }
 
-
     /// Checks whether parent is a directory
     fn get_parent(&self, action: &str) -> VfsResult<()> {
         let parent = self.parent();
@@ -315,14 +312,14 @@ impl <OPS: Send + Sync + 'static> VfsPath<OPS> {
             return Err(VfsError::from(VfsErrorKind::Other(format!(
                 "Could not {action}, parent directory does not exist"
             )))
-                .with_path(&*self.path));
+            .with_path(&*self.path));
         }
         let metadata = parent.metadata()?;
         if metadata.file_type != VfsFileType::Directory {
             return Err(VfsError::from(VfsErrorKind::Other(format!(
                 "Could not {action}, parent path is not a directory"
             )))
-                .with_path(&*self.path));
+            .with_path(&*self.path));
         }
         Ok(())
     }
@@ -352,7 +349,6 @@ impl <OPS: Send + Sync + 'static> VfsPath<OPS> {
         })
     }
 
-
     /// Returns `true` if the path exists and is pointing at a regular file, otherwise returns `false`.
     ///
     /// Note that this call may fail if the file's existence cannot be determined or the metadata can not be retrieved
@@ -376,8 +372,6 @@ impl <OPS: Send + Sync + 'static> VfsPath<OPS> {
         let metadata = self.metadata()?;
         Ok(metadata.file_type == VfsFileType::File)
     }
-
-
 
     /// Returns `true` if the path exists and is pointing at a directory, otherwise returns `false`.
     ///
@@ -562,10 +556,9 @@ impl <OPS: Send + Sync + 'static> VfsPath<OPS> {
             })?;
         Ok(result)
     }
-
 }
 
-impl <OPS: Send + Sync + WriteOp + 'static> VfsPath<OPS> {
+impl<OPS: Send + Sync + WriteOp + 'static> VfsPath<OPS> {
     /// Creates the directory at this path
     ///
     /// Note that the parent directory must exist, while the given path must not exist.
@@ -762,7 +755,6 @@ impl <OPS: Send + Sync + WriteOp + 'static> VfsPath<OPS> {
         Ok(())
     }
 
-
     /// Sets the files creation timestamp at this path
     ///
     /// ```
@@ -840,9 +832,6 @@ impl <OPS: Send + Sync + WriteOp + 'static> VfsPath<OPS> {
                 .with_context(|| "Could not set access timestamp.")
         })
     }
-
-
-
 
     /// Copies a file to a new destination
     ///
@@ -1059,7 +1048,8 @@ impl <OPS: Send + Sync + WriteOp + 'static> VfsPath<OPS> {
             let prefix_len = prefix.len();
             for file in self.walk_dir()? {
                 let src_path: VfsPath<OPS> = file?;
-                let dest_path: VfsPath<OPS> = destination.join(&src_path.as_str()[prefix_len + 1..])?;
+                let dest_path: VfsPath<OPS> =
+                    destination.join(&src_path.as_str()[prefix_len + 1..])?;
                 match src_path.metadata()?.file_type {
                     VfsFileType::Directory => dest_path.create_dir()?,
                     VfsFileType::File => src_path.copy_file(&dest_path)?,
@@ -1089,14 +1079,14 @@ pub struct WalkDirIterator<OPS: 'static> {
     todo: Vec<VfsPath<OPS>>,
 }
 
-impl <OPS> Debug for WalkDirIterator<OPS> {
+impl<OPS> Debug for WalkDirIterator<OPS> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("WalkDirIterator")?;
         self.todo.fmt(f)
     }
 }
 
-impl <OPS: Send + Sync + 'static> Iterator for WalkDirIterator<OPS> {
+impl<OPS: Send + Sync + 'static> Iterator for WalkDirIterator<OPS> {
     type Item = VfsResult<VfsPath<OPS>>;
 
     fn next(&mut self) -> Option<Self::Item> {

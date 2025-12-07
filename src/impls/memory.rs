@@ -348,8 +348,8 @@ fn ensure_file(file: &MemoryFile) -> VfsResult<()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::operations::{AllOps, ReadOnlyOps};
     use super::*;
+    use crate::operations::{AllOps, ReadOnlyOps};
     use crate::VfsPath;
     test_vfs!(MemoryFS::new());
 
