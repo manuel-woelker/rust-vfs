@@ -182,7 +182,7 @@ mod tests {
         let result = produce_anyhow_result().unwrap_err();
         assert_eq!(
             result.to_string(),
-            "An error occured for 'foo': FileSystem error: Not a file"
+            "An error occurred for 'foo': FileSystem error: Not a file"
         )
     }
 }
