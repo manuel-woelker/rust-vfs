@@ -40,7 +40,7 @@ impl From<VfsErrorKind> for VfsError {
             //              never forgets to add a path. Might need a separate error type for FS impls vs VFS
             path: "PATH NOT FILLED BY VFS LAYER".into(),
             kind,
-            context: "An error occured".into(),
+            context: "An error occurred".into(),
             cause: None,
         }
     }
@@ -182,7 +182,7 @@ mod tests {
         let result = produce_anyhow_result().unwrap_err();
         assert_eq!(
             result.to_string(),
-            "An error occured for 'foo': FileSystem error: Not a file"
+            "An error occurred for 'foo': FileSystem error: Not a file"
         )
     }
 }
