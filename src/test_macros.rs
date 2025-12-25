@@ -524,7 +524,7 @@ use super::*;
 
                 /// Utility function for templating the same error message
                 fn invalid_path_message(path: &str) -> String {
-                    format!("An error occured for '{}': The path is invalid", path)
+                    format!("An error occurred for '{}': The path is invalid", path)
                 }
 
                 assert_eq!(
@@ -1260,7 +1260,7 @@ macro_rules! test_vfs_readonly {
                 /// Utility function for templating the same error message
                 // TODO: Maybe deduplicate this function
                 fn invalid_path_message(path: &str) -> String {
-                    format!("An error occured for '{}': The path is invalid", path)
+                    format!("An error occurred for '{}': The path is invalid", path)
                 }
 
                 assert_eq!(
