@@ -4,8 +4,6 @@ use crate::error::VfsErrorKind;
 use crate::path::VfsFileType;
 use crate::{VfsMetadata, VfsResult};
 
-use async_std::io::{prelude::SeekExt, Cursor, Read, Seek, SeekFrom, Write};
-use async_std::sync::{Arc, RwLock};
 use async_trait::async_trait;
 use futures::task::{Context, Poll};
 use futures::{Stream, StreamExt};
@@ -13,8 +11,16 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
+use std::io::Cursor;
 use std::mem::swap;
 use std::pin::Pin;
+use std::sync::Arc;
+
+use tokio::io::AsyncSeek;
+use tokio::io::AsyncSeekExt;
+use tokio::io::ReadBuf;
+use tokio::io::{AsyncRead, AsyncWrite, SeekFrom};
+use tokio::sync::RwLock;
 
 type AsyncMemoryFsHandle = Arc<RwLock<AsyncMemoryFsImpl>>;
 
@@ -60,12 +66,12 @@ struct AsyncWritableFile {
     fs: AsyncMemoryFsHandle,
 }
 
-impl Write for AsyncWritableFile {
+impl AsyncWrite for AsyncWritableFile {
     fn poll_write(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &[u8],
-    ) -> Poll<Result<usize, async_std::io::Error>> {
+    ) -> Poll<Result<usize, tokio::io::Error>> {
         let this = self.get_mut();
         let file = Pin::new(&mut this.content);
         file.poll_write(cx, buf)
@@ -74,18 +80,18 @@ impl Write for AsyncWritableFile {
     fn poll_flush(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-    ) -> Poll<Result<(), async_std::io::Error>> {
+    ) -> Poll<Result<(), tokio::io::Error>> {
         let this = self.get_mut();
         let file = Pin::new(&mut this.content);
         file.poll_flush(cx)
     }
-    fn poll_close(
+    fn poll_shutdown(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-    ) -> Poll<Result<(), async_std::io::Error>> {
+    ) -> Poll<Result<(), tokio::io::Error>> {
         let this = self.get_mut();
         let file = Pin::new(&mut this.content);
-        file.poll_close(cx)
+        file.poll_shutdown(cx)
     }
 }
 
@@ -106,7 +112,7 @@ impl Drop for AsyncWritableFile {
 struct AsyncReadableFile {
     #[allow(clippy::rc_buffer)] // to allow accessing the same object as writable
     content: Arc<Vec<u8>>,
-    // Position of the read cursor in the "file"
+    /// Position of the read cursor in the "file"
     cursor_pos: u64,
 }
 
@@ -116,32 +122,31 @@ impl AsyncReadableFile {
     }
 }
 
-impl Read for AsyncReadableFile {
+impl AsyncRead for AsyncReadableFile {
     fn poll_read(
         self: Pin<&mut Self>,
         _cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<Result<usize, async_std::io::Error>> {
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<Result<(), tokio::io::Error>> {
         let this = self.get_mut();
         let bytes_left = this.len() - this.cursor_pos;
-        let bytes_read = std::cmp::min(buf.len() as u64, bytes_left);
+
         if bytes_left == 0 {
-            return Poll::Ready(Ok(0));
+            return Poll::Ready(Ok(()));
         }
-        buf[..bytes_read as usize].copy_from_slice(
+
+        let bytes_read = std::cmp::min(buf.capacity() as u64, bytes_left);
+        buf.put_slice(
             &this.content[this.cursor_pos as usize..(this.cursor_pos + bytes_read) as usize],
         );
         this.cursor_pos += bytes_read;
-        Poll::Ready(Ok(bytes_read as usize))
+
+        Poll::Ready(Ok(()))
     }
 }
 
-impl Seek for AsyncReadableFile {
-    fn poll_seek(
-        self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-        pos: SeekFrom,
-    ) -> Poll<Result<u64, async_std::io::Error>> {
+impl AsyncSeek for AsyncReadableFile {
+    fn start_seek(self: Pin<&mut Self>, pos: SeekFrom) -> Result<(), tokio::io::Error> {
         let this = self.get_mut();
         let new_pos = match pos {
             SeekFrom::Start(offset) => offset as i64,
@@ -149,14 +154,19 @@ impl Seek for AsyncReadableFile {
             SeekFrom::Current(offset) => this.cursor_pos as i64 + offset,
         };
         if new_pos < 0 || new_pos >= this.len() as i64 {
-            Poll::Ready(Err(async_std::io::Error::new(
-                async_std::io::ErrorKind::InvalidData,
+            Err(tokio::io::Error::new(
+                tokio::io::ErrorKind::InvalidData,
                 "Requested offset is outside the file!",
-            )))
+            ))
         } else {
             this.cursor_pos = new_pos as u64;
-            Poll::Ready(Ok(new_pos as u64))
+            Ok(())
         }
+    }
+
+    fn poll_complete(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<std::io::Result<u64>> {
+        let this = self.get_mut();
+        Poll::Ready(Ok(this.cursor_pos))
     }
 }
 
@@ -226,7 +236,7 @@ impl AsyncFileSystem for AsyncMemoryFS {
         }))
     }
 
-    async fn create_file(&self, path: &str) -> VfsResult<Box<dyn Write + Send + Unpin>> {
+    async fn create_file(&self, path: &str) -> VfsResult<Box<dyn AsyncWrite + Send + Unpin>> {
         self.ensure_has_parent(path).await?;
         let content = Arc::new(Vec::<u8>::new());
         self.handle.write().await.files.insert(
@@ -244,7 +254,7 @@ impl AsyncFileSystem for AsyncMemoryFS {
         Ok(Box::new(writer))
     }
 
-    async fn append_file(&self, path: &str) -> VfsResult<Box<dyn Write + Send + Unpin>> {
+    async fn append_file(&self, path: &str) -> VfsResult<Box<dyn AsyncWrite + Send + Unpin>> {
         let handle = self.handle.write().await;
         let file = handle.files.get(path).ok_or(VfsErrorKind::FileNotFound)?;
         let mut content = Cursor::new(file.content.as_ref().clone());
@@ -327,28 +337,29 @@ struct AsyncMemoryFile {
 mod tests {
     use super::*;
     use crate::async_vfs::AsyncVfsPath;
-    use async_std::io::{ReadExt, WriteExt};
+
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
     test_async_vfs!(AsyncMemoryFS::new());
 
     #[tokio::test]
     async fn write_and_read_file() -> VfsResult<()> {
         let root = AsyncVfsPath::new(AsyncMemoryFS::new());
-        let path = root.join("foobar.txt").unwrap();
+        let path = root.join("foobar.txt")?;
         let _send = &path as &dyn Send;
         {
-            let mut file = path.create_file().await.unwrap();
-            write!(file, "Hello world").await.unwrap();
-            write!(file, "!").await.unwrap();
+            let mut file = path.create_file().await?;
+            file.write_all(b"Hello world").await?;
+            file.write_all(b"!").await?;
         }
         {
-            let mut file = path.open_file().await.unwrap();
+            let mut file = path.open_file().await?;
             let mut string: String = String::new();
-            file.read_to_string(&mut string).await.unwrap();
+            file.read_to_string(&mut string).await?;
             assert_eq!(string, "Hello world!");
         }
         assert!(path.exists().await?);
-        assert!(!root.join("foo").unwrap().exists().await?);
-        let metadata = path.metadata().await.unwrap();
+        assert!(!root.join("foo")?.exists().await?);
+        let metadata = path.metadata().await?;
         assert_eq!(metadata.len, 12);
         assert_eq!(metadata.file_type, VfsFileType::File);
         Ok(())

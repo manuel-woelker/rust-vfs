@@ -174,14 +174,15 @@ mod tests {
     fn create_file() {
         let root = create_root();
         let _string = String::new();
-        let _ = std::fs::remove_file("target/test.txt");
-        root.join("target/test.txt")
+        let p = "target/test_create_file.txt";
+        let _ = std::fs::remove_file(p);
+        root.join(p)
             .unwrap()
             .create_file()
             .unwrap()
             .write_all(b"Testing only")
             .unwrap();
-        let read = std::fs::read_to_string("target/test.txt").unwrap();
+        let read = std::fs::read_to_string(p).unwrap();
         assert_eq!(read, "Testing only");
     }
 

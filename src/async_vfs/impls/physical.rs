@@ -4,14 +4,18 @@ use crate::error::VfsErrorKind;
 use crate::path::VfsFileType;
 use crate::{VfsError, VfsMetadata, VfsResult};
 
-use async_std::fs::{File, OpenOptions};
-use async_std::io::{ErrorKind, Write};
-use async_std::path::{Path, PathBuf};
 use async_trait::async_trait;
 use filetime::FileTime;
-use futures::stream::{Stream, StreamExt};
+use futures::stream::Stream;
+use tokio_stream::wrappers::ReadDirStream;
+use tokio_stream::StreamExt;
+
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::time::SystemTime;
+
+use tokio::fs::{File, OpenOptions};
+use tokio::io::{AsyncWrite, ErrorKind};
 use tokio::runtime::Handle;
 
 /// A physical filesystem implementation using the underlying OS file system
@@ -65,23 +69,25 @@ impl AsyncFileSystem for AsyncPhysicalFS {
     async fn read_dir(
         &self,
         path: &str,
-    ) -> VfsResult<Box<dyn Unpin + Stream<Item = String> + Send>> {
-        let entries = Box::new(
-            self.get_path(path)
-                .read_dir()
-                .await?
-                .map(|entry| entry.unwrap().file_name().into_string().unwrap()),
-        );
-        Ok(entries)
+    ) -> VfsResult<Box<dyn Stream<Item = String> + Send + Unpin>> {
+        let p = self.get_path(path);
+        let read_dir = ReadDirStream::new(tokio::fs::read_dir(p).await?);
+
+        let entries = read_dir.filter_map(|entry| match entry {
+            Ok(entry) => entry.file_name().into_string().ok(),
+            Err(_) => None,
+        });
+
+        Ok(Box::new(entries))
     }
 
     async fn create_dir(&self, path: &str) -> VfsResult<()> {
         let fs_path = self.get_path(path);
-        match async_std::fs::create_dir(&fs_path).await {
+        match tokio::fs::create_dir(&fs_path).await {
             Ok(()) => Ok(()),
             Err(e) => match e.kind() {
                 ErrorKind::AlreadyExists => {
-                    let metadata = async_std::fs::metadata(&fs_path).await.unwrap();
+                    let metadata = tokio::fs::metadata(&fs_path).await.unwrap();
                     if metadata.is_dir() {
                         return Err(VfsError::from(VfsErrorKind::DirectoryExists));
                     }
@@ -96,11 +102,11 @@ impl AsyncFileSystem for AsyncPhysicalFS {
         Ok(Box::new(File::open(self.get_path(path)).await?))
     }
 
-    async fn create_file(&self, path: &str) -> VfsResult<Box<dyn Write + Send + Unpin>> {
+    async fn create_file(&self, path: &str) -> VfsResult<Box<dyn AsyncWrite + Send + Unpin>> {
         Ok(Box::new(File::create(self.get_path(path)).await?))
     }
 
-    async fn append_file(&self, path: &str) -> VfsResult<Box<dyn Write + Send + Unpin>> {
+    async fn append_file(&self, path: &str) -> VfsResult<Box<dyn AsyncWrite + Send + Unpin>> {
         Ok(Box::new(
             OpenOptions::new()
                 .write(true)
@@ -111,7 +117,7 @@ impl AsyncFileSystem for AsyncPhysicalFS {
     }
 
     async fn metadata(&self, path: &str) -> VfsResult<VfsMetadata> {
-        let metadata = self.get_path(path).metadata().await?;
+        let metadata = tokio::fs::metadata(self.get_path(path)).await?;
         Ok(if metadata.is_dir() {
             VfsMetadata {
                 file_type: VfsFileType::Directory,
@@ -148,32 +154,32 @@ impl AsyncFileSystem for AsyncPhysicalFS {
     }
 
     async fn exists(&self, path: &str) -> VfsResult<bool> {
-        Ok(self.get_path(path).exists().await)
+        Ok(self.get_path(path).exists())
     }
 
     async fn remove_file(&self, path: &str) -> VfsResult<()> {
-        async_std::fs::remove_file(self.get_path(path)).await?;
+        tokio::fs::remove_file(self.get_path(path)).await?;
         Ok(())
     }
 
     async fn remove_dir(&self, path: &str) -> VfsResult<()> {
-        async_std::fs::remove_dir(self.get_path(path)).await?;
+        tokio::fs::remove_dir(self.get_path(path)).await?;
         Ok(())
     }
 
     async fn copy_file(&self, src: &str, dest: &str) -> VfsResult<()> {
-        async_std::fs::copy(self.get_path(src), self.get_path(dest)).await?;
+        tokio::fs::copy(self.get_path(src), self.get_path(dest)).await?;
         Ok(())
     }
 
     async fn move_file(&self, src: &str, dest: &str) -> VfsResult<()> {
-        async_std::fs::rename(self.get_path(src), self.get_path(dest)).await?;
+        tokio::fs::rename(self.get_path(src), self.get_path(dest)).await?;
 
         Ok(())
     }
 
     async fn move_dir(&self, src: &str, dest: &str) -> VfsResult<()> {
-        let result = async_std::fs::rename(self.get_path(src), self.get_path(dest)).await;
+        let result = tokio::fs::rename(self.get_path(src), self.get_path(dest)).await;
         if result.is_err() {
             // Error possibly due to different filesystems, return not supported and let the fallback handle it
             return Err(VfsErrorKind::NotSupported.into());
@@ -187,15 +193,16 @@ mod tests {
     use super::*;
     use crate::async_vfs::AsyncVfsPath;
 
-    use async_std::io::ReadExt;
-    use async_std::io::WriteExt;
-    use async_std::path::Path;
     use futures::stream::StreamExt;
+    use std::path::Path;
+
+    use tokio::io::AsyncReadExt;
+    use tokio::io::AsyncWriteExt;
 
     test_async_vfs!(futures::executor::block_on(async {
         let temp_dir = std::env::temp_dir();
         let dir = temp_dir.join(uuid::Uuid::new_v4().to_string());
-        async_std::fs::create_dir_all(&dir).await.unwrap();
+        tokio::fs::create_dir_all(&dir).await.unwrap();
         AsyncPhysicalFS::new(dir)
     }));
     test_async_vfs_readonly!({ AsyncPhysicalFS::new("test/test_directory") });
@@ -206,7 +213,7 @@ mod tests {
 
     #[tokio::test]
     async fn open_file() {
-        let expected = async_std::fs::read_to_string("Cargo.toml").await.unwrap();
+        let expected = tokio::fs::read_to_string("Cargo.toml").await.unwrap();
         let root = create_root();
         let mut string = String::new();
         root.join("Cargo.toml")
@@ -224,8 +231,9 @@ mod tests {
     async fn create_file() {
         let root = create_root();
         let _string = String::new();
-        let _ = async_std::fs::remove_file("target/test.txt").await;
-        root.join("target/test.txt")
+        let p = "target/test_async_create_file.txt";
+        let _ = tokio::fs::remove_file(p).await;
+        root.join(p)
             .unwrap()
             .create_file()
             .await
@@ -233,7 +241,7 @@ mod tests {
             .write_all(b"Testing only")
             .await
             .unwrap();
-        let read = std::fs::read_to_string("target/test.txt").unwrap();
+        let read = std::fs::read_to_string(p).unwrap();
         assert_eq!(read, "Testing only");
     }
 
@@ -241,7 +249,7 @@ mod tests {
     async fn append_file() {
         let root = create_root();
         let _string = String::new();
-        let _ = async_std::fs::remove_file("target/test_append.txt").await;
+        let _ = tokio::fs::remove_file("target/test_append.txt").await;
         let path = Box::pin(root.join("target/test_append.txt").unwrap());
         path.create_file()
             .await
@@ -255,7 +263,7 @@ mod tests {
             .write_all(b"Testing 2")
             .await
             .unwrap();
-        let read = async_std::fs::read_to_string("target/test_append.txt")
+        let read = tokio::fs::read_to_string("target/test_append.txt")
             .await
             .unwrap();
         assert_eq!(read, "Testing 1Testing 2");
@@ -263,7 +271,7 @@ mod tests {
 
     #[tokio::test]
     async fn read_dir() {
-        let _expected = async_std::fs::read_to_string("Cargo.toml").await.unwrap();
+        let _expected = tokio::fs::read_to_string("Cargo.toml").await.unwrap();
         let root = create_root();
         let entries: Vec<_> = root.read_dir().await.unwrap().collect().await;
         let map: Vec<_> = entries
@@ -276,7 +284,7 @@ mod tests {
 
     #[tokio::test]
     async fn create_dir() {
-        let _ = async_std::fs::remove_dir("target/fs_test").await;
+        let _ = tokio::fs::remove_dir("target/fs_test").await;
         let root = create_root();
         root.join("target/fs_test")
             .unwrap()
@@ -284,14 +292,14 @@ mod tests {
             .await
             .unwrap();
         let path = Path::new("target/fs_test");
-        assert!(path.exists().await, "Path was not created");
-        assert!(path.is_dir().await, "Path is not a directory");
-        async_std::fs::remove_dir("target/fs_test").await.unwrap();
+        assert!(path.exists(), "Path was not created");
+        assert!(path.is_dir(), "Path is not a directory");
+        tokio::fs::remove_dir("target/fs_test").await.unwrap();
     }
 
     #[tokio::test]
     async fn file_metadata() {
-        let expected = async_std::fs::read_to_string("Cargo.toml").await.unwrap();
+        let expected = tokio::fs::read_to_string("Cargo.toml").await.unwrap();
         let root = create_root();
         let metadata = root.join("Cargo.toml").unwrap().metadata().await.unwrap();
         assert_eq!(metadata.len, expected.len() as u64);
