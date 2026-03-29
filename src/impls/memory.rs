@@ -349,12 +349,13 @@ fn ensure_file(file: &MemoryFile) -> VfsResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::operations::{AllOps, ReadOnlyOps};
     use crate::VfsPath;
     test_vfs!(MemoryFS::new());
 
     #[test]
     fn write_and_read_file() -> VfsResult<()> {
-        let root = VfsPath::new(MemoryFS::new());
+        let root = VfsPath::<AllOps>::new(MemoryFS::new());
         let path = root.join("foobar.txt").unwrap();
         let _send = &path as &dyn Send;
         {
@@ -378,7 +379,7 @@ mod tests {
 
     #[test]
     fn write_and_seek_and_read_file() -> VfsResult<()> {
-        let root = VfsPath::new(MemoryFS::new());
+        let root = VfsPath::<AllOps>::new(MemoryFS::new());
         let path = root.join("foobar.txt").unwrap();
         let _send = &path as &dyn Send;
         {
@@ -405,7 +406,7 @@ mod tests {
 
     #[test]
     fn append_file() {
-        let root = VfsPath::new(MemoryFS::new());
+        let root = VfsPath::<AllOps>::new(MemoryFS::new());
         let _string = String::new();
         let path = root.join("test_append.txt").unwrap();
         path.create_file().unwrap().write_all(b"Testing 1").unwrap();
@@ -420,7 +421,7 @@ mod tests {
 
     #[test]
     fn append_file_with_seek() {
-        let root = VfsPath::new(MemoryFS::new());
+        let root = VfsPath::<AllOps>::new(MemoryFS::new());
         let _string = String::new();
         let path = root.join("test_append.txt").unwrap();
         path.create_file().unwrap().write_all(b"Testing 1").unwrap();
@@ -440,7 +441,7 @@ mod tests {
 
     #[test]
     fn create_dir() {
-        let root = VfsPath::new(MemoryFS::new());
+        let root = VfsPath::<AllOps>::new(MemoryFS::new());
         let _string = String::new();
         let path = root.join("foo").unwrap();
         path.create_dir().unwrap();
@@ -450,7 +451,7 @@ mod tests {
 
     #[test]
     fn remove_dir_error_message() {
-        let root = VfsPath::new(MemoryFS::new());
+        let root = VfsPath::<AllOps>::new(MemoryFS::new());
         let path = root.join("foo").unwrap();
         let result = path.remove_dir();
         assert_eq!(
@@ -461,7 +462,7 @@ mod tests {
 
     #[test]
     fn read_dir_error_message() {
-        let root = VfsPath::new(MemoryFS::new());
+        let root = VfsPath::<AllOps>::new(MemoryFS::new());
         let path = root.join("foo").unwrap();
         let result = path.read_dir();
         match result {
@@ -477,8 +478,8 @@ mod tests {
 
     #[test]
     fn copy_file_across_filesystems() -> VfsResult<()> {
-        let root_a = VfsPath::new(MemoryFS::new());
-        let root_b = VfsPath::new(MemoryFS::new());
+        let root_a = VfsPath::<AllOps>::new(MemoryFS::new());
+        let root_b = VfsPath::<AllOps>::new(MemoryFS::new());
         let src = root_a.join("a.txt")?;
         let dest = root_b.join("b.txt")?;
         src.create_file()?.write_all(b"Hello World")?;
@@ -490,7 +491,7 @@ mod tests {
     // cf. https://github.com/manuel-woelker/rust-vfs/issues/70
     #[test]
     fn flush_then_read_with_new_handle() {
-        let root = VfsPath::new(MemoryFS::new());
+        let root = VfsPath::<AllOps>::new(MemoryFS::new());
         let path = root.join("test.txt").unwrap();
         let mut write_handle = path.create_file().unwrap();
         write_handle.write_all(b"Testing 1").unwrap();
@@ -517,5 +518,14 @@ mod tests {
         let mut string: String = String::new();
         read_handle.read_to_string(&mut string).unwrap();
         assert_eq!(string, "Testing 1Testing 2Testing 3");
+    }
+
+    #[test]
+    fn read_only_fs() {
+        type VfsPathReadOnly = VfsPath<ReadOnlyOps>;
+        let root = VfsPathReadOnly::new_with_ops(MemoryFS::new());
+        let _path = root.join("test.txt").unwrap();
+        // Next line should not compile because VFSPath is read-only
+        // let mut write_handle = path.create_file().unwrap();
     }
 }
