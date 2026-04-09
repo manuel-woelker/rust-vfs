@@ -4,8 +4,8 @@ use crate::async_vfs::{AsyncFileSystem, AsyncVfsPath, SeekAndRead};
 use crate::error::VfsErrorKind;
 use crate::{VfsMetadata, VfsResult};
 
-use async_std::io::Write;
 use async_trait::async_trait;
+use futures::io::AsyncWrite;
 use futures::stream::{Stream, StreamExt};
 use std::collections::HashSet;
 use std::time::SystemTime;
@@ -132,7 +132,7 @@ impl AsyncFileSystem for AsyncOverlayFS {
         self.read_path(path).await?.open_file().await
     }
 
-    async fn create_file(&self, path: &str) -> VfsResult<Box<dyn Write + Send + Unpin>> {
+    async fn create_file(&self, path: &str) -> VfsResult<Box<dyn AsyncWrite + Send + Unpin>> {
         self.ensure_has_parent(path).await?;
         let result = self.write_path(path)?.create_file().await?;
         let whiteout_path = self.whiteout_path(path)?;
@@ -142,7 +142,7 @@ impl AsyncFileSystem for AsyncOverlayFS {
         Ok(result)
     }
 
-    async fn append_file(&self, path: &str) -> VfsResult<Box<dyn Write + Send + Unpin>> {
+    async fn append_file(&self, path: &str) -> VfsResult<Box<dyn AsyncWrite + Send + Unpin>> {
         let write_path = self.write_path(path)?;
         if !write_path.exists().await? {
             self.ensure_has_parent(path).await?;
@@ -214,7 +214,7 @@ mod tests {
     use super::*;
     use crate::async_vfs::AsyncMemoryFS;
 
-    use async_std::io::WriteExt;
+    use futures::io::AsyncWriteExt;
     use futures::stream::StreamExt;
 
     test_async_vfs!({
@@ -428,20 +428,21 @@ mod tests {
 }
 
 #[cfg(test)]
+#[cfg(any(feature = "tokio-physical", feature = "smol-physical"))]
 mod tests_physical {
     use super::*;
     use crate::async_vfs::AsyncPhysicalFS;
 
-    test_async_vfs!(futures::executor::block_on(async {
+    test_async_vfs!({
         let temp_dir = std::env::temp_dir();
         let dir = temp_dir.join(uuid::Uuid::new_v4().to_string());
         let lower_path = dir.join("lower");
-        async_std::fs::create_dir_all(&lower_path).await.unwrap();
+        std::fs::create_dir_all(&lower_path).unwrap();
         let upper_path = dir.join("upper");
-        async_std::fs::create_dir_all(&upper_path).await.unwrap();
+        std::fs::create_dir_all(&upper_path).unwrap();
 
         let upper_root: AsyncVfsPath = AsyncPhysicalFS::new(upper_path).into();
         let lower_root: AsyncVfsPath = AsyncPhysicalFS::new(lower_path).into();
         AsyncOverlayFS::new(&[upper_root, lower_root])
-    }));
+    });
 }

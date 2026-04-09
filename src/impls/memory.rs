@@ -406,7 +406,6 @@ mod tests {
     #[test]
     fn append_file() {
         let root = VfsPath::new(MemoryFS::new());
-        let _string = String::new();
         let path = root.join("test_append.txt").unwrap();
         path.create_file().unwrap().write_all(b"Testing 1").unwrap();
         path.append_file().unwrap().write_all(b"Testing 2").unwrap();
@@ -421,7 +420,6 @@ mod tests {
     #[test]
     fn append_file_with_seek() {
         let root = VfsPath::new(MemoryFS::new());
-        let _string = String::new();
         let path = root.join("test_append.txt").unwrap();
         path.create_file().unwrap().write_all(b"Testing 1").unwrap();
         path.append_file().unwrap().write_all(b"Testing 2").unwrap();
@@ -441,7 +439,6 @@ mod tests {
     #[test]
     fn create_dir() {
         let root = VfsPath::new(MemoryFS::new());
-        let _string = String::new();
         let path = root.join("foo").unwrap();
         path.create_dir().unwrap();
         let metadata = path.metadata().unwrap();

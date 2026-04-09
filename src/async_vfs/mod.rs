@@ -5,7 +5,7 @@
 //!
 //! This module currently has the following asynchronous file system implementations:
 //!
-//!  * **[`AsyncPhysicalFS`](impls/physical/struct.AsyncPhysicalFS.html)** - the actual filesystem of the underlying OS
+//!  * **[`AsyncPhysicalFS`](impls/physical/struct.AsyncPhysicalFS.html)** - the actual filesystem of the underlying OS (requires `tokio-physical` or `smol-physical` feature)
 //!  * **[`AsyncMemoryFS`](impls/memory/struct.AsyncMemoryFS.html)** - an ephemeral in-memory implementation (intended for unit tests)
 //!  * **[`AsyncAltrootFS`](impls/altroot/struct.AsyncAltrootFS.html)** - a file system with its root in a particular directory of another filesystem
 //!  * **[`AsyncOverlayFS`](impls/overlay/struct.AsyncOverlayFS.html)** - a union file system consisting of a read/writable upper layer and several read-only lower layers
@@ -13,23 +13,7 @@
 //! # Usage Examples
 //!
 //! ```
-//! use async_std::io::{ReadExt, WriteExt};
-//! use vfs::async_vfs::{AsyncVfsPath, AsyncPhysicalFS};
-//! use vfs::VfsError;
-//!
-//! # tokio_test::block_on(async {
-//! let root: AsyncVfsPath = AsyncPhysicalFS::new(std::env::current_dir().unwrap()).into();
-//! assert!(root.exists().await?);
-//!
-//! let mut content = String::new();
-//! root.join("README.md")?.open_file().await?.read_to_string(&mut content).await?;
-//! assert!(content.contains("vfs"));
-//! # Ok::<(), VfsError>(())
-//! # });
-//! ```
-//!
-//! ```
-//! use async_std::io::{ReadExt, WriteExt};
+//! use futures::io::{AsyncReadExt, AsyncWriteExt};
 //! use vfs::async_vfs::{AsyncVfsPath, AsyncMemoryFS};
 //! use vfs::VfsError;
 //!
@@ -60,5 +44,6 @@ pub use filesystem::AsyncFileSystem;
 pub use impls::altroot::AsyncAltrootFS;
 pub use impls::memory::AsyncMemoryFS;
 pub use impls::overlay::AsyncOverlayFS;
+#[cfg(any(feature = "tokio-physical", feature = "smol-physical"))]
 pub use impls::physical::AsyncPhysicalFS;
 pub use path::*;

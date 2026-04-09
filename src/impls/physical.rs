@@ -173,7 +173,6 @@ mod tests {
     #[test]
     fn create_file() {
         let root = create_root();
-        let _string = String::new();
         let _ = std::fs::remove_file("target/test.txt");
         root.join("target/test.txt")
             .unwrap()
@@ -188,7 +187,6 @@ mod tests {
     #[test]
     fn append_file() {
         let root = create_root();
-        let _string = String::new();
         let _ = std::fs::remove_file("target/test_append.txt");
         let path = root.join("target/test_append.txt").unwrap();
         path.create_file().unwrap().write_all(b"Testing 1").unwrap();

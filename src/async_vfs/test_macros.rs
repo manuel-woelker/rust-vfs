@@ -1,3 +1,29 @@
+use crate::VfsResult;
+use futures::io::AsyncWriteExt;
+
+/// Helper to write data to an async writer and properly close it.
+/// Explicit close is required because futures::io::AsyncWrite does not
+/// guarantee flush on drop, unlike std::io::Write.
+pub async fn write_file(
+    mut writer: Box<dyn futures::io::AsyncWrite + Send + Unpin>,
+    data: &[u8],
+) {
+    writer.write_all(data).await.unwrap();
+    writer.close().await.unwrap();
+}
+
+/// Helper to write data to an async writer and properly close it, propagating errors.
+/// Explicit close is required because futures::io::AsyncWrite does not
+/// guarantee flush on drop, unlike std::io::Write.
+pub async fn try_write_file(
+    mut writer: Box<dyn futures::io::AsyncWrite + Send + Unpin>,
+    data: &[u8],
+) -> VfsResult<()> {
+    writer.write_all(data).await?;
+    writer.close().await?;
+    Ok(())
+}
+
 /// Run basic read/write vfs test to check for conformance
 /// If an Filesystem implementation is read-only use [test_async_vfs_readonly!] instead
 #[macro_export]
@@ -8,10 +34,11 @@ macro_rules! test_async_vfs {
             use super::*;
             use $crate::VfsFileType;
             use $crate::async_vfs::AsyncVfsPath;
+            use $crate::async_vfs::test_macros::{write_file, try_write_file};
             use $crate::VfsResult;
             use $crate::error::VfsErrorKind;
             use futures::stream::StreamExt;
-            use async_std::io::{WriteExt, ReadExt};
+            use futures::io::{AsyncWriteExt, AsyncReadExt};
             use std::time::SystemTime;
 
             fn create_root() -> AsyncVfsPath {
@@ -102,8 +129,9 @@ macro_rules! test_async_vfs {
                 let _send = &path as &dyn Send;
                 {
                     let mut file = path.create_file().await.unwrap();
-                    write!(file, "Hello world").await.unwrap();
-                    write!(file, "!").await.unwrap();
+                    file.write_all(b"Hello world").await.unwrap();
+                    file.write_all(b"!").await.unwrap();
+                    file.close().await.unwrap();
                 }
                 {
                     let mut file = path.open_file().await.unwrap();
@@ -123,8 +151,8 @@ macro_rules! test_async_vfs {
             async fn append_file() {
                 let root = create_root();
                 let path = root.join("test_append.txt").unwrap();
-                path.create_file().await.unwrap().write_all(b"Testing 1").await.unwrap();
-                path.append_file().await.unwrap().write_all(b"Testing 2").await.unwrap();
+                write_file(path.create_file().await.unwrap(), b"Testing 1").await;
+                write_file(path.append_file().await.unwrap(), b"Testing 2").await;
                 {
                     let mut file = path.open_file().await.unwrap();
                     let mut string: String = String::new();
@@ -153,7 +181,6 @@ macro_rules! test_async_vfs {
             #[tokio::test]
             async fn create_dir() {
                 let root = create_root();
-                let _string = String::new();
                 let path = root.join("foo").unwrap();
                 path.create_dir().await.unwrap();
                 let metadata = path.metadata().await.unwrap();
@@ -164,7 +191,6 @@ macro_rules! test_async_vfs {
             #[tokio::test]
             async fn create_dir_with_camino() {
                 let root = create_root();
-                let _string = String::new();
                 let path = root.join(camino::Utf8Path::new("foo")).unwrap();
                 path.create_dir().await.unwrap();
                 let metadata = path.metadata().await.unwrap();
@@ -175,7 +201,6 @@ macro_rules! test_async_vfs {
             #[tokio::test]
             async fn create_dir_all() -> VfsResult<()>{
                 let root = create_root();
-                let _string = String::new();
                 let path = root.join("foo").unwrap();
                 path.create_dir().await.unwrap();
                 let path = root.join("foo/bar/baz").unwrap();
@@ -193,7 +218,6 @@ macro_rules! test_async_vfs {
             #[tokio::test]
             async fn create_dir_all_should_fail_for_existing_file() -> VfsResult<()>{
                 let root = create_root();
-                let _string = String::new();
                 let path = root.join("foo").unwrap();
                 let path2 = root.join("foo/bar").unwrap();
                 path.create_file().await.unwrap();
@@ -219,7 +243,6 @@ macro_rules! test_async_vfs {
             #[tokio::test]
             async fn read_dir() {
                 let root = create_root();
-                let _string = String::new();
                 root.join("foo/bar/biz").unwrap().create_dir_all().await.unwrap();
                 root.join("baz").unwrap().create_file().await.unwrap();
                 root.join("foo/fizz").unwrap().create_file().await.unwrap();
@@ -643,7 +666,7 @@ macro_rules! test_async_vfs {
             async fn read_to_string() -> VfsResult<()> {
                 let root = create_root();
                 let path = root.join("foobar.txt")?;
-                path.create_file().await?.write_all(b"Hello World").await?;
+                try_write_file(path.create_file().await?, b"Hello World").await?;
                 assert_eq!(path.read_to_string().await?, "Hello World");
                 Ok(())
             }
@@ -677,7 +700,7 @@ macro_rules! test_async_vfs {
             async fn read_to_string_nonutf8() -> VfsResult<()> {
                 let root = create_root();
                 let path = root.join("foobar.txt")?;
-                path.create_file().await?.write_all(&vec![0, 159, 146, 150]).await?;
+                try_write_file(path.create_file().await?, &[0, 159, 146, 150]).await?;
                 let error_message = path.read_to_string().await.expect_err("read_to_string").to_string();
                 assert_eq!(
                     &error_message,
@@ -691,7 +714,7 @@ macro_rules! test_async_vfs {
                 let root = create_root();
                 let src = root.join("a.txt")?;
                 let dest = root.join("b.txt")?;
-                src.create_file().await?.write_all(b"Hello World").await?;
+                try_write_file(src.create_file().await?, b"Hello World").await?;
                 src.copy_file(&dest).await?;
                 assert_eq!(&dest.read_to_string().await?, "Hello World");
                 Ok(())
@@ -717,8 +740,8 @@ macro_rules! test_async_vfs {
                 let root = create_root();
                 let src = root.join("a.txt")?;
                 let dest = root.join("b.txt")?;
-                src.create_file().await?.write_all(b"Hello World").await?;
-                dest.create_file().await?.write_all(b"Hello World").await?;
+                try_write_file(src.create_file().await?, b"Hello World").await?;
+                try_write_file(dest.create_file().await?, b"Hello World").await?;
 
                 let error_message = src.copy_file(&dest).await.expect_err("copy_file").to_string();
                 assert!(
@@ -734,7 +757,7 @@ macro_rules! test_async_vfs {
                 let root = create_root();
                 let src = root.join("a.txt")?;
                 let dest = root.join("x/b.txt")?;
-                src.create_file().await?.write_all(b"Hello World").await?;
+                try_write_file(src.create_file().await?, b"Hello World").await?;
 
                 let error_message = src.copy_file(&dest).await.expect_err("copy_file").to_string();
                 assert!(
@@ -750,7 +773,7 @@ macro_rules! test_async_vfs {
                 let root = create_root();
                 let src = root.join("a.txt")?;
                 let dest = root.join("a.txt/b.txt")?;
-                src.create_file().await?.write_all(b"Hello World").await?;
+                try_write_file(src.create_file().await?, b"Hello World").await?;
 
                 let error_message = src.copy_file(&dest).await.expect_err("copy_file").to_string();
                 assert!(
@@ -765,7 +788,7 @@ macro_rules! test_async_vfs {
             async fn copy_file_to_root() -> VfsResult<()> {
                 let root = create_root();
                 let src = root.join("a.txt")?;
-                src.create_file().await?.write_all(b"Hello World").await?;
+                try_write_file(src.create_file().await?, b"Hello World").await?;
 
                 let error_message = src.copy_file(&root).await.expect_err("copy_file").to_string();
                 assert!(
@@ -781,7 +804,7 @@ macro_rules! test_async_vfs {
                 let root = create_root();
                 let src = root.join("a.txt")?;
                 let dest = root.join("b.txt")?;
-                src.create_file().await?.write_all(b"Hello World").await?;
+                try_write_file(src.create_file().await?, b"Hello World").await?;
                 src.move_file(&dest).await?;
                 assert_eq!(&dest.read_to_string().await?, "Hello World");
                 assert!(!src.exists().await?, "Source should not exist anymore");
@@ -808,8 +831,8 @@ macro_rules! test_async_vfs {
                 let root = create_root();
                 let src = root.join("a.txt")?;
                 let dest = root.join("b.txt")?;
-                src.create_file().await?.write_all(b"Hello World").await?;
-                dest.create_file().await?.write_all(b"Hello World").await?;
+                try_write_file(src.create_file().await?, b"Hello World").await?;
+                try_write_file(dest.create_file().await?, b"Hello World").await?;
 
                 let error_message = src.move_file(&dest).await.expect_err("move_file").to_string();
                 assert!(
@@ -824,7 +847,7 @@ macro_rules! test_async_vfs {
                 let root = create_root();
                 let src = root.join("a.txt")?;
                 let dest = root.join("x/b.txt")?;
-                src.create_file().await?.write_all(b"Hello World").await?;
+                try_write_file(src.create_file().await?, b"Hello World").await?;
 
                 let error_message = src.move_file(&dest).await.expect_err("copy_file").to_string();
                 assert!(
@@ -840,7 +863,7 @@ macro_rules! test_async_vfs {
                 let root = create_root();
                 let src = root.join("a.txt")?;
                 let dest = root.join("a.txt/b.txt")?;
-                src.create_file().await?.write_all(b"Hello World").await?;
+                try_write_file(src.create_file().await?, b"Hello World").await?;
 
                 let error_message = src.move_file(&dest).await.expect_err("copy_file").to_string();
                 assert!(
@@ -855,7 +878,7 @@ macro_rules! test_async_vfs {
             async fn move_file_to_root() -> VfsResult<()> {
                 let root = create_root();
                 let src = root.join("a.txt")?;
-                src.create_file().await?.write_all(b"Hello World").await?;
+                try_write_file(src.create_file().await?, b"Hello World").await?;
 
                 let error_message = src.move_file(&root).await.expect_err("copy_file").to_string();
                 assert!(
@@ -871,7 +894,7 @@ macro_rules! test_async_vfs {
                 let root = create_root();
                 let src = root.join("foo")?;
                 src.join("bar/biz/fizz/buzz")?.create_dir_all().await?;
-                src.join("bar/baz.txt")?.create_file().await?.write_all(b"Hello World").await?;
+                try_write_file(src.join("bar/baz.txt")?.create_file().await?, b"Hello World").await?;
 
                 let dest = root.join("foo2")?;
                 assert_eq!(5, src.copy_dir(&dest).await?);
@@ -916,7 +939,7 @@ macro_rules! test_async_vfs {
                 let root = create_root();
                 let src = root.join("foo")?;
                 src.join("bar/biz/fizz/buzz")?.create_dir_all().await?;
-                src.join("bar/baz.txt")?.create_file().await?.write_all(b"Hello World").await?;
+                try_write_file(src.join("bar/baz.txt")?.create_file().await?, b"Hello World").await?;
 
                 let dest = root.join("foo2")?;
                 src.move_dir(&dest).await?;
@@ -997,6 +1020,7 @@ macro_rules! test_async_vfs_readonly {
         #[cfg(test)]
         mod vfs_tests_readonly {
             use super::*;
+            use futures::io::AsyncReadExt;
             use futures::stream::StreamExt;
             use $crate::async_vfs::AsyncVfsPath;
             use $crate::{VfsFileType, VfsResult};

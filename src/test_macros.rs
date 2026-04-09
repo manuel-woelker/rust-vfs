@@ -178,7 +178,6 @@ use super::*;
             #[test]
             fn create_dir() {
                 let root = create_root();
-                let _string = String::new();
                 let path = root.join("foo").unwrap();
                 path.create_dir().unwrap();
                 let metadata = path.metadata().unwrap();
@@ -189,7 +188,6 @@ use super::*;
             #[test]
             fn create_dir_with_camino() {
                 let root = create_root();
-                let _string = String::new();
                 let path = root.join(camino::Utf8Path::new("foo")).unwrap();
                 path.create_dir().unwrap();
                 let metadata = path.metadata().unwrap();
@@ -200,7 +198,6 @@ use super::*;
             #[test]
             fn create_dir_all() -> VfsResult<()>{
                 let root = create_root();
-                let _string = String::new();
                 let path = root.join("foo").unwrap();
                 path.create_dir().unwrap();
                 let path = root.join("foo/bar/baz").unwrap();
@@ -218,7 +215,6 @@ use super::*;
             #[test]
             fn create_dir_all_should_fail_for_existing_file() -> VfsResult<()>{
                 let root = create_root();
-                let _string = String::new();
                 let path = root.join("foo").unwrap();
                 let path2 = root.join("foo/bar").unwrap();
                 path.create_file().unwrap();
@@ -244,7 +240,6 @@ use super::*;
             #[test]
             fn read_dir() {
                 let root = create_root();
-                let _string = String::new();
                 root.join("foo/bar/biz").unwrap().create_dir_all().unwrap();
                 root.join("baz").unwrap().create_file().unwrap();
                 root.join("foo/fizz").unwrap().create_file().unwrap();

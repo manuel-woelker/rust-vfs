@@ -10,17 +10,17 @@ use crate::path::VfsFileType;
 use crate::{VfsMetadata, VfsResult};
 
 use async_recursion::async_recursion;
-use async_std::io::{Read, ReadExt, Seek, Write};
-use async_std::sync::Arc;
-use async_std::task::{Context, Poll};
+use futures::io::{AsyncRead, AsyncReadExt, AsyncSeek, AsyncWrite};
 use futures::{future::BoxFuture, FutureExt, Stream, StreamExt};
 use std::pin::Pin;
+use std::sync::Arc;
+use std::task::{Context, Poll};
 use std::time::SystemTime;
 
-/// Trait combining Seek and Read, return value for opening files
-pub trait SeekAndRead: Seek + Read {}
+/// Trait combining AsyncSeek and AsyncRead, return value for opening files
+pub trait SeekAndRead: AsyncSeek + AsyncRead {}
 
-impl<T> SeekAndRead for T where T: Seek + Read {}
+impl<T> SeekAndRead for T where T: AsyncSeek + AsyncRead {}
 
 #[derive(Debug)]
 struct AsyncVFS {
@@ -52,8 +52,8 @@ impl AsyncVfsPath {
     /// Creates a root path for the given filesystem
     ///
     /// ```
-    /// # use vfs::async_vfs::{AsyncPhysicalFS, AsyncVfsPath};
-    /// let path = AsyncVfsPath::new(AsyncPhysicalFS::new("."));
+    /// # use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
+    /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// ````
     pub fn new<T: AsyncFileSystem>(filesystem: T) -> Self {
         AsyncVfsPath {
@@ -67,9 +67,9 @@ impl AsyncVfsPath {
     /// Returns the string representation of this path
     ///
     /// ```
-    /// # use vfs::async_vfs::{AsyncPhysicalFS, AsyncVfsPath};
+    /// # use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
     /// # use vfs::VfsError;
-    /// let path = AsyncVfsPath::new(AsyncPhysicalFS::new("."));
+    /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     ///
     /// assert_eq!(path.as_str(), "");
     /// assert_eq!(path.join("foo.txt")?.as_str(), "/foo.txt");
@@ -82,9 +82,9 @@ impl AsyncVfsPath {
     /// Appends a path segment to this path, returning the result
     ///
     /// ```
-    /// # use vfs::async_vfs::{AsyncPhysicalFS, AsyncVfsPath};
+    /// # use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
     /// # use vfs::VfsError;
-    /// let path = AsyncVfsPath::new(AsyncPhysicalFS::new("."));
+    /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     ///
     /// assert_eq!(path.join("foo.txt")?.as_str(), "/foo.txt");
     /// assert_eq!(path.join("foo/bar.txt")?.as_str(), "/foo/bar.txt");
@@ -259,12 +259,12 @@ impl AsyncVfsPath {
     /// ```
     /// # use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
     /// # use vfs::VfsError;
-    /// use async_std::io:: {ReadExt, WriteExt};
+    /// use futures::io::{AsyncReadExt, AsyncWriteExt};
     /// # tokio_test::block_on(async {
     /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let file = path.join("foo.txt")?;
     ///
-    /// write!(file.create_file().await?, "Hello, world!").await?;
+    /// file.create_file().await?.write_all(b"Hello, world!").await?;
     ///
     /// let mut result = String::new();
     /// file.open_file().await?.read_to_string(&mut result).await?;
@@ -272,7 +272,7 @@ impl AsyncVfsPath {
     /// # Ok::<(), VfsError>(())
     /// # });
     /// ```
-    pub async fn create_file(&self) -> VfsResult<Box<dyn Write + Send + Unpin>> {
+    pub async fn create_file(&self) -> VfsResult<Box<dyn AsyncWrite + Send + Unpin>> {
         self.get_parent("create file").await?;
         self.fs.fs.create_file(&self.path).await.map_err(|err| {
             err.with_path(&self.path)
@@ -285,11 +285,11 @@ impl AsyncVfsPath {
     /// ```
     /// # use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
     /// # use vfs::VfsError;
-    /// use async_std::io:: {ReadExt, WriteExt};
+    /// use futures::io::{AsyncReadExt, AsyncWriteExt};
     /// # tokio_test::block_on(async {
     /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let file = path.join("foo.txt")?;
-    /// write!(file.create_file().await?, "Hello, world!").await?;
+    /// file.create_file().await?.write_all(b"Hello, world!").await?;
     /// let mut result = String::new();
     ///
     /// file.open_file().await?.read_to_string(&mut result).await?;
@@ -329,19 +329,19 @@ impl AsyncVfsPath {
     /// ```
     /// # use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
     /// # use vfs::VfsError;
-    /// use async_std::io:: {ReadExt, WriteExt};
+    /// use futures::io::{AsyncReadExt, AsyncWriteExt};
     /// # tokio_test::block_on(async {
     /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let file = path.join("foo.txt")?;
-    /// write!(file.create_file().await?, "Hello, ").await?;
-    /// write!(file.append_file().await?, "world!").await?;
+    /// file.create_file().await?.write_all(b"Hello, ").await?;
+    /// file.append_file().await?.write_all(b"world!").await?;
     /// let mut result = String::new();
     /// file.open_file().await?.read_to_string(&mut result).await?;
     /// assert_eq!(&result, "Hello, world!");
     /// # Ok::<(), VfsError>(())
     /// # });
     /// ```
-    pub async fn append_file(&self) -> VfsResult<Box<dyn Write + Send + Unpin>> {
+    pub async fn append_file(&self) -> VfsResult<Box<dyn AsyncWrite + Send + Unpin>> {
         self.fs.fs.append_file(&self.path).await.map_err(|err| {
             err.with_path(&self.path)
                 .with_context(|| "Could not open file for appending")
@@ -351,13 +351,13 @@ impl AsyncVfsPath {
     /// Removes the file at this path
     ///
     /// ```
-    /// use async_std::io:: {ReadExt, WriteExt};
+    /// use futures::io::{AsyncReadExt, AsyncWriteExt};
     /// # use vfs::async_vfs::{AsyncMemoryFS , AsyncVfsPath};
     /// # use vfs::VfsError;
     /// # tokio_test::block_on(async {
     /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let file = path.join("foo.txt")?;
-    /// write!(file.create_file().await?, "Hello, ").await?;
+    /// file.create_file().await?.write_all(b"Hello, ").await?;
     /// assert!(file.exists().await?);
     ///
     /// file.remove_file().await?;
@@ -440,7 +440,7 @@ impl AsyncVfsPath {
     /// ```
     /// use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
     /// use vfs::{VfsError, VfsFileType, VfsMetadata};
-    /// use async_std::io::WriteExt;
+    /// use futures::io::AsyncWriteExt;
     /// # tokio_test::block_on(async {
     /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let directory = path.join("foo")?;
@@ -450,7 +450,7 @@ impl AsyncVfsPath {
     /// assert_eq!(directory.metadata().await?.file_type, VfsFileType::Directory);
     ///
     /// let file = path.join("bar.txt")?;
-    /// write!(file.create_file().await?, "Hello, world!").await?;
+    /// file.create_file().await?.write_all(b"Hello, world!").await?;
     ///
     /// assert_eq!(file.metadata().await?.len, 13);
     /// assert_eq!(file.metadata().await?.file_type, VfsFileType::File);
@@ -468,7 +468,7 @@ impl AsyncVfsPath {
     /// ```
     /// use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
     /// use vfs::{VfsError, VfsFileType, VfsMetadata, VfsPath};
-    /// use async_std::io::WriteExt;
+    /// use futures::io::AsyncWriteExt;
     /// # tokio_test::block_on(async {
     /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let file = path.join("foo.txt")?;
@@ -498,7 +498,7 @@ impl AsyncVfsPath {
     /// ```
     /// use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
     /// use vfs::{VfsError, VfsFileType, VfsMetadata, VfsPath};
-    /// use async_std::io::WriteExt;
+    /// use futures::io::AsyncWriteExt;
     /// # tokio_test::block_on(async {
     /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let file = path.join("foo.txt")?;
@@ -528,7 +528,7 @@ impl AsyncVfsPath {
     /// ```
     /// use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
     /// use vfs::{VfsError, VfsFileType, VfsMetadata, VfsPath};
-    /// use async_std::io::WriteExt;
+    /// use futures::io::AsyncWriteExt;
     /// # tokio_test::block_on(async {
     /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let file = path.join("foo.txt")?;
@@ -722,11 +722,11 @@ impl AsyncVfsPath {
     /// ```
     /// # use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
     /// # use vfs::VfsError;
-    /// use async_std::io::{ReadExt, WriteExt};
+    /// use futures::io::{AsyncReadExt, AsyncWriteExt};
     /// # tokio_test::block_on(async {
     /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let file = path.join("foo.txt")?;
-    /// write!(file.create_file().await?, "Hello, world!").await?;
+    /// file.create_file().await?.write_all(b"Hello, world!").await?;
     ///
     /// let result = file.read_to_string().await?;
     ///
@@ -761,13 +761,13 @@ impl AsyncVfsPath {
     /// The destination must not exist, but its parent directory must
     ///
     /// ```
-    /// use async_std::io::{ReadExt, WriteExt};
+    /// use futures::io::{AsyncReadExt, AsyncWriteExt};
     /// # use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
     /// # use vfs::VfsError;
     /// # tokio_test::block_on(async {
     /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let src = path.join("foo.txt")?;
-    /// write!(src.create_file().await?, "Hello, world!").await?;
+    /// src.create_file().await?.write_all(b"Hello, world!").await?;
     /// let dest = path.join("bar.txt")?;
     ///
     /// src.copy_file(&dest).await?;
@@ -798,7 +798,7 @@ impl AsyncVfsPath {
             }
             let mut src = self.open_file().await?;
             let mut dest = destination.create_file().await?;
-            async_std::io::copy(&mut src, &mut dest)
+            futures::io::copy(&mut src, &mut dest)
                 .await
                 .map_err(|source| {
                     VfsError::from(source)
@@ -827,11 +827,11 @@ impl AsyncVfsPath {
     /// ```
     /// # use vfs::async_vfs::{AsyncMemoryFS, AsyncVfsPath};
     /// # use vfs::VfsError;
-    /// use async_std::io::{ReadExt, WriteExt};
+    /// use futures::io::{AsyncReadExt, AsyncWriteExt};
     /// # tokio_test::block_on(async {
     /// let path = AsyncVfsPath::new(AsyncMemoryFS::new());
     /// let src = path.join("foo.txt")?;
-    /// write!(src.create_file().await?, "Hello, world!").await?;
+    /// src.create_file().await?.write_all(b"Hello, world!").await?;
     /// let dest = path.join("bar.txt")?;
     ///
     /// src.move_file(&dest).await?;
@@ -863,7 +863,7 @@ impl AsyncVfsPath {
             }
             let mut src = self.open_file().await?;
             let mut dest = destination.create_file().await?;
-            async_std::io::copy(&mut src, &mut dest)
+            futures::io::copy(&mut src, &mut dest)
                 .await
                 .map_err(|source| {
                     VfsError::from(source)

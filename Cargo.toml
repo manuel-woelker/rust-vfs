@@ -15,24 +15,35 @@ travis-ci = { repository = "manuel-woelker/rust-vfs", branch = "master" }
 
 [dependencies]
 rust-embed = { version = "8.0.0", optional = true }
-async-std = { version = "1.12.0", optional = true }
-async-trait = { version = "0.1.73", optional = true}
-tokio = { version = "1.29.0", features = ["macros", "rt"], optional = true}
-futures = {version = "0.3.28", optional = true}
-async-recursion = {version = "1.0.5", optional = true}
+async-trait = { version = "0.1.73", optional = true }
+futures = { version = "0.3.28", optional = true }
+async-recursion = { version = "1.0.5", optional = true }
+async-lock = { version = "3.4.2", optional = true }
 filetime = "0.2.23"
 camino = { version = "1.0.5", optional = true }
+
+# For tokio-based physical FS
+tokio = { version = "1.29.0", features = ["macros", "rt", "fs"], optional = true }
+tokio-util = { version = "0.7.18", features = ["compat"], optional = true }
+
+# For smol/async-std compatible physical FS
+async-fs = { version = "2.2.0", optional = true }
+blocking = { version = "1.6.2", optional = true, default-features = false }
 
 [dev-dependencies]
 uuid = { version = "=0.8.1", features = ["v4"] }
 camino = "1.0.5"
 anyhow = "1.0.58"
 tokio-test = "0.4.3"
+tokio = { version = "1.29.0", features = ["macros", "rt-multi-thread"] }
+smol = "2.0.2"
 
 [features]
 embedded-fs = ["rust-embed"]
-async-vfs = ["tokio", "async-std", "async-trait", "futures", "async-recursion"]
+async-vfs = ["async-trait", "futures", "async-recursion", "async-lock"]
+tokio-physical = ["async-vfs", "tokio", "tokio-util"]
+smol-physical = ["async-vfs", "async-fs", "blocking"]
 export-test-macros = [ "camino" ]
 
 [package.metadata.docs.rs]
-features = ["embedded-fs", "async-vfs"]
+features = ["embedded-fs", "async-vfs", "tokio-physical"]
