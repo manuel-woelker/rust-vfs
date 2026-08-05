@@ -49,46 +49,39 @@ pub(crate) trait PathLike: Clone {
         if path.is_empty() {
             return Ok(in_path.to_string());
         }
-        let mut new_components: Vec<&str> = Vec::with_capacity(
-            in_path.chars().filter(|c| *c == '/').count()
-                + path.chars().filter(|c| *c == '/').count()
-                + 1,
-        );
-        let mut base_path = if path.starts_with('/') {
-            "".to_string()
-        } else {
-            in_path.to_string()
-        };
         // Prevent paths from ending in slashes unless this is just the root directory.
         if path.len() > 1 && path.ends_with('/') {
             return Err(VfsError::from(VfsErrorKind::InvalidPath).with_path(path));
         }
+
+        // A normalized VFS path is never longer than the input path plus a
+        // separator. Building it directly avoids the temporary component
+        // vector and its pre-pass to count separators.
+        let mut joined = if path.starts_with('/') {
+            String::with_capacity(path.len() + 1)
+        } else {
+            String::with_capacity(in_path.len() + path.len() + 1)
+        };
+        if !path.starts_with('/') {
+            joined.push_str(in_path);
+        }
+
         for component in path.split('/') {
             if component == "." || component.is_empty() {
                 continue;
             }
             if component == ".." {
-                if !new_components.is_empty() {
-                    new_components.truncate(new_components.len() - 1);
+                if let Some(parent_end) = joined.rfind('/') {
+                    joined.truncate(parent_end);
                 } else {
-                    base_path = self.parent_internal(&base_path);
+                    joined.clear();
                 }
             } else {
-                new_components.push(component);
+                joined.push('/');
+                joined.push_str(component);
             }
         }
-        let mut path = base_path;
-        path.reserve(
-            new_components.len()
-                + new_components
-                    .iter()
-                    .fold(0, |accum, part| accum + part.len()),
-        );
-        for component in new_components {
-            path.push('/');
-            path.push_str(component);
-        }
-        Ok(path)
+        Ok(joined)
     }
 }
 
@@ -326,7 +319,13 @@ impl VfsPath {
                         .with_context(|| "Could not read directory")
                 })?
                 .map(move |path| VfsPath {
-                    path: format!("{parent}/{path}").into(),
+                    path: {
+                        let mut child_path = String::with_capacity(parent.len() + path.len() + 1);
+                        child_path.push_str(&parent);
+                        child_path.push('/');
+                        child_path.push_str(&path);
+                        child_path.into()
+                    },
                     fs: fs.clone(),
                 }),
         ))
